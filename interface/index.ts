@@ -18,13 +18,22 @@ export interface ServerConfig {
   githubPersonalAccessToken?: string;
 }
 
-export type SyncService = SyncServiceGithubIssueComment | SyncServiceRSS;
+export type SyncService =
+  | SyncServiceBilibiliCollection
+  | SyncServiceGithubIssueComment
+  | SyncServiceRSS;
 
 interface SyncServiceBase {
   id: string;
   type: SyncServiceType;
   label?: string;
   from?: Date;
+}
+
+export interface SyncServiceBilibiliCollection extends SyncServiceBase {
+  type: SyncServiceType.BILIBILI_COLLECTION;
+  /** 收藏夹 ID */
+  mediaId: number;
 }
 
 export interface SyncServiceGithubIssueComment extends SyncServiceBase {
@@ -47,6 +56,6 @@ export interface SyncServiceRSS extends SyncServiceBase {
 export interface TimelineItemAttachment {
   filename: string;
   url: string;
-  createdAt?: string;
-  updatedAt?: string;
+  created_at?: Date;
+  updated_at?: Date;
 }

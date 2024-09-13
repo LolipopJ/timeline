@@ -38,9 +38,8 @@ export const syncGithubIssueComments = async (
     id,
     from,
   });
-  const since = new Date(lastExecuteDate.getTime() + 1).toISOString();
   console.log(
-    `Syncing Github issue comments from ${owner}/${repo}/${issueNumber} since ${since}...`,
+    `Syncing Github issue comments from ${owner}/${repo}/${issueNumber} since ${lastExecuteDate.toISOString()}...`,
   );
 
   const comments: RestEndpointMethodTypes["issues"]["listComments"]["response"]["data"] =
@@ -52,7 +51,7 @@ export const syncGithubIssueComments = async (
       owner,
       repo,
       issue_number: issueNumber,
-      since,
+      since: new Date(lastExecuteDate.getTime() + 1).toISOString(),
       page,
       per_page: PER_PAGE,
     });
@@ -74,9 +73,9 @@ export const syncGithubIssueComments = async (
 
   await insertOrUpdateTimelineItems(
     comments.map((comment) => ({
-      content_id: String(comment.id),
       sync_service_id: id,
       sync_service_type: type,
+      content_id: String(comment.id),
       content: String(comment.body),
       url: comment.html_url,
       created_at: new Date(comment.created_at),

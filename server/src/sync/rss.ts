@@ -63,9 +63,10 @@ export const syncRSS = async (service: SyncServiceRSS) => {
         .map(
           (entry) =>
             ({
-              content_id: String(entry.id._text),
               sync_service_id: id,
               sync_service_type: type,
+              content_id: entry.id._text,
+              title: entry.title._text,
               content: entry.summary._text,
               url: entry.link._attributes.href,
               created_at: new Date(entry.published._text),
@@ -81,5 +82,3 @@ export const syncRSS = async (service: SyncServiceRSS) => {
     `Insert or update ${entries.length} RSS entries from ${url} successfully!`,
   );
 };
-
-export default syncRSS;

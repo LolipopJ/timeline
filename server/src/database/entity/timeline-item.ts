@@ -32,6 +32,9 @@ export class TimelineItem {
   @PrimaryColumn({ type: "text" })
   content_id!: string;
 
+  @Column({ type: "text", nullable: true })
+  title?: string;
+
   @Column({ type: "text" })
   content!: string;
 

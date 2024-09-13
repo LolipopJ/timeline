@@ -1,5 +1,6 @@
 import config from "../../../config/server";
 import { SyncServiceType } from "../../../enum";
+import { syncBilibiliCollections } from "./bilibili";
 import { syncGithubIssueComments } from "./github";
 import { syncRSS } from "./rss";
 
@@ -10,6 +11,8 @@ export const sync = async () => {
     const { services = [] } = config;
     const syncTasks = services.map((service) => {
       switch (service.type) {
+        case SyncServiceType.BILIBILI_COLLECTION:
+          return syncBilibiliCollections(service);
         case SyncServiceType.GITHUB_ISSUE_COMMENT:
           return syncGithubIssueComments(service);
         case SyncServiceType.RSS:
