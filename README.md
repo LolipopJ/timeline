@@ -69,13 +69,31 @@ export const serverConfig: ServerConfig = {
 }
 ```
 
+### RSS
+
+添加需要同步的站点 RSS：
+
+```ts
+export const serverConfig: ServerConfig = {
+  services: [
+    {
+      type: SyncServiceType.RSS,
+      id: 'MyBlog',
+      label: 'My Blog Articles',
+      syntax: 'atom',
+      url: 'https://blog.example.com/atom.xml',
+    },
+  ],
+}
+```
+
 ### Other Configurations
 
 ```ts
 export const serverConfig: ServerConfig = {
   /** 服务端监听端口 */
   listeningPort: 4000,
-  /** 同步 Timeline 信息的 Cron 规则；这里表示每 30 分钟执行一次同步 */
+  /** 同步 Timeline 信息的 Cron 规则；这里表示每小时的 0 和 30 分钟执行一次同步操作 */
   syncInterval: '*/30 * * * *',
 }
 ```

@@ -11,6 +11,13 @@ export const serverConfig: ServerConfig = {
     //   repo: "github_repo_name",
     //   issueNumber: 1,
     // },
+    // {
+    //   type: SyncServiceType.RSS,
+    //   id: "MyBlog",
+    //   label: "My Blog Articles",
+    //   syntax: "atom",
+    //   url: "https://blog.example.com/atom.xml",
+    // },
   ],
   database: {
     user: "your_postgresql_user",

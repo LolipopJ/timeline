@@ -27,7 +27,7 @@ new Elysia()
     console.log(`Timeline server is running at ${server?.url}`);
 
     await database.initialize();
-    console.info("Database connection initialized.");
+    console.log("Database connection initialized.");
 
     const syncJob = schedule.scheduleJob(
       config.syncInterval ?? "*/30 * * * *",
@@ -37,10 +37,10 @@ new Elysia()
   })
   .onStop(async () => {
     await schedule.gracefulShutdown();
-    console.info("Scheduled tasks cancelled.");
+    console.log("Scheduled tasks cancelled.");
 
     await database.destroy();
-    console.info("Database connection destroyed.");
+    console.log("Database connection destroyed.");
 
     process.exit(0);
   })

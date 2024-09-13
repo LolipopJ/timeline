@@ -24,8 +24,7 @@ interface SyncServiceBase {
   id: string;
   type: SyncServiceType;
   label?: string;
-  from?: string;
-  to?: string;
+  from?: Date;
 }
 
 export interface SyncServiceGithubIssueComment extends SyncServiceBase {
@@ -37,6 +36,11 @@ export interface SyncServiceGithubIssueComment extends SyncServiceBase {
 
 export interface SyncServiceRSS extends SyncServiceBase {
   type: SyncServiceType.RSS;
+  /**
+   * Supported syntaxes:
+   * `atom`: http://www.w3.org/2005/Atom
+   */
+  syntax?: "atom";
   url: string;
 }
 

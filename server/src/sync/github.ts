@@ -16,7 +16,7 @@ let githubAccountDetails: RestEndpointMethodTypes["users"]["getAuthenticated"]["
 export const getGithubAccountDetails = async () => {
   if (!githubAccountDetails) {
     const { data } = await octokit.rest.users.getAuthenticated();
-    console.info(
+    console.log(
       `Auth to Github successfully! You are logged as ${data.login}.`,
     );
 
@@ -27,9 +27,9 @@ export const getGithubAccountDetails = async () => {
 };
 
 export const syncGithubIssueComments = async (
-  options: SyncServiceGithubIssueComment,
+  service: SyncServiceGithubIssueComment,
 ) => {
-  const { id, type, from, owner, repo, issueNumber } = options;
+  const { id, type, from, owner, repo, issueNumber } = service;
   const PER_PAGE = 30;
 
   const { id: currentUserId } = await getGithubAccountDetails();
@@ -69,10 +69,10 @@ export const syncGithubIssueComments = async (
     }
   }
   console.log(
-    `Synced ${comments.length} Github issue comments from ${owner}/${repo}/${issueNumber} since ${since}.`,
+    `Synced ${comments.length} Github issue comments from ${owner}/${repo}/${issueNumber}.`,
   );
 
-  const res = await insertOrUpdateTimelineItems(
+  await insertOrUpdateTimelineItems(
     comments.map((comment) => ({
       content_id: String(comment.id),
       sync_service_id: id,
@@ -84,8 +84,6 @@ export const syncGithubIssueComments = async (
     })),
   );
   console.log(
-    `Insert or update ${comments.length} timeline items of Github issue comments from ${owner}/${repo}/${issueNumber} since ${since} successfully!`,
+    `Insert or update ${comments.length} timeline items of Github issue comments from ${owner}/${repo}/${issueNumber} successfully!`,
   );
-
-  return res;
 };
