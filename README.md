@@ -36,6 +36,12 @@ export const serverConfig: ServerConfig = {
 CREATE DATABASE timeline;
 ```
 
+开发环境下将使用添加 `_dev` 后缀名的数据库。因此，如果您需要进行二次开发，还应当创建名为 `timeline_dev` 的数据库：
+
+```sql
+CREATE DATABASE timeline_dev;
+```
+
 ### Github Issue Comment
 
 需要提供 Github Personal Access Token（[在此创建](https://github.com/settings/tokens/new?scopes=repo)）：

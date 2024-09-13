@@ -9,7 +9,9 @@ export const AppDataSource = new DataSource({
   port: config.database.port,
   username: config.database.user,
   password: config.database.password,
-  database: config.database.database,
+  database:
+    config.database.database +
+    (process.env.NODE_ENV === "development" ? "_dev" : ""),
   entities: [TimelineItem],
   synchronize: true,
   logging: false,
