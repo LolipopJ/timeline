@@ -87,6 +87,23 @@ export const serverConfig: ServerConfig = {
 }
 ```
 
+### Bilibili Collections
+
+添加需要同步的 Bilibili 收藏夹：
+
+```ts
+export const serverConfig: ServerConfig = {
+  services: [
+    {
+      type: SyncServiceType.BILIBILI_COLLECTION,
+      id: 'MyBilibiliCollections',
+      label: 'My Bilibili Collections',
+      mediaId: '75618059',
+    },
+  ],
+}
+```
+
 ### Other Configurations
 
 ```ts

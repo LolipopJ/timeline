@@ -41,8 +41,8 @@ export class TimelineItem {
   @Column({ type: "json", nullable: true })
   attachments?: TimelineItemAttachment[];
 
-  @Column({ type: "text" })
-  url!: string;
+  @Column({ type: "text", nullable: true })
+  url?: string;
 
   @VersionColumn()
   version?: number;

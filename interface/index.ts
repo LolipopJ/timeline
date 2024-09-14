@@ -15,13 +15,24 @@ export interface ServerConfig {
   };
   listeningPort?: number;
   syncInterval?: string;
+  /** https://github.com/settings/tokens/new?scopes=repo */
   githubPersonalAccessToken?: string;
+  /** https://steamcommunity.com/dev/apikey */
+  steamWebAPIKey?: string;
+}
+
+export interface TimelineItemAttachment {
+  filename: string;
+  url: string;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 export type SyncService =
   | SyncServiceBilibiliCollection
   | SyncServiceGithubIssueComment
-  | SyncServiceRSS;
+  | SyncServiceRSS
+  | SyncServiceSteamRecentlyPlayedTime;
 
 interface SyncServiceBase {
   id: string;
@@ -33,7 +44,7 @@ interface SyncServiceBase {
 export interface SyncServiceBilibiliCollection extends SyncServiceBase {
   type: SyncServiceType.BILIBILI_COLLECTION;
   /** 收藏夹 ID */
-  mediaId: number;
+  mediaId: string;
 }
 
 export interface SyncServiceGithubIssueComment extends SyncServiceBase {
@@ -53,9 +64,8 @@ export interface SyncServiceRSS extends SyncServiceBase {
   url: string;
 }
 
-export interface TimelineItemAttachment {
-  filename: string;
-  url: string;
-  created_at?: Date;
-  updated_at?: Date;
+export interface SyncServiceSteamRecentlyPlayedTime extends SyncServiceBase {
+  type: SyncServiceType.STEAM_RECENTLY_PLAYED_TIME;
+  /** https://help.steampowered.com/zh-cn/faqs/view/2816-BE67-5B69-0FEC */
+  steamId: string;
 }
