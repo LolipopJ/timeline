@@ -69,6 +69,7 @@ export const syncRSS = async (service: SyncServiceRSS) => {
               title: entry.title._text,
               content: entry.summary._text,
               url: entry.link._attributes.href,
+              metadata: JSON.stringify(entry),
               created_at: new Date(entry.published._text),
               updated_at: new Date(entry.updated._text),
             }) as TimelineItem,

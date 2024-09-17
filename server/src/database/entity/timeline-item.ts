@@ -35,14 +35,17 @@ export class TimelineItem {
   @Column({ type: "text", nullable: true })
   title?: string;
 
-  @Column({ type: "text" })
-  content!: string;
+  @Column({ type: "text", nullable: true })
+  content?: string;
+
+  @Column({ type: "text", nullable: true })
+  url?: string;
 
   @Column({ type: "json", nullable: true })
   attachments?: TimelineItemAttachment[];
 
   @Column({ type: "text", nullable: true })
-  url?: string;
+  metadata?: string;
 
   @VersionColumn()
   version?: number;

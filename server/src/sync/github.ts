@@ -78,6 +78,7 @@ export const syncGithubIssueComments = async (
       content_id: String(comment.id),
       content: String(comment.body),
       url: comment.html_url,
+      metadata: JSON.stringify(comment),
       created_at: new Date(comment.created_at),
       updated_at: new Date(comment.updated_at),
     })),

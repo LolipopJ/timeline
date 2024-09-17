@@ -99,11 +99,11 @@ export const syncSteamRecentlyPlayedGames = async (
       sync_service_id: id,
       sync_service_type: type,
       content_id: currentDate.toLocaleDateString(),
-      content: JSON.stringify(game),
       attachments: [
         { filename: "header.jpg", url: getSteamGameHeaderImage(game.appid) },
         { filename: "capsule.jpg", url: getSteamGameCapsuleImage(game.appid) },
       ],
+      metadata: JSON.stringify(game),
       created_at: currentDate,
       updated_at: currentDate,
     })),

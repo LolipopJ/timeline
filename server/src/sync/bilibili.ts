@@ -99,6 +99,7 @@ export const syncBilibiliCollections = async (
       content_id: String(collection.id),
       title: collection.title,
       content: collection.intro,
+      url: `https://www.bilibili.com/video/${collection.bvid}`,
       attachments: [
         {
           filename: `cover.${collection.cover.split(".").pop()}`,
@@ -106,7 +107,7 @@ export const syncBilibiliCollections = async (
           created_at: new Date(collection.ctime * 1000),
         },
       ],
-      url: `https://www.bilibili.com/video/${collection.bvid}`,
+      metadata: JSON.stringify(collection),
       created_at: new Date(collection.fav_time * 1000),
       updated_at: new Date(collection.fav_time * 1000),
     })),
