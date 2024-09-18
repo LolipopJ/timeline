@@ -31,7 +31,7 @@ export interface TimelineItemAttachment {
 export type SyncService =
   | SyncServiceBilibiliCollection
   | SyncServiceGithubIssueComment
-  | SyncServiceRSS
+  | SyncServiceFeed
   | SyncServiceSteamRecentlyPlayedTime;
 
 interface SyncServiceBase {
@@ -54,8 +54,8 @@ export interface SyncServiceGithubIssueComment extends SyncServiceBase {
   issueNumber: number;
 }
 
-export interface SyncServiceRSS extends SyncServiceBase {
-  type: SyncServiceType.RSS;
+export interface SyncServiceFeed extends SyncServiceBase {
+  type: SyncServiceType.FEED;
   /**
    * Supported syntaxes:
    * `atom`: http://www.w3.org/2005/Atom

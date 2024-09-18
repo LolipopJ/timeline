@@ -1,7 +1,7 @@
 import axios from "axios";
 import { xml2json } from "xml-js";
 
-import type { SyncServiceRSS } from "../../../interface";
+import type { SyncServiceFeed } from "../../../interface";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type TimelineItem from "../database/entity/timeline-item";
 
@@ -46,20 +46,20 @@ interface AtomJSON {
   };
 }
 
-export const syncRSS = async (service: SyncServiceRSS) => {
+export const syncFeed = async (service: SyncServiceFeed) => {
   const { id, type, from = new Date(0), syntax = "atom", url } = service;
   const since = from.toISOString();
 
-  console.log(`Syncing RSS entries from ${url} since ${since}...`);
-  const getRSSRes = await axios.get(url);
+  console.log(`Syncing feed entries from ${url} since ${since}...`);
+  const getFeedRes = await axios.get(url);
 
-  const RSSContent = getRSSRes.data;
-  const RSSJson = JSON.parse(xml2json(RSSContent, { compact: true }));
+  const feedContent = getFeedRes.data;
+  const feedJSON = JSON.parse(xml2json(feedContent, { compact: true }));
   let entries: TimelineItem[] = [];
   switch (syntax) {
     case "atom":
     default:
-      entries = (RSSJson as AtomJSON).feed.entry
+      entries = (feedJSON as AtomJSON).feed.entry
         .map(
           (entry) =>
             ({
@@ -76,10 +76,10 @@ export const syncRSS = async (service: SyncServiceRSS) => {
         )
         .filter((entry) => entry.created_at >= from);
   }
-  console.log(`Synced ${entries.length} RSS entries from ${url}.`);
+  console.log(`Synced ${entries.length} feed entries from ${url}.`);
 
   await insertOrUpdateTimelineItems(entries);
   console.log(
-    `Insert or update ${entries.length} RSS entries from ${url} successfully!`,
+    `Insert or update ${entries.length} feed entries from ${url} successfully!`,
   );
 };

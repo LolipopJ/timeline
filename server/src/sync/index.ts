@@ -1,8 +1,8 @@
 import config from "../../../config/server";
 import { SyncServiceType } from "../../../enum";
 import { syncBilibiliCollections } from "./bilibili";
+import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
-import { syncRSS } from "./rss";
 import { syncSteamRecentlyPlayedGames } from "./steam";
 
 export const sync = async () => {
@@ -14,10 +14,10 @@ export const sync = async () => {
       switch (service.type) {
         case SyncServiceType.BILIBILI_COLLECTION:
           return syncBilibiliCollections(service);
+        case SyncServiceType.FEED:
+          return syncFeed(service);
         case SyncServiceType.GITHUB_ISSUE_COMMENT:
           return syncGithubIssueComments(service);
-        case SyncServiceType.RSS:
-          return syncRSS(service);
         case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
           return syncSteamRecentlyPlayedGames(service);
         default:

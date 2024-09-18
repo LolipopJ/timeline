@@ -42,6 +42,41 @@ CREATE DATABASE timeline;
 CREATE DATABASE timeline_dev;
 ```
 
+### Bilibili Collections
+
+添加需要同步的 Bilibili 收藏夹：
+
+```ts
+export const serverConfig: ServerConfig = {
+  services: [
+    {
+      type: SyncServiceType.BILIBILI_COLLECTION,
+      id: 'MyBilibiliCollections',
+      label: 'My Bilibili Collections',
+      mediaId: '75618059',
+    },
+  ],
+}
+```
+
+### Feed
+
+添加需要同步的站点 Feed：
+
+```ts
+export const serverConfig: ServerConfig = {
+  services: [
+    {
+      type: SyncServiceType.FEED,
+      id: 'MyBlog',
+      label: 'My Blog Articles',
+      syntax: 'atom',
+      url: 'https://blog.example.com/atom.xml',
+    },
+  ],
+}
+```
+
 ### Github Issue Comment
 
 需要提供 Github Personal Access Token（[在此创建](https://github.com/settings/tokens/new?scopes=repo)）：
@@ -64,41 +99,6 @@ export const serverConfig: ServerConfig = {
       owner: 'github_repo_owner',
       repo: 'github_repo_name',
       issueNumber: 1,
-    },
-  ],
-}
-```
-
-### RSS
-
-添加需要同步的站点 RSS：
-
-```ts
-export const serverConfig: ServerConfig = {
-  services: [
-    {
-      type: SyncServiceType.RSS,
-      id: 'MyBlog',
-      label: 'My Blog Articles',
-      syntax: 'atom',
-      url: 'https://blog.example.com/atom.xml',
-    },
-  ],
-}
-```
-
-### Bilibili Collections
-
-添加需要同步的 Bilibili 收藏夹：
-
-```ts
-export const serverConfig: ServerConfig = {
-  services: [
-    {
-      type: SyncServiceType.BILIBILI_COLLECTION,
-      id: 'MyBilibiliCollections',
-      label: 'My Bilibili Collections',
-      mediaId: '75618059',
     },
   ],
 }
