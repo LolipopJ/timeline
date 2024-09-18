@@ -1,10 +1,14 @@
-import type { SyncServiceType } from "../enum/index";
+import type { SyncServiceType } from "../enums/index";
 
 export interface ClientConfig {
+  server?: import("axios").CreateAxiosDefaults;
   metadata: import("next").Metadata;
 }
 
 export interface ServerConfig {
+  client?: {
+    origin?: string;
+  };
   services: SyncService[];
   database: {
     user: string;
@@ -34,7 +38,7 @@ export type SyncService =
   | SyncServiceFeed
   | SyncServiceSteamRecentlyPlayedTime;
 
-interface SyncServiceBase {
+export interface SyncServiceBase {
   id: string;
   type: SyncServiceType;
   label?: string;

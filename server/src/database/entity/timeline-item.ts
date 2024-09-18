@@ -8,8 +8,8 @@ import {
   VersionColumn,
 } from "typeorm";
 
-import { SyncServiceType } from "../../../../enum";
-import type { TimelineItemAttachment } from "../../../../interface";
+import { SyncServiceType } from "../../../../enums";
+import type { TimelineItemAttachment } from "../../../../interfaces";
 
 @Entity()
 @Unique("unique_service_content", ["sync_service_id", "content_id"])

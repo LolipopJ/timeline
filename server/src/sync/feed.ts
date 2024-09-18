@@ -1,7 +1,7 @@
 import axios from "axios";
 import { xml2json } from "xml-js";
 
-import type { SyncServiceFeed } from "../../../interface";
+import type { SyncServiceFeed } from "../../../interfaces";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type TimelineItem from "../database/entity/timeline-item";
 

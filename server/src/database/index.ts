@@ -1,6 +1,6 @@
 import { DataSource } from "typeorm";
 
-import config from "../../../config/server";
+import config from "../../../configs/server";
 import TimelineItem from "./entity/timeline-item";
 
 export const AppDataSource = new DataSource({

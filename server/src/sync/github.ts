@@ -1,8 +1,8 @@
 import type { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import { Octokit } from "octokit";
 
-import config from "../../../config/server";
-import type { SyncServiceGithubIssueComment } from "../../../interface";
+import config from "../../../configs/server";
+import type { SyncServiceGithubIssueComment } from "../../../interfaces";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,

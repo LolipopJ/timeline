@@ -1,5 +1,5 @@
-import config from "../../../config/server";
-import { SyncServiceType } from "../../../enum";
+import config from "../../../configs/server";
+import { SyncServiceType } from "../../../enums";
 import { syncBilibiliCollections } from "./bilibili";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";

@@ -1,0 +1,26 @@
+@import 'https://cdn.jsdelivr.net/npm/heti/umd/heti.min.css';
+@import 'https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown-dark.min.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b0b0b;
+  --background-2: #0d1117;
+  --background-3: #161b22;
+  --foreground: #e6edf3;
+}
+
+@layer base {
+  body {
+    @apply text-foreground bg-background;
+  }
+}
+
+@layer components {
+  .image-intro {
+    background-color: #0b0b0baa;
+    @apply backdrop-blur-sm absolute inset-x-0 p-4 whitespace-pre-wrap;
+  }
+}

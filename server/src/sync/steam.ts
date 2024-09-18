@@ -1,7 +1,7 @@
 import axios from "axios";
 
-import config from "../../../config/server";
-import type { SyncServiceSteamRecentlyPlayedTime } from "../../../interface";
+import config from "../../../configs/server";
+import type { SyncServiceSteamRecentlyPlayedTime } from "../../../interfaces";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 
 interface SteamUserSummary {

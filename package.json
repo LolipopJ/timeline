@@ -12,9 +12,11 @@
     "lint:server": "eslint server"
   },
   "dependencies": {
+    "@elysiajs/cors": "^1.1.1",
     "axios": "^1.7.7",
     "elysia": "^1.1.12",
     "lodash-es": "^4.17.21",
+    "marked": "^14.1.2",
     "next": "^14.2.12",
     "node-schedule": "^2.1.1",
     "octokit": "^4.0.2",
@@ -23,6 +25,7 @@
     "react-dom": "^18",
     "react-transition-group": "^4.4.5",
     "reflect-metadata": "^0.2.2",
+    "swr": "^2.2.5",
     "typeorm": "^0.3.20",
     "xml-js": "^1.6.11"
   },

@@ -1,0 +1,15 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript",
+    "plugin:tailwindcss/recommended",
+    "plugin:prettier/recommended"
+  ],
+  "plugins": ["simple-import-sort"],
+  "rules": {
+    "tailwindcss/no-custom-classname": 0,
+    "simple-import-sort/imports": "error",
+    "simple-import-sort/exports": "error"
+  },
+  "root": true
+}
