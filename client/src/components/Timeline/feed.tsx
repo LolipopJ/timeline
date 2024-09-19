@@ -2,7 +2,7 @@ import type { TimelineComponent } from "@/interfaces/timeline";
 import parseMarkdownToHtml from "@/utils/marked";
 
 export default function TimelineItemFeed(props: TimelineComponent) {
-  const { item, className, ...rest } = props;
+  const { item, className = "", ...rest } = props;
 
   return (
     <div className={`${className} feed`} {...rest}>

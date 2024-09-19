@@ -3,14 +3,14 @@ import type { TimelineComponent } from "@/interfaces/timeline";
 export default function TimelineItemBilibiliCollection(
   props: TimelineComponent,
 ) {
-  const { item, className, ...rest } = props;
+  const { item, className = "", ...rest } = props;
   const cover = item.attachments?.[0];
 
   return (
     <div className={`${className} bilibili-collection`} {...rest}>
       {cover && (
         <div className="relative">
-          <a href={item.url} target="_blank">
+          <a href={item.url} target="_blank" className="select-none">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img alt={`${cover.url}`} src={cover.url} />
           </a>

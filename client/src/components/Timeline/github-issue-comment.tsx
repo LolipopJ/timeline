@@ -4,7 +4,7 @@ import parseMarkdownToHtml from "@/utils/marked";
 export default function TimelineItemGithubIssueComment(
   props: TimelineComponent,
 ) {
-  const { item, className, ...rest } = props;
+  const { item, className = "", ...rest } = props;
 
   return (
     <div className={`${className} github-issue-comment`} {...rest}>

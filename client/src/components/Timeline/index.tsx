@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KeyLoader } from "swr";
 import useSWRInfinite from "swr/infinite";
 
@@ -9,6 +9,7 @@ import { fetcherGET } from "@/services/axios";
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
 import TimelineItemBilibiliCollection from "./bilibili-collection";
+import { TimelineCurrentDate } from "./current-date";
 import TimelineItemFeed from "./feed";
 import TimelineItemGithubIssueComment from "./github-issue-comment";
 import TimelineItemLabel from "./item-label";
@@ -28,15 +29,14 @@ const getTimelineItemsKey: NonNullable<KeyLoader> = (
 };
 
 export default function Timeline(props: TimelineProps) {
+  const { className = "", ...rest } = props;
+
+  const [currenDate, setCurrentDate] = useState<Date>();
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
 
   const {
     data: timelineItems,
-    // error,
-    isLoading,
     isValidating,
-    // mutate,
-    // size,
     setSize,
   } = useSWRInfinite<TimelineItemClient[]>(getTimelineItemsKey, fetcherGET);
   const isFullyLoaded =
@@ -61,15 +61,43 @@ export default function Timeline(props: TimelineProps) {
         loadMoreObserver.unobserve(loadMoreButton);
       };
     }
-  });
+  }, [isValidating, setSize]);
 
-  if (isLoading) return null;
+  useEffect(() => {
+    if (isValidating) return;
+
+    const timelineItemDOMs = document.querySelectorAll(".timeline-item");
+    if (timelineItemDOMs.length) {
+      const loadMoreObserver = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            const timelineItemCreateAt =
+              entry.target.getAttribute("data-created-at");
+            if (timelineItemCreateAt) {
+              const timelineItemCreateAtDate = new Date(timelineItemCreateAt);
+              setCurrentDate(timelineItemCreateAtDate);
+            }
+          }
+        },
+        { threshold: 0 },
+      );
+      timelineItemDOMs.forEach((dom) => {
+        loadMoreObserver.observe(dom);
+      });
+      return () => {
+        timelineItemDOMs.forEach((dom) => {
+          loadMoreObserver.unobserve(dom);
+        });
+      };
+    }
+  }, [isValidating]);
 
   return (
-    <div {...props}>
+    <div className={`${className} relative`} {...rest}>
+      {currenDate && <TimelineCurrentDate date={currenDate} />}
       {timelineItems?.map((itemsArray) =>
         itemsArray.map((item) => {
-          const { id, sync_service_type } = item;
+          const { id, sync_service_type, created_at } = item;
 
           let element = <></>;
           const elementProps: TimelineComponent = {
@@ -95,7 +123,12 @@ export default function Timeline(props: TimelineProps) {
           }
 
           return (
-            <div key={id} className="relative mb-8 flex flex-col">
+            <div
+              key={id}
+              id={id}
+              className="timeline-item relative mb-8 flex flex-col"
+              data-created-at={created_at}
+            >
               <TimelineItemLabel item={item} />
               {element}
             </div>

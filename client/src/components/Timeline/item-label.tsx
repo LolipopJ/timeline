@@ -17,14 +17,7 @@ interface TimelineItemLabelProps {
   className?: string;
 }
 
-const labelItemBaseClassName =
-  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full lg:text-base";
-const labelIconBaseOptions: Partial<IconProps> = {
-  size: 0.75,
-  className: "mr-1",
-};
-
-const getLabelIcon = (type: SyncServiceType) => {
+const getLabelIconPath = (type: SyncServiceType) => {
   let path = mdiCommentProcessing;
 
   switch (type) {
@@ -39,13 +32,20 @@ const getLabelIcon = (type: SyncServiceType) => {
       break;
   }
 
-  return <Icon path={path} {...labelIconBaseOptions} />;
+  return path;
+};
+
+const labelItemBaseClassName =
+  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full lg:text-base";
+const labelIconBaseOptions: Partial<IconProps> = {
+  size: 0.75,
+  className: "mr-1",
 };
 
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
     item: { sync_service_type, created_at, updated_at, label },
-    className,
+    className = "",
     ...rest
   } = props;
 
@@ -58,8 +58,13 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       className={`mb-3 flex cursor-default justify-between lg:mb-0 ${className}`}
       {...rest}
     >
-      <div className={`${labelItemBaseClassName} font-bold lg:top-2`}>
-        {getLabelIcon(sync_service_type)}
+      <div
+        className={`${labelItemBaseClassName} text-primary font-bold lg:top-2`}
+      >
+        <Icon
+          path={getLabelIconPath(sync_service_type)}
+          {...labelIconBaseOptions}
+        />
         <span>{label}</span>
       </div>
       <div className={`${labelItemBaseClassName} lg:top-10`}>
