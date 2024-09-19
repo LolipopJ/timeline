@@ -15,7 +15,7 @@ import type { TimelineItemAttachment } from "../../../../interfaces";
 @Unique("unique_service_content", ["sync_service_id", "content_id"])
 export class TimelineItem {
   @PrimaryGeneratedColumn("uuid")
-  id?: string;
+  id!: string;
 
   @Column({ type: "uuid", nullable: true })
   parent_id?: string;

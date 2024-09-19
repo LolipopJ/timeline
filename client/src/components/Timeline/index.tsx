@@ -11,6 +11,7 @@ import type { TimelineItemClient } from "../../../../interfaces/api";
 import TimelineItemBilibiliCollection from "./bilibili-collection";
 import TimelineItemFeed from "./feed";
 import TimelineItemGithubIssueComment from "./github-issue-comment";
+import TimelineItemLabel from "./item-label";
 
 export interface TimelineProps {
   className?: string;
@@ -68,31 +69,37 @@ export default function Timeline(props: TimelineProps) {
     <div {...props}>
       {timelineItems?.map((itemsArray) =>
         itemsArray.map((item) => {
-          const itemProps: TimelineComponent = {
+          const { id, sync_service_type } = item;
+
+          let element = <></>;
+          const elementProps: TimelineComponent = {
             item,
-            ["data-id"]: item.id,
-            ["data-type"]: item.sync_service_type,
-            ["data-label"]: item.label,
-            className: "mb-8 rounded-lg overflow-hidden",
+            className: "rounded-lg overflow-hidden",
           };
 
-          if (item.sync_service_type === SyncServiceType.BILIBILI_COLLECTION) {
-            return (
-              <TimelineItemBilibiliCollection key={item.id} {...itemProps} />
-            );
+          switch (sync_service_type) {
+            case SyncServiceType.BILIBILI_COLLECTION:
+              element = <TimelineItemBilibiliCollection {...elementProps} />;
+              break;
+            case SyncServiceType.FEED:
+              element = <TimelineItemFeed {...elementProps} />;
+              break;
+            case SyncServiceType.GITHUB_ISSUE_COMMENT:
+              element = <TimelineItemGithubIssueComment {...elementProps} />;
+              break;
+            default:
+              element = <div>{JSON.stringify(item)}</div>;
+              console.warn(
+                `Unknown timeline item type \`${sync_service_type}\``,
+              );
           }
 
-          if (item.sync_service_type === SyncServiceType.FEED) {
-            return <TimelineItemFeed key={item.id} {...itemProps} />;
-          }
-
-          if (item.sync_service_type === SyncServiceType.GITHUB_ISSUE_COMMENT) {
-            return (
-              <TimelineItemGithubIssueComment key={item.id} {...itemProps} />
-            );
-          }
-
-          return null;
+          return (
+            <div key={id} className="relative mb-8 flex flex-col">
+              <TimelineItemLabel item={item} />
+              {element}
+            </div>
+          );
         }),
       )}
       <div className={`text-center ${isFullyLoaded && "hidden"}`}>

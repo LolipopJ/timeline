@@ -18,7 +18,13 @@ export default function TimelineItemBilibiliCollection(
             className="image-intro top-0 font-bold sm:text-lg"
             title={item.title}
           >
-            <span className="line-clamp-1">{item.title}</span>
+            <a
+              href={item.url}
+              target="_blank"
+              className="hover:text-primary line-clamp-1 transition"
+            >
+              {item.title}
+            </a>
           </h1>
           {item.content && (
             <p

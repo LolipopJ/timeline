@@ -93,24 +93,34 @@ export const syncBilibiliCollections = async (
   );
 
   await insertOrUpdateTimelineItems(
-    collections.map((collection) => ({
-      sync_service_id: id,
-      sync_service_type: type,
-      content_id: String(collection.id),
-      title: collection.title,
-      content: collection.intro,
-      url: `https://www.bilibili.com/video/${collection.bvid}`,
-      attachments: [
-        {
-          filename: `cover.${collection.cover.split(".").pop()}`,
-          url: collection.cover,
-          created_at: new Date(collection.ctime * 1000),
-        },
-      ],
-      metadata: JSON.stringify(collection),
-      created_at: new Date(collection.fav_time * 1000),
-      updated_at: new Date(collection.fav_time * 1000),
-    })),
+    collections.map((collection) => {
+      const cTime = new Date(collection.ctime * 1000);
+
+      let favTime = new Date(collection.fav_time * 1000);
+      if (favTime.toISOString() === "2020-07-06T15:35:56.000Z") {
+        // B 站接口没有记录此日期前的收藏时间，因此将接口中的 ctime 记录为收藏时间
+        favTime = cTime;
+      }
+
+      return {
+        sync_service_id: id,
+        sync_service_type: type,
+        content_id: String(collection.id),
+        title: collection.title,
+        content: collection.intro,
+        url: `https://www.bilibili.com/video/${collection.bvid}`,
+        attachments: [
+          {
+            filename: `cover.${collection.cover.split(".").pop()}`,
+            url: collection.cover,
+            created_at: cTime,
+          },
+        ],
+        metadata: JSON.stringify(collection),
+        created_at: favTime,
+        updated_at: favTime,
+      };
+    }),
   );
   console.log(
     `Insert or update ${collections.length} timeline items of Bilibili collections from ${mediaId} successfully!`,

@@ -84,11 +84,14 @@
     .markdown-body {
       @apply overflow-auto;
       max-height: 80vh;
+    }
+  }
 
-      img {
-        @apply mx-auto rounded;
-        max-height: 60vh;
-      }
+  .feed,
+  .github-issue-comment {
+    img {
+      @apply mx-auto rounded;
+      max-height: 60vh;
     }
   }
 }

@@ -2,7 +2,7 @@ import type { SyncServiceType } from "../enums/index";
 
 export interface ClientConfig {
   server?: import("axios").CreateAxiosDefaults;
-  metadata: import("next").Metadata;
+  metadata?: import("next").Metadata;
 }
 
 export interface ServerConfig {
