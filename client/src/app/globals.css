@@ -27,6 +27,18 @@
     @apply text-foreground bg-background antialiased;
   }
 
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-700 hover:bg-gray-600 rounded;
+  }
+
   ::selection {
     @apply text-foreground-light bg-primary-dark;
   }
@@ -70,6 +82,9 @@
 
   .github-issue-comment {
     .markdown-body {
+      @apply overflow-auto;
+      max-height: 80vh;
+
       img {
         @apply mx-auto rounded;
         max-height: 60vh;
