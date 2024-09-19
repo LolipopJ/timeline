@@ -4,12 +4,12 @@ import parseMarkdownToHtml from "@/utils/marked";
 export default function TimelineItemGithubIssueComment(
   props: TimelineComponent,
 ) {
-  const { item, ...rest } = props;
+  const { item, className, ...rest } = props;
 
   return (
-    <div {...rest}>
-      <div
-        className="markdown-body p-4"
+    <div className={`${className} github-issue-comment`} {...rest}>
+      <article
+        className="markdown-body px-6 py-8"
         dangerouslySetInnerHTML={{
           __html: parseMarkdownToHtml(String(item.content)),
         }}

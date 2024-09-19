@@ -22,11 +22,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        primary: "var(--primary)",
+        ["primary-light"]: "var(--primary-light)",
+        ["primary-dark"]: "var(--primary-dark)",
         background: "var(--background)",
-        ["background-1"]: "var(--background)",
-        ["background-2"]: "var(--background-2)",
-        ["background-3"]: "var(--background-3)",
+        ["background-light"]: "var(--background-light)",
+        ["background-lighter"]: "var(--background-lighter)",
         foreground: "var(--foreground)",
+        ["foreground-light"]: "var(--foreground-light)",
+        ["foreground-dark"]: "var(--foreground-dark)",
       },
     },
   },

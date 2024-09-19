@@ -1,16 +1,20 @@
 "use client";
+import { useEffect, useRef } from "react";
 import type { KeyLoader } from "swr";
 import useSWRInfinite from "swr/infinite";
 
 import type { TimelineComponent } from "@/interfaces/timeline";
 import { fetcherGET } from "@/services/axios";
-import { parseMarkdownToHtml } from "@/utils/marked";
 
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
 import TimelineItemBilibiliCollection from "./bilibili-collection";
 import TimelineItemFeed from "./feed";
 import TimelineItemGithubIssueComment from "./github-issue-comment";
+
+export interface TimelineProps {
+  className?: string;
+}
 
 const PAGE_LIMIT = 20;
 
@@ -22,29 +26,53 @@ const getTimelineItemsKey: NonNullable<KeyLoader> = (
   return `/timeline-items?page=${pageIndex}&limit=${PAGE_LIMIT}`;
 };
 
-export default function Timeline() {
+export default function Timeline(props: TimelineProps) {
+  const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
+
   const {
     data: timelineItems,
-    error,
+    // error,
     isLoading,
     isValidating,
-    mutate,
-    size,
+    // mutate,
+    // size,
     setSize,
   } = useSWRInfinite<TimelineItemClient[]>(getTimelineItemsKey, fetcherGET);
-
-  if (!timelineItems || isLoading) return null;
-  const isFullLoaded =
+  const isFullyLoaded =
+    timelineItems &&
     timelineItems[timelineItems.length - 1].length < PAGE_LIMIT;
 
+  useEffect(() => {
+    if (isValidating) return;
+
+    const loadMoreButton = loadMoreButtonRef.current;
+    if (loadMoreButton) {
+      const loadMoreObserver = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setSize((prev) => prev + 1);
+          }
+        },
+        { threshold: 0 },
+      );
+      loadMoreObserver.observe(loadMoreButton);
+      return () => {
+        loadMoreObserver.unobserve(loadMoreButton);
+      };
+    }
+  });
+
+  if (isLoading) return null;
+
   return (
-    <div className="">
-      {timelineItems.map((itemsArray) =>
+    <div {...props}>
+      {timelineItems?.map((itemsArray) =>
         itemsArray.map((item) => {
           const itemProps: TimelineComponent = {
             item,
             ["data-id"]: item.id,
             ["data-type"]: item.sync_service_type,
+            ["data-label"]: item.label,
             className: "mb-8 rounded-lg overflow-hidden",
           };
 
@@ -67,11 +95,16 @@ export default function Timeline() {
           return null;
         }),
       )}
-      {!isFullLoaded && (
-        <button onClick={() => setSize(size + 1)} disabled={isLoading}>
-          加载更多
+      <div className={`text-center ${isFullyLoaded && "hidden"}`}>
+        <button
+          ref={loadMoreButtonRef}
+          className="bg-background-light hover:bg-background-lighter rounded border-2 px-3 py-2 transition"
+          onClick={() => setSize((prev) => prev + 1)}
+          disabled={isValidating}
+        >
+          {isValidating ? "加载中..." : "加载更多"}
         </button>
-      )}
+      </div>
     </div>
   );
 }
