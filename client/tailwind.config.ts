@@ -32,6 +32,12 @@ const config: Config = {
         ["foreground-light"]: "var(--foreground-light)",
         ["foreground-dark"]: "var(--foreground-dark)",
       },
+      maxHeight: {
+        "screen-4/5": "80vh",
+        "screen-3/5": "60vh",
+        "screen-2/5": "40vh",
+        "screen-1/5": "20vh",
+      },
     },
   },
   plugins: [],

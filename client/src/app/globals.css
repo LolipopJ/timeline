@@ -84,16 +84,14 @@
 
   .github-issue-comment {
     .markdown-body {
-      @apply overflow-auto;
-      max-height: 80vh;
+      @apply lg:overflow-auto lg:max-h-screen-4/5;
     }
   }
 
   .feed,
   .github-issue-comment {
     img {
-      @apply mx-auto rounded;
-      max-height: 60vh;
+      @apply mx-auto rounded max-h-screen-3/5;
     }
   }
 }
