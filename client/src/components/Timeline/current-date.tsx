@@ -1,3 +1,6 @@
+import { useRef } from "react";
+import { CSSTransition, SwitchTransition } from "react-transition-group";
+
 interface TimelineCurrentDateProps {
   date: Date;
   className?: string;
@@ -5,7 +8,7 @@ interface TimelineCurrentDateProps {
 
 const NUMBER_ZH = ["〇", "壹", "貳", "叁", "肆", "伍", "陸", "柒", "捌", "玖"];
 const MONTH_ZH = [
-  "冬至元月",
+  "寒至元月",
   "暖冬二月",
   "陽春三月",
   "春和四月",
@@ -18,6 +21,20 @@ const MONTH_ZH = [
   "寒秋十一",
   "歲末十二",
 ];
+const MONTH_COLOR = [
+  "text-neutral-100",
+  "text-lime-100",
+  "text-lime-300",
+  "text-green-300",
+  "text-emerald-200",
+  "text-teal-300",
+  "text-cyan-300",
+  "text-sky-300",
+  "text-orange-200",
+  "text-amber-300",
+  "text-amber-100",
+  "text-yellow-50",
+];
 
 const getYearZh = (year: number) => {
   return Array.from(String(year))
@@ -25,20 +42,43 @@ const getYearZh = (year: number) => {
     .join("");
 };
 
-const getMonthZh = (month: number) => MONTH_ZH[month];
-
 export function TimelineCurrentDate(props: TimelineCurrentDateProps) {
   const { date, className = "" } = props;
+  const monthNodeRef = useRef<HTMLDivElement>(null);
 
-  const yearZh = getYearZh(date.getFullYear());
-  const monthZh = getMonthZh(date.getMonth());
+  const fullYear = date.getFullYear();
+  const month = date.getMonth();
+
+  const yearZh = getYearZh(fullYear);
+  const monthZh = MONTH_ZH[month];
+  const monthColor = MONTH_COLOR[month];
 
   return (
     <div
       className={`fixed hidden -translate-x-full select-none pr-4 lg:block ${className}`}
     >
       <div className="text-xl font-bold">{yearZh}</div>
-      <div className="text-primary text-3xl font-black">{monthZh}</div>
+      <SwitchTransition>
+        <CSSTransition
+          key={month}
+          nodeRef={monthNodeRef}
+          addEndListener={(done) => {
+            monthNodeRef?.current?.addEventListener(
+              "transitionend",
+              done,
+              false,
+            );
+          }}
+          classNames="fade-y"
+        >
+          <div
+            ref={monthNodeRef}
+            className={`${monthColor} text-3xl font-black`}
+          >
+            {monthZh}
+          </div>
+        </CSSTransition>
+      </SwitchTransition>
     </div>
   );
 }

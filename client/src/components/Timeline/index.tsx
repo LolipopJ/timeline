@@ -1,4 +1,6 @@
 "use client";
+import "./index.css";
+
 import { useEffect, useRef, useState } from "react";
 import type { KeyLoader } from "swr";
 import useSWRInfinite from "swr/infinite";

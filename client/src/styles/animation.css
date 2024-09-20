@@ -1,0 +1,49 @@
+@tailwind components;
+
+@layer components {
+  .fade-x-enter {
+    opacity: 0;
+    transform: translateX(-50%);
+  }
+  .fade-x-enter-active {
+    opacity: 1;
+    transform: translateX(0%);
+  }
+  .fade-x-exit {
+    opacity: 1;
+    transform: translateX(0%);
+  }
+  .fade-x-exit-active {
+    opacity: 0;
+    transform: translateX(50%);
+  }
+  .fade-x-enter-active,
+  .fade-x-exit-active {
+    transition:
+      opacity 150ms,
+      transform 150ms;
+  }
+
+  .fade-y-enter {
+    opacity: 0;
+    transform: translateY(-50%);
+  }
+  .fade-y-enter-active {
+    opacity: 1;
+    transform: translateY(0%);
+  }
+  .fade-y-exit {
+    opacity: 1;
+    transform: translateY(0%);
+  }
+  .fade-y-exit-active {
+    opacity: 0;
+    transform: translateY(50%);
+  }
+  .fade-y-enter-active,
+  .fade-y-exit-active {
+    transition:
+      opacity 150ms,
+      transform 150ms;
+  }
+}

@@ -1,0 +1,56 @@
+@import 'https://cdn.jsdelivr.net/npm/heti/umd/heti.min.css';
+@import 'https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown-dark.min.css';
+
+@tailwind components;
+
+@layer components {
+  .bilibili-collection {
+    img {
+      @apply w-full;
+    }
+
+    .image-intro {
+      @apply backdrop-blur-sm absolute px-4 py-3 inset-x-0 whitespace-pre-wrap;
+      background-color: #0b0b0baa;
+    }
+  }
+
+  .feed {
+    .heti {
+      h1 {
+        @apply hover:text-primary transition;
+      }
+
+      figure {
+        @apply text-left;
+
+        table {
+          @apply ms-0 me-0;
+        }
+      }
+
+      blockquote {
+        p {
+          &:last-child {
+            @apply my-2 mx-1;
+          }
+        }
+      }
+    }
+  }
+
+  .github-issue-comment {
+    .markdown-body {
+      @apply overflow-auto;
+      max-height: 80vh;
+    }
+  }
+
+  .feed,
+  .github-issue-comment {
+    img {
+      @apply mx-auto rounded;
+      max-height: 60vh;
+    }
+  }
+}
