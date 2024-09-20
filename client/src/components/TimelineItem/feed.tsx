@@ -5,7 +5,7 @@ export default function TimelineItemFeed(props: TimelineComponent) {
   const { item, className = "", ...rest } = props;
 
   return (
-    <div className={`${className} feed`} {...rest}>
+    <div className={`feed ${className}`} {...rest}>
       <article className="heti bg-background-light max-w-none px-6">
         <a href={item.url} target="_blank">
           <h1>{item.title}</h1>

@@ -7,7 +7,7 @@ export default function TimelineItemBilibiliCollection(
   const cover = item.attachments?.[0];
 
   return (
-    <div className={`${className} bilibili-collection`} {...rest}>
+    <div className={`bilibili-collection ${className}`} {...rest}>
       {cover && (
         <div className="relative">
           <a href={item.url} target="_blank" className="select-none">

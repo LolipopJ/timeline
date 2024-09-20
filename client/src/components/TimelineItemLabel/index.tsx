@@ -55,7 +55,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
 
   return (
     <div
-      className={`mb-3 flex cursor-default justify-between lg:mb-0 ${className}`}
+      className={`mb-3 flex select-none justify-between lg:mb-0 ${className}`}
       {...rest}
     >
       <div

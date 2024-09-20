@@ -7,7 +7,7 @@ export default function TimelineItemGithubIssueComment(
   const { item, className = "", ...rest } = props;
 
   return (
-    <div className={`${className} github-issue-comment`} {...rest}>
+    <div className={`github-issue-comment ${className}`} {...rest}>
       <article
         className="markdown-body px-6 py-8"
         dangerouslySetInnerHTML={{

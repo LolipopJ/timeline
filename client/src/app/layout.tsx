@@ -15,9 +15,7 @@ export default function RootLayout({
         <meta name="referrer" content="no-referrer" />
       </head>
       <body>
-        <main className="max-w-screen-md px-4 py-6 sm:px-6 sm:py-8 md:mx-auto md:px-8 md:py-10">
-          {children}
-        </main>
+        <main>{children}</main>
       </body>
     </html>
   );
