@@ -12,6 +12,9 @@
     "isolatedModules": true,
     "incremental": true,
     "jsx": "preserve",
+    // TypeORM
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
     "plugins": [
       {
         "name": "next"

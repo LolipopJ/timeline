@@ -115,31 +115,30 @@ export const serverConfig: ServerConfig = {
 }
 ```
 
-## Deployment
-
-### Client
-
-```bash
-bun --bun run build:client
-bun --bun run start:client
-```
-
-### Server
-
-```bash
-bun run start:server
-```
-
 ## Development
 
 ### Client
 
 ```bash
-bun --bun run dev:client
+bun run dev:client
 ```
 
 ### Server
 
 ```bash
 bun run dev:server
+```
+
+## Deployment
+
+### Client
+
+```bash
+bun run build:client
+```
+
+### Server
+
+```bash
+bun run start:server
 ```
