@@ -1,5 +1,5 @@
 import { SyncServiceType } from "../enums";
-import type { ServerConfig } from "../interfaces";
+import type { ServerConfig } from "../interfaces/server";
 
 export const serverConfig: ServerConfig = {
   services: [

@@ -1,6 +1,6 @@
 import type { FindManyOptions, FindOptionsWhere } from "typeorm";
 
-import type { SyncService } from "../../../../interfaces";
+import type { SyncService } from "../../../../interfaces/server";
 import TimelineItem from "../entity/timeline-item";
 import dataSource from "../index";
 
@@ -48,4 +48,10 @@ export const getTimelineItemsBy = async (
   options: FindOptionsWhere<TimelineItem>,
 ) => {
   return await dataSource.getRepository(TimelineItem).findBy(options);
+};
+
+export const countTimelineItems = async (
+  options?: FindManyOptions<TimelineItem>,
+) => {
+  return await dataSource.getRepository(TimelineItem).count(options);
 };

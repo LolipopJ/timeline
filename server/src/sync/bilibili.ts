@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import type { SyncServiceBilibiliCollection } from "../../../interfaces";
+import type { SyncServiceBilibiliCollection } from "../../../interfaces/server";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,

@@ -8,11 +8,15 @@ import { ILike } from "typeorm";
 import config from "../../configs/server";
 import type { SyncServiceType } from "../../enums";
 import type {
+  CountTimelineItemsParams,
   GetTimelineItemsParams,
   TimelineItemClient,
 } from "../../interfaces/api";
 import database from "./database";
-import { getTimelineItems } from "./database/controller/timeline-item";
+import {
+  countTimelineItems,
+  getTimelineItems,
+} from "./database/controller/timeline-item";
 import sync from "./sync";
 
 const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
@@ -39,27 +43,31 @@ new Elysia()
     } = query as GetTimelineItemsParams;
 
     const take = Number(limit);
+    if (take > 100) return [];
+
     const skip = Number(page) * take;
+
     const baseOptionWhere = {
       sync_service_id: serviceId,
       sync_service_type: serviceType as SyncServiceType,
     };
+    const where = search
+      ? [
+          {
+            ...baseOptionWhere,
+            title: ILike(`%${search}%`),
+          },
+          {
+            ...baseOptionWhere,
+            content: ILike(`%${search}%`),
+          },
+        ]
+      : baseOptionWhere;
 
     const timelineItems = await getTimelineItems({
       take,
       skip,
-      where: search
-        ? [
-            {
-              ...baseOptionWhere,
-              title: ILike(`%${search}%`),
-            },
-            {
-              ...baseOptionWhere,
-              content: ILike(`%${search}%`),
-            },
-          ]
-        : baseOptionWhere,
+      where,
     });
 
     const resolvedTimelineItems: TimelineItemClient[] = timelineItems.map(
@@ -78,6 +86,28 @@ new Elysia()
     );
 
     return resolvedTimelineItems;
+  })
+  .get("/timeline-items/count", async ({ query }) => {
+    const { serviceId, serviceType, search } =
+      query as CountTimelineItemsParams;
+    const baseOptionWhere = {
+      sync_service_id: serviceId,
+      sync_service_type: serviceType as SyncServiceType,
+    };
+    const where = search
+      ? [
+          {
+            ...baseOptionWhere,
+            title: ILike(`%${search}%`),
+          },
+          {
+            ...baseOptionWhere,
+            content: ILike(`%${search}%`),
+          },
+        ]
+      : baseOptionWhere;
+    const timelineItemsCount = await countTimelineItems({ where });
+    return timelineItemsCount;
   })
   .onStart(async ({ server }) => {
     console.log(
