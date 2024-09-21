@@ -65,14 +65,11 @@
 
       figure.highlight {
         @apply mx-0;
+      }
 
-        table {
-          @apply w-full;
-
-          td.code {
-            @apply w-full;
-          }
-        }
+      figure.highlight table,
+      figure.highlight table td.code {
+        @apply w-full;
       }
     }
   }
