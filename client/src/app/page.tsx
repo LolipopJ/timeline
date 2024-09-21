@@ -12,7 +12,9 @@ import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-iss
 import TimelineItemLabel from "@/components/TimelineItemLabel";
 import TimelineOwner from "@/components/TimelineOwner";
 import TimelineProgress from "@/components/TimelineProgress";
-import TimelineSearch from "@/components/TimelineSearch";
+import TimelineSearch, {
+  type TimelineSearchProps,
+} from "@/components/TimelineSearch";
 import useDebounce from "@/hooks/useDebounce";
 import type { TimelineComponent } from "@/interfaces/timeline";
 import { fetcherGET } from "@/services/axios";
@@ -24,10 +26,14 @@ import type { TimelineItemClient } from "../../../interfaces/api";
 const PAGE_LIMIT = 20;
 
 export default function Home() {
-  const [searchParams, setSearchParams] = useState<{ search?: string }>({});
+  const [searchParams, setSearchParams] = useState<{ search?: string }>({
+    search: "",
+  });
   const debouncedSearchParams = useDebounce(searchParams, 500);
+
   const [currenDate, setCurrentDate] = useState<Date>(new Date());
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
 
   const getTimelineItemsKey = useCallback<NonNullable<KeyLoader>>(
@@ -120,6 +126,15 @@ export default function Home() {
     }
   }, [isValidatingTimelineItems]);
 
+  const timelineSearchProps = useMemo<TimelineSearchProps>(
+    () => ({
+      onChange: (e) =>
+        setSearchParams((prev) => ({ ...prev, search: e.target.value })),
+      onClear: () => setSearchParams((prev) => ({ ...prev, search: "" })),
+    }),
+    [],
+  );
+
   return (
     <div className="mt-20 max-w-screen-md px-4 py-6 sm:px-6 sm:py-8 md:mx-auto md:mt-24 md:px-8 md:py-10 lg:mt-0">
       <>
@@ -129,13 +144,8 @@ export default function Home() {
           >
             <TimelineCurrentDate date={currenDate} className="min-w-28" />
             <TimelineSearch
+              {...timelineSearchProps}
               value={searchParams.search}
-              onChange={(e) =>
-                setSearchParams((prev) => ({ ...prev, search: e.target.value }))
-              }
-              onClear={() =>
-                setSearchParams((prev) => ({ ...prev, search: "" }))
-              }
               className="ml-auto mr-12 hidden w-40 sm:block md:mr-16 md:w-48"
             />
             <TimelineOwner
@@ -150,13 +160,8 @@ export default function Home() {
           >
             <TimelineCurrentDate date={currenDate} />
             <TimelineSearch
+              {...timelineSearchProps}
               value={searchParams.search}
-              onChange={(e) =>
-                setSearchParams((prev) => ({ ...prev, search: e.target.value }))
-              }
-              onClear={() =>
-                setSearchParams((prev) => ({ ...prev, search: "" }))
-              }
               className="-ml-1.5 mt-6"
             />
             <TimelineProgress
@@ -211,7 +216,7 @@ export default function Home() {
             );
           }),
         )}
-      <div className={`text-center`}>
+      <div className={`select-none text-center`}>
         {isFullyLoaded ? (
           <span className="text-foreground-dark">没有更多噜</span>
         ) : (

@@ -9,6 +9,8 @@ import {
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
 
+import { getDateLocaleString } from "@/utils/date";
+
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
 
@@ -49,9 +51,14 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     ...rest
   } = props;
 
-  const createdAt = new Date(created_at).toLocaleString();
-  const updatedAt = new Date(updated_at).toLocaleString();
+  const createdAt = new Date(created_at);
+  const updatedAt = new Date(updated_at);
   const hasUpdated = updatedAt !== createdAt;
+
+  const createdAtString = createdAt.toLocaleString();
+  const updatedAtString = updatedAt.toLocaleString();
+
+  const createdAtDisplayString = getDateLocaleString(createdAt);
 
   return (
     <div
@@ -74,10 +81,11 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
         />
         <span
           title={
-            hasUpdated ? `最后更新于：${updatedAt}` : `创建于：${createdAt}`
+            `创建于：${createdAtString}` +
+            (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
           }
         >
-          {createdAt}
+          {createdAtDisplayString}
         </span>
       </div>
     </div>
