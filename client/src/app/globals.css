@@ -50,30 +50,28 @@
     img {
       @apply w-full;
     }
-
-    .image-intro {
-      @apply backdrop-blur-sm absolute px-4 py-3 inset-x-0 whitespace-pre-wrap;
-      background-color: #0b0b0baa;
-    }
   }
 
-  .markdown-body {
-    a {
-      @apply transition text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
-    }
+  .feed,
+  .github-issue-comment {
+    .markdown-body {
+      a {
+        @apply transition text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
+      }
 
-    img {
-      @apply mx-auto rounded max-h-screen-3/5;
-    }
+      img {
+        @apply mx-auto rounded max-h-screen-3/5;
+      }
 
-    figure.highlight {
-      @apply mx-0;
+      figure.highlight {
+        @apply mx-0;
 
-      table {
-        @apply w-full;
-
-        td.code {
+        table {
           @apply w-full;
+
+          td.code {
+            @apply w-full;
+          }
         }
       }
     }

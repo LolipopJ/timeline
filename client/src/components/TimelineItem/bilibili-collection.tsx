@@ -1,5 +1,8 @@
 import type { TimelineComponent } from "@/interfaces/timeline";
 
+const imageIntroClassName =
+  "bg-neutral-950/60 backdrop-blur-sm absolute px-4 py-3 inset-x-0 whitespace-pre-wrap";
+
 export default function TimelineItemBilibiliCollection(
   props: TimelineComponent,
 ) {
@@ -15,7 +18,7 @@ export default function TimelineItemBilibiliCollection(
             <img alt={`${cover.url}`} src={cover.url} />
           </a>
           <h1
-            className="image-intro top-0 font-bold sm:text-lg"
+            className={`${imageIntroClassName} image-intro top-0 font-bold sm:text-lg`}
             title={item.title}
           >
             <a
@@ -28,7 +31,7 @@ export default function TimelineItemBilibiliCollection(
           </h1>
           {item.content && (
             <p
-              className="image-intro bottom-0 hidden text-sm sm:block"
+              className={`${imageIntroClassName} image-intro bottom-0 hidden text-sm sm:block`}
               title={item.content}
             >
               <span className="line-clamp-4 md:line-clamp-5">
