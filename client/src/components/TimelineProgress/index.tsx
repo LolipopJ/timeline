@@ -21,7 +21,7 @@ export default function TimelineProgress(props: TimelineProgressProps) {
         {...rest}
       >
         <div
-          className="bg-foreground w-2 transition-all"
+          className="bg-foreground w-full transition-all"
           style={{ height: `${progress}%` }}
         />
       </div>

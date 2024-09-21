@@ -36,7 +36,7 @@ const getLabelIconPath = (type: SyncServiceType) => {
 };
 
 const labelItemBaseClassName =
-  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full lg:text-base";
+  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base 2xl:text-lg";
 const labelIconBaseOptions: Partial<IconProps> = {
   size: 0.75,
   className: "mr-1",
@@ -67,7 +67,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
         />
         <span>{label}</span>
       </div>
-      <div className={`${labelItemBaseClassName} lg:top-10`}>
+      <div className={`${labelItemBaseClassName} lg:top-10 2xl:top-11`}>
         <Icon
           path={hasUpdated ? mdiClockTimeFive : mdiClockTimeFour}
           {...labelIconBaseOptions}

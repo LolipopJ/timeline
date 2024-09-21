@@ -54,8 +54,8 @@ export function TimelineCurrentDate(props: TimelineCurrentDateProps) {
   const monthColor = MONTH_COLOR[month];
 
   return (
-    <div className={`select-none ${className}`}>
-      <div className="text-lg font-bold md:text-xl">{yearZh}</div>
+    <div className={`select-none whitespace-nowrap ${className}`}>
+      <div className="text-lg font-bold md:text-xl 2xl:text-2xl">{yearZh}</div>
       <SwitchTransition>
         <CSSTransition
           key={month}
@@ -71,7 +71,7 @@ export function TimelineCurrentDate(props: TimelineCurrentDateProps) {
         >
           <div
             ref={monthNodeRef}
-            className={`${monthColor} text-2xl font-black md:text-3xl`}
+            className={`${monthColor} text-2xl font-black md:text-3xl 2xl:text-4xl`}
           >
             {monthZh}
           </div>

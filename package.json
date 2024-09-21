@@ -16,7 +16,6 @@
     "@mdi/react": "^1.6.1",
     "axios": "^1.7.7",
     "elysia": "^1.1.13",
-    "lodash-es": "^4.17.21",
     "marked": "^14.1.2",
     "next": "^14.2.13",
     "node-schedule": "^2.1.1",
@@ -32,7 +31,6 @@
   },
   "devDependencies": {
     "@types/bun": "^1.1.9",
-    "@types/lodash": "^4.17.7",
     "@types/node": "^20",
     "@types/node-schedule": "^2.1.7",
     "@types/pg": "^8.11.10",
