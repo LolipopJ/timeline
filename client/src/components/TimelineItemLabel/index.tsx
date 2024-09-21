@@ -19,23 +19,16 @@ interface TimelineItemLabelProps {
   className?: string;
 }
 
-const getLabelIconPath = (type: SyncServiceType) => {
-  let path = mdiCommentProcessing;
+const LABEL_ICON_PATH = {
+  [SyncServiceType.BILIBILI_COLLECTION]: mdiBookmarkMultiple,
+  [SyncServiceType.FEED]: mdiRssBox,
+  [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
+} as Record<SyncServiceType, string>;
 
-  switch (type) {
-    case SyncServiceType.BILIBILI_COLLECTION:
-      path = mdiBookmarkMultiple;
-      break;
-    case SyncServiceType.FEED:
-      path = mdiRssBox;
-      break;
-    case SyncServiceType.GITHUB_ISSUE_COMMENT:
-      path = mdiCommentText;
-      break;
-  }
-
-  return path;
-};
+const LABEL_TEXT_COLOR = {
+  [SyncServiceType.BILIBILI_COLLECTION]: "#fb7299",
+  [SyncServiceType.FEED]: "#818cf8",
+} as Record<SyncServiceType, string>;
 
 const labelItemBaseClassName =
   "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base 2xl:text-lg";
@@ -67,9 +60,10 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     >
       <div
         className={`${labelItemBaseClassName} text-primary font-bold lg:top-2`}
+        style={{ color: LABEL_TEXT_COLOR[sync_service_type] }}
       >
         <Icon
-          path={getLabelIconPath(sync_service_type)}
+          path={LABEL_ICON_PATH[sync_service_type] ?? mdiCommentProcessing}
           {...labelIconBaseOptions}
         />
         <span>{label}</span>

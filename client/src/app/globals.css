@@ -1,4 +1,3 @@
-@import url('https://cdn.jsdelivr.net/npm/heti/umd/heti.min.css');
 @import url('https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown-dark.min.css');
 
 @import url('../styles/animation.css');
@@ -58,25 +57,33 @@
     }
   }
 
-  .feed {
-    .heti {
-      h1 {
-        @apply hover:text-primary transition;
-      }
+  .markdown-body {
+    a {
+      @apply transition text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
+    }
 
-      figure {
-        @apply text-left;
+    img {
+      @apply mx-auto rounded max-h-screen-3/5;
+    }
 
-        table {
-          @apply ms-0 me-0;
+    figure.highlight {
+      @apply mx-0;
+
+      table {
+        @apply w-full;
+
+        td.code {
+          @apply w-full;
         }
       }
+    }
+  }
 
-      blockquote {
-        p {
-          &:last-child {
-            @apply my-2 mx-1;
-          }
+  .feed {
+    .markdown-body {
+      h1 {
+        a {
+          @apply text-foreground hover:text-primary hover:no-underline transition;
         }
       }
     }
@@ -85,13 +92,6 @@
   .github-issue-comment {
     .markdown-body {
       @apply lg:overflow-auto lg:max-h-screen-4/5;
-    }
-  }
-
-  .feed,
-  .github-issue-comment {
-    img {
-      @apply mx-auto rounded max-h-screen-3/5;
     }
   }
 }
