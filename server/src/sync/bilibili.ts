@@ -45,7 +45,7 @@ interface BilibiliCollection {
 export const syncBilibiliCollections = async (
   service: SyncServiceBilibiliCollection,
 ) => {
-  const { id, type, from, mediaId } = service;
+  const { id, type, from, secret, mediaId } = service;
 
   const lastExecuteDate = await getSyncTaskLastExecuteTime({
     id,
@@ -117,6 +117,7 @@ export const syncBilibiliCollections = async (
           },
         ],
         metadata: JSON.stringify(collection),
+        is_secret: secret,
         created_at: favTime,
         updated_at: favTime,
       };

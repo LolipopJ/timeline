@@ -20,6 +20,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      borderWidth: {
+        "1": "1px",
+      },
       colors: {
         primary: "var(--primary)",
         ["primary-light"]: "var(--primary-light)",

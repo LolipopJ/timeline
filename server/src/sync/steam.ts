@@ -73,7 +73,7 @@ const getSteamGameCapsuleImage = (appId: number) => {
 export const syncSteamRecentlyPlayedGames = async (
   service: SyncServiceSteamRecentlyPlayedTime,
 ) => {
-  const { id, type, steamId } = service;
+  const { id, type, secret, steamId } = service;
   const currentDate = new Date();
 
   console.log(`Syncing Steam recently played games for player ${steamId}...`);
@@ -104,6 +104,7 @@ export const syncSteamRecentlyPlayedGames = async (
         { filename: "capsule.jpg", url: getSteamGameCapsuleImage(game.appid) },
       ],
       metadata: JSON.stringify(game),
+      is_secret: secret,
       created_at: currentDate,
       updated_at: currentDate,
     })),

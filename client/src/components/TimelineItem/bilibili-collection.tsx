@@ -18,7 +18,7 @@ export default function TimelineItemBilibiliCollection(
             <img alt={`${cover.url}`} src={cover.url} />
           </a>
           <h1
-            className={`${imageIntroClassName} image-intro top-0 font-bold sm:text-lg`}
+            className={`${imageIntroClassName} top-0 font-bold sm:text-lg`}
             title={item.title}
           >
             <a
@@ -31,7 +31,7 @@ export default function TimelineItemBilibiliCollection(
           </h1>
           {item.content && (
             <p
-              className={`${imageIntroClassName} image-intro bottom-0 hidden text-sm sm:block`}
+              className={`${imageIntroClassName} bottom-0 hidden text-sm sm:block`}
               title={item.content}
             >
               <span className="line-clamp-4 md:line-clamp-5">

@@ -4,6 +4,7 @@ export enum SyncServiceType {
   QZONE = "QZone",
   FEED = "Feed",
   STEAM_RECENTLY_PLAYED_TIME = "SteamRecentlyPlayedTime",
+  TELEGRAM_CHAT = "TelegramChat",
   WEIBO = "Weibo",
   X = "X",
 }

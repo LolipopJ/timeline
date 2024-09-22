@@ -47,7 +47,14 @@ interface AtomJSON {
 }
 
 export const syncFeed = async (service: SyncServiceFeed) => {
-  const { id, type, from = new Date(0), syntax = "atom", url } = service;
+  const {
+    id,
+    type,
+    from = new Date(0),
+    secret,
+    syntax = "atom",
+    url,
+  } = service;
   const since = from.toISOString();
 
   console.log(`Syncing feed entries from ${url} since ${since}...`);
@@ -70,6 +77,7 @@ export const syncFeed = async (service: SyncServiceFeed) => {
               content: entry.summary._text,
               url: entry.link._attributes.href,
               metadata: JSON.stringify(entry),
+              is_secret: secret,
               created_at: new Date(entry.published._text),
               updated_at: new Date(entry.updated._text),
             }) as TimelineItem,

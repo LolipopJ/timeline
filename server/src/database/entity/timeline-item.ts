@@ -47,6 +47,9 @@ export class TimelineItem {
   @Column({ type: "text", nullable: true })
   metadata?: string;
 
+  @Column({ type: "boolean", nullable: true, default: false })
+  is_secret?: boolean;
+
   @VersionColumn()
   version?: number;
 

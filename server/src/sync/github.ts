@@ -29,7 +29,7 @@ export const getGithubAccountDetails = async () => {
 export const syncGithubIssueComments = async (
   service: SyncServiceGithubIssueComment,
 ) => {
-  const { id, type, from, owner, repo, issueNumber } = service;
+  const { id, type, from, secret, owner, repo, issueNumber } = service;
   const PER_PAGE = 30;
 
   const { id: currentUserId } = await getGithubAccountDetails();
@@ -79,6 +79,7 @@ export const syncGithubIssueComments = async (
       content: String(comment.body),
       url: comment.html_url,
       metadata: JSON.stringify(comment),
+      is_secret: secret,
       created_at: new Date(comment.created_at),
       updated_at: new Date(comment.updated_at),
     })),
