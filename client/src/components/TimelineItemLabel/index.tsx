@@ -1,7 +1,7 @@
 import {
   mdiBookmarkMultiple,
-  mdiClockTimeFive,
   mdiClockTimeFour,
+  mdiClockTimeSeven,
   mdiCommentProcessing,
   mdiCommentText,
   mdiRssBox,
@@ -46,7 +46,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
 
   const createdAt = new Date(created_at);
   const updatedAt = new Date(updated_at);
-  const hasUpdated = updatedAt !== createdAt;
+  const hasUpdated = updatedAt.getTime() !== createdAt.getTime();
 
   const createdAtString = createdAt.toLocaleString();
   const updatedAtString = updatedAt.toLocaleString();
@@ -70,7 +70,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       </div>
       <div className={`${labelItemBaseClassName} lg:top-10 2xl:top-11`}>
         <Icon
-          path={hasUpdated ? mdiClockTimeFive : mdiClockTimeFour}
+          path={hasUpdated ? mdiClockTimeSeven : mdiClockTimeFour}
           {...labelIconBaseOptions}
         />
         <span
