@@ -2,13 +2,13 @@ import type { SyncServiceType } from "../enums";
 import type TimelineItem from "../server/src/database/entity/timeline-item";
 import type { SyncServiceBase } from "./server";
 
-export interface GetTimelineItemsParams {
+export type GetTimelineItemsParams = {
   page?: string;
   limit?: string;
   serviceId?: string;
   serviceType?: SyncServiceType;
   search?: string;
-}
+};
 
 export interface CountTimelineItemsParams {
   serviceId?: string;

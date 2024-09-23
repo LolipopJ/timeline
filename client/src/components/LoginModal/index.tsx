@@ -14,10 +14,11 @@ import message from "../Message";
 export interface LoginModalProps {
   open: boolean;
   onClose: () => void;
+  onLogged: () => void;
 }
 
 export function LoginModal(props: LoginModalProps) {
-  const { open, onClose } = props;
+  const { open, onClose, onLogged } = props;
   const formRef = useRef<HTMLFormElement>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -32,13 +33,15 @@ export function LoginModal(props: LoginModalProps) {
 
       if (response.status === 200) {
         message.success(response.data);
-        onClose();
+        setTimeout(() => {
+          onLogged();
+        }, 1000);
       } else {
         message.error(response.data);
+        setLoading(false);
       }
     } catch (error) {
       message.error(String(error));
-    } finally {
       setLoading(false);
     }
   };
@@ -100,7 +103,7 @@ export function LoginModal(props: LoginModalProps) {
           <div>
             <button
               type="submit"
-              className="bg-primary-dark hover:bg-primary mt-2 w-full rounded py-3 tracking-widest transition"
+              className={`bg-primary-dark hover:bg-primary ${loading ? "!bg-disabled" : ""} mt-2 w-full rounded py-3 tracking-widest transition`}
               disabled={loading}
             >
               登 录

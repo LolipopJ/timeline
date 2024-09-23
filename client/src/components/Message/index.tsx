@@ -5,7 +5,7 @@ import {
   mdiInformationBox,
 } from "@mdi/js";
 import Icon from "@mdi/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
 import { v4 as uuid } from "uuid";
 
@@ -88,23 +88,25 @@ export function MessageContainer(props: MessageContainerProps) {
   } = props;
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const removeMessage = (message: Message) => {
+  const removeMessage = useCallback((message: Message) => {
     const { key } = message;
     setMessages((prev) => prev.filter((item) => item.key !== key));
-  };
+  }, []);
 
-  addMessage = (message) => {
-    setMessages((prev) => [...prev, message]);
-    setTimeout(() => {
-      removeMessage(message);
-    }, dismissTimeout);
-  };
+  useEffect(() => {
+    addMessage = (message) => {
+      setMessages((prev) => [...prev, message]);
+      setTimeout(() => {
+        removeMessage(message);
+      }, dismissTimeout);
+    };
+  }, [dismissTimeout, removeMessage]);
 
   useEffect(() => {
     if (messages.length > maxMessageNum) {
       removeMessage(messages[0]);
     }
-  }, [maxMessageNum, messages]);
+  }, [maxMessageNum, messages, removeMessage]);
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-12 z-50">
@@ -121,7 +123,7 @@ export function MessageContainer(props: MessageContainerProps) {
               key={message.key}
               type={message.type}
               text={message.text}
-              className={`pointer-events-auto mx-auto ${dismissOnClick ? "cursor-pointer" : ""}`}
+              className={`pointer-events-auto mx-auto mb-4 ${dismissOnClick ? "cursor-pointer" : ""}`}
               onClick={() => {
                 if (dismissOnClick) removeMessage(message);
               }}

@@ -31,7 +31,7 @@ const LABEL_TEXT_COLOR = {
 } as Record<SyncServiceType, string>;
 
 const labelItemBaseClassName =
-  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base 2xl:text-lg";
+  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base";
 const labelIconBaseOptions: Partial<IconProps> = {
   size: 0.75,
   className: "mr-1",

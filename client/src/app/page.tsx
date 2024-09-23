@@ -1,10 +1,13 @@
 "use client";
 
+import { mdiLoading, mdiSlashForwardBox } from "@mdi/js";
+import Icon from "@mdi/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyLoader } from "swr";
 import useSWR from "swr";
 import useSWRInfinite from "swr/infinite";
 
+import message from "@/components/Message";
 import { TimelineCurrentDate } from "@/components/TimelineCurrentDate";
 import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-collection";
 import TimelineItemFeed from "@/components/TimelineItem/feed";
@@ -21,12 +24,15 @@ import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 
 import { SyncServiceType } from "../../../enums";
-import type { TimelineItemClient } from "../../../interfaces/api";
+import type {
+  GetTimelineItemsParams,
+  TimelineItemClient,
+} from "../../../interfaces/api";
 
 const PAGE_LIMIT = 20;
 
 export default function Home() {
-  const [searchParams, setSearchParams] = useState<{ search?: string }>({
+  const [searchParams, setSearchParams] = useState<GetTimelineItemsParams>({
     search: "",
   });
   const debouncedSearchParams = useDebounce(searchParams, 500);
@@ -126,6 +132,13 @@ export default function Home() {
     }
   }, [isValidatingTimelineItems]);
 
+  useEffect(() => {
+    // 过滤得到的时间线列表为空时，显示消息提示
+    if (timelineItems && timelineItems[0].length === 0) {
+      message.info("时间线上没有更多的噜~");
+    }
+  }, [timelineItems]);
+
   const timelineSearchProps = useMemo<TimelineSearchProps>(
     () => ({
       onChange: (e) =>
@@ -216,17 +229,24 @@ export default function Home() {
             );
           }),
         )}
-      <div className={`select-none text-center`}>
+      <div className={`my-16 select-none text-center`}>
         {isFullyLoaded ? (
-          <span className="text-foreground-dark">没有更多噜</span>
+          <div className="text-foreground-dark">
+            <Icon path={mdiSlashForwardBox} className="mx-auto mb-1 size-7" />
+            <span>没有更多噜</span>
+          </div>
         ) : (
           <button
             ref={loadMoreButtonRef}
-            className="bg-background-light hover:bg-background-lighter rounded border-2 px-3 py-2 transition"
+            className={`bg-background-light ${isValidatingTimelineItems ? "!bg-disabled" : ""} hover:bg-background-lighter rounded border-2 px-3 py-2 transition`}
             onClick={() => setQueryTimelineItemsPage((prev) => prev + 1)}
             disabled={isValidatingTimelineItems}
           >
-            {isValidatingTimelineItems ? "加载中..." : "加载更多"}
+            {isValidatingTimelineItems ? (
+              <Icon path={mdiLoading} size={1} className="animate-spin" />
+            ) : (
+              "加载更多"
+            )}
           </button>
         )}
       </div>

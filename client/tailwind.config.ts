@@ -27,6 +27,7 @@ const config: Config = {
         primary: "var(--primary)",
         ["primary-light"]: "var(--primary-light)",
         ["primary-dark"]: "var(--primary-dark)",
+        disabled: "var(--disabled)",
         background: "var(--background)",
         ["background-light"]: "var(--background-light)",
         ["background-lighter"]: "var(--background-lighter)",

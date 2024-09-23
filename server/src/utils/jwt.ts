@@ -9,7 +9,7 @@ export class JWT {
 
   sign(record: string | Buffer | object, options?: jwt.SignOptions) {
     const token = jwt.sign(record, this.#secretKey, {
-      algorithm: "RS256",
+      algorithm: "HS256",
       ...options,
     });
     return token;
@@ -17,7 +17,7 @@ export class JWT {
 
   verify(token: string, options?: jwt.VerifyOptions) {
     const decoded = jwt.verify(token, this.#secretKey, {
-      algorithms: ["RS256"],
+      algorithms: ["HS256"],
       ...options,
     });
     return decoded;

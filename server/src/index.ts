@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { cors } from "@elysiajs/cors";
 import { Elysia } from "elysia";
+import type { ElysiaCookie } from "elysia/cookies";
 import schedule from "node-schedule";
 import { ILike } from "typeorm";
 
@@ -36,12 +37,23 @@ const ADMIN_ACCOUNTS = config.admin?.accounts ?? [];
 const COOKIE_TOKEN_KEY = "access-token";
 const jwt = new JWT(JWT_SECRET_KEY ?? "won't used");
 
+const COOKIE_OPTIONS: Partial<ElysiaCookie> = {
+  httpOnly: true,
+  sameSite: "strict",
+};
+
 new Elysia()
   .use(
     cors({
       origin: ALLOWED_ORIGIN,
+      credentials: true,
     }),
   )
+  .onError(({ request, error }) => {
+    console.error(
+      `An error occurred while resolving request \`${request.url}\`:\n\t${error}`,
+    );
+  })
   .onBeforeHandle(
     ({ path, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       if (!JWT_SECRET_KEY) {
@@ -57,6 +69,7 @@ new Elysia()
             console.error(
               `请求包含不合法的用户 Token：${cookieToken.value}\n${String(err)}`,
             );
+            cookieToken.set(COOKIE_OPTIONS);
             cookieToken.remove();
           }
         }
@@ -159,13 +172,17 @@ new Elysia()
         return "用户名或密码错误";
       } else {
         const token = jwt.sign({ username });
-        cookieToken.value = token;
-        cookieToken.set({ httpOnly: true, sameSite: "strict" });
+        cookieToken.set({
+          ...COOKIE_OPTIONS,
+          value: token,
+          maxAge: 60 * 60 * 24 * 365,
+        });
         return "您已登录";
       }
     },
   )
   .post("/logout", async ({ cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
+    cookieToken.set(COOKIE_OPTIONS);
     cookieToken.remove();
     return "您已登出";
   })
