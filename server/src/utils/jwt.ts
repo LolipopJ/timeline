@@ -1,14 +1,14 @@
 import jwt from "jsonwebtoken";
 
 export class JWT {
-  #secretKey = "";
+  secretKey = "";
 
   constructor(secretKey: string) {
-    this.#secretKey = secretKey;
+    this.secretKey = secretKey;
   }
 
   sign(record: string | Buffer | object, options?: jwt.SignOptions) {
-    const token = jwt.sign(record, this.#secretKey, {
+    const token = jwt.sign(record, this.secretKey, {
       algorithm: "HS256",
       ...options,
     });
@@ -16,7 +16,7 @@ export class JWT {
   }
 
   verify(token: string, options?: jwt.VerifyOptions) {
-    const decoded = jwt.verify(token, this.#secretKey, {
+    const decoded = jwt.verify(token, this.secretKey, {
       algorithms: ["HS256"],
       ...options,
     });
