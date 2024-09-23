@@ -2,8 +2,8 @@
 
 import "./globals.css";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import { LoginModal } from "@/components/LoginModal";
@@ -19,14 +19,24 @@ export default function RootLayout({
 }>) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const login = searchParams.get("login") !== null;
-  const logout = searchParams.get("logout") !== null;
+
+  const [initialized, setInitialized] = useState<boolean>(false);
+  const [login, setLogin] = useState<boolean>(false);
+  const [logout, setLogout] = useState<boolean>(false);
 
   const { isLoading: isRequestingLogout } = useSWR<string>(
     logout ? "/logout" : null,
     fetcherPOST,
   );
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    setLogin(params.get("login") !== null);
+    setLogout(params.get("logout") !== null);
+    setInitialized(true);
+  }, []);
+
   useEffect(() => {
     if (logout && !isRequestingLogout) {
       window.location.replace(pathname);
@@ -43,12 +53,17 @@ export default function RootLayout({
           ))}
       </head>
       <body className={`${login ? "overflow-hidden" : ""}`}>
-        <main>{logout ? null : children}</main>
-        <LoginModal
-          open={!!login}
-          onClose={() => router.replace(pathname)}
-          onLogged={() => window.location.replace(pathname)}
-        />
+        <main>{!initialized || logout ? null : children}</main>
+        {login && (
+          <LoginModal
+            open={true}
+            onClose={() => {
+              setLogin(false);
+              router.replace(pathname);
+            }}
+            onLogged={() => window.location.replace(pathname)}
+          />
+        )}
         <MessageContainer />
       </body>
     </html>

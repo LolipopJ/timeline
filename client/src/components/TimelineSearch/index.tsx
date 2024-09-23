@@ -1,9 +1,8 @@
 import { mdiCloseThick, mdiCommentSearch } from "@mdi/js";
 import Icon from "@mdi/react";
-import { type InputHTMLAttributes } from "react";
 
 export interface TimelineSearchProps
-  extends InputHTMLAttributes<HTMLInputElement> {
+  extends React.InputHTMLAttributes<HTMLInputElement> {
   onClear?: () => void;
 }
 
