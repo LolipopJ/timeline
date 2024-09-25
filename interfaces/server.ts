@@ -51,8 +51,9 @@ export interface TimelineItemAttachment {
 
 export type SyncService =
   | SyncServiceBilibiliCollection
-  | SyncServiceGithubIssueComment
   | SyncServiceFeed
+  | SyncServiceGithubIssueComment
+  | SyncServiceQzoneTalk
   | SyncServiceSteamRecentlyPlayedTime;
 
 export interface SyncServiceBase {
@@ -72,13 +73,6 @@ export interface SyncServiceBilibiliCollection extends SyncServiceBase {
   mediaId: string;
 }
 
-export interface SyncServiceGithubIssueComment extends SyncServiceBase {
-  type: SyncServiceType.GITHUB_ISSUE_COMMENT;
-  owner: string;
-  repo: string;
-  issueNumber: number;
-}
-
 export interface SyncServiceFeed extends SyncServiceBase {
   type: SyncServiceType.FEED;
   /**
@@ -87,6 +81,18 @@ export interface SyncServiceFeed extends SyncServiceBase {
    */
   syntax?: "atom";
   url: string;
+}
+
+export interface SyncServiceGithubIssueComment extends SyncServiceBase {
+  type: SyncServiceType.GITHUB_ISSUE_COMMENT;
+  owner: string;
+  repo: string;
+  issueNumber: number;
+}
+
+export interface SyncServiceQzoneTalk extends SyncServiceBase {
+  type: SyncServiceType.QZONE_TALK;
+  qqNumber: string;
 }
 
 export interface SyncServiceSteamRecentlyPlayedTime extends SyncServiceBase {

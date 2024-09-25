@@ -3,11 +3,12 @@ import "reflect-metadata";
 import { cors } from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import type { ElysiaCookie } from "elysia/cookies";
+import fs from "fs";
 import schedule from "node-schedule";
 import { ILike } from "typeorm";
 
 import config from "../../configs/server";
-import type { SyncServiceType } from "../../enums";
+import { SyncServiceType } from "../../enums";
 import type {
   CountTimelineItemsParams,
   GetTimelineItemsParams,
@@ -21,6 +22,11 @@ import {
 } from "./database/controller/timeline-item";
 import sync from "./sync";
 import { JWT } from "./utils/jwt";
+import {
+  generateQZoneLoginQRCode,
+  getQZoneQRCodeFilePath,
+  pollGetQZoneLoginQRCodeScanResult,
+} from "./utils/qzone";
 
 const PORT = Number(config.listeningPort ?? 4000);
 
@@ -34,6 +40,7 @@ const SYNC_INTERVAL = config.syncInterval ?? "*/30 * * * *";
 
 const JWT_SECRET_KEY = config.admin?.secretKey;
 const ADMIN_ACCOUNTS = config.admin?.accounts ?? [];
+const IS_ADMIN_ENABLED = JWT_SECRET_KEY && ADMIN_ACCOUNTS.length;
 const COOKIE_TOKEN_KEY = "access-token";
 const jwt = new JWT(JWT_SECRET_KEY ?? "won't used");
 
@@ -56,26 +63,43 @@ new Elysia()
   })
   .onBeforeHandle(
     ({ path, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
-      if (!JWT_SECRET_KEY) {
-        if (["/login", "/logout"].includes(path)) {
-          set.status = 405;
-          return "管理员功能未启用";
-        }
-      } else {
+      if (IS_ADMIN_ENABLED) {
+        // 服务端启用了管理员功能，在正式处理请求前校验登录态
+        let isCookieValidated = false;
         if (cookieToken.value) {
           try {
+            // 若校验通过，后续路由可以通过 cookieToken.value 值是否为空来判断是否已登录
             jwt.verify(cookieToken.value);
-          } catch (err: unknown) {
+            isCookieValidated = true;
+          } catch (error) {
+            // 校验不通过，清除 cookieToken.value
             console.error(
-              `请求包含不合法的用户 Token：${cookieToken.value}\n${String(err)}`,
+              `请求包含不合法的用户 Token \`${cookieToken.value}\`。`,
+              String(error),
             );
             cookieToken.set(COOKIE_OPTIONS);
             cookieToken.remove();
           }
         }
+
+        // 启用管理员功能时，如校验不通过，拦截敏感操作路由
+        // 若未启用管理员功能，这些路由将正常放行
+        if (!isCookieValidated) {
+          if (["/qzone-login"].includes(path)) {
+            set.status = 400;
+            return "您未登录，或登录已过期";
+          }
+        }
+      } else {
+        // 服务端未启用管理员功能，拦截登录相关路由
+        if (["/login", "/logout"].includes(path)) {
+          set.status = 400;
+          return "管理员功能未启用";
+        }
       }
     },
   )
+  //#region 时间线接口
   .get(
     "/timeline-items",
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
@@ -160,6 +184,8 @@ new Elysia()
       return timelineItemsCount;
     },
   )
+  //#endregion
+  //#region 系统管理员用户登录、登出
   .post(
     "/login",
     async ({ body, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
@@ -186,6 +212,38 @@ new Elysia()
     cookieToken.remove();
     return "您已登出";
   })
+  //#endregion
+  //#region QQ 空间扫码登录
+  .get("/qzone-login", async ({ query, set }) => {
+    const { qqNumber } = query;
+    if (!qqNumber) {
+      set.status = 400;
+      return "请求参数错误";
+    }
+
+    const currentService = config.services.find(
+      (service) =>
+        service.type === SyncServiceType.QZONE_TALK &&
+        service.qqNumber === qqNumber,
+    );
+    if (!currentService) {
+      set.status = 400;
+      return "未配置 QQ 空间说说同步服务或请求参数错误";
+    }
+
+    const qrsig = await generateQZoneLoginQRCode(qqNumber);
+    if (!qrsig) {
+      set.status = 500;
+      return "服务端生成登录二维码异常";
+    }
+
+    pollGetQZoneLoginQRCodeScanResult(qqNumber, qrsig);
+
+    const qrCodeImage = fs.readFileSync(getQZoneQRCodeFilePath(qqNumber));
+    set.headers["content-type"] = "image/png";
+    return qrCodeImage;
+  })
+  //#endregion
   .onStart(async ({ server }) => {
     console.log(
       `Timeline server is running at ${server?.url ?? `127.0.0.1:${server?.port}`}`,

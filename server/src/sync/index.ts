@@ -3,6 +3,7 @@ import { SyncServiceType } from "../../../enums";
 import { syncBilibiliCollections } from "./bilibili";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
+import { syncQQZoneTalks } from "./qzone";
 import { syncSteamRecentlyPlayedGames } from "./steam";
 
 export const sync = async () => {
@@ -18,6 +19,8 @@ export const sync = async () => {
           return syncFeed(service);
         case SyncServiceType.GITHUB_ISSUE_COMMENT:
           return syncGithubIssueComments(service);
+        case SyncServiceType.QZONE_TALK:
+          return syncQQZoneTalks(service);
         case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
           return syncSteamRecentlyPlayedGames(service);
         default:
