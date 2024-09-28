@@ -5,6 +5,7 @@ import {
   mdiCommentProcessing,
   mdiCommentText,
   mdiRssBox,
+  mdiStarShooting,
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
@@ -23,11 +24,14 @@ const LABEL_ICON_PATH = {
   [SyncServiceType.BILIBILI_COLLECTION]: mdiBookmarkMultiple,
   [SyncServiceType.FEED]: mdiRssBox,
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
+  [SyncServiceType.QZONE_TALK]: mdiStarShooting,
 } as Record<SyncServiceType, string>;
 
 const LABEL_TEXT_COLOR = {
   [SyncServiceType.BILIBILI_COLLECTION]: "#fb7299",
   [SyncServiceType.FEED]: "#818cf8",
+  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "#61bfad",
+  [SyncServiceType.QZONE_TALK]: "#cc8f14",
 } as Record<SyncServiceType, string>;
 
 const labelItemBaseClassName =

@@ -12,6 +12,7 @@ import { TimelineCurrentDate } from "@/components/TimelineCurrentDate";
 import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-collection";
 import TimelineItemFeed from "@/components/TimelineItem/feed";
 import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
+import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
 import TimelineItemLabel from "@/components/TimelineItemLabel";
 import TimelineOwner from "@/components/TimelineOwner";
 import TimelineProgress from "@/components/TimelineProgress";
@@ -207,6 +208,9 @@ export default function Home() {
                 break;
               case SyncServiceType.GITHUB_ISSUE_COMMENT:
                 element = <TimelineItemGithubIssueComment {...elementProps} />;
+                break;
+              case SyncServiceType.QZONE_TALK:
+                element = <TimelineItemQQZoneTalk {...elementProps} />;
                 break;
               default:
                 element = <div>{JSON.stringify(item)}</div>;
