@@ -1,4 +1,9 @@
+import pathToFfmpeg from "ffmpeg-static";
 import Ffmpeg from "fluent-ffmpeg";
+
+if (pathToFfmpeg) {
+  Ffmpeg.setFfmpegPath(pathToFfmpeg);
+}
 
 export const convertVideoToM3u8 = (
   videoFilePath: string,
