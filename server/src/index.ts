@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import { cors } from "@elysiajs/cors";
+import { staticPlugin } from "@elysiajs/static";
 import { Elysia } from "elysia";
 import type { ElysiaCookie } from "elysia/cookies";
 import fs from "fs";
@@ -15,12 +16,14 @@ import type {
   TimelineItemClient,
 } from "../../interfaces/api";
 import type { LoginAccount } from "../../interfaces/server";
+import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import database from "./database";
 import {
   countTimelineItems,
   getTimelineItems,
 } from "./database/controller/timeline-item";
 import sync from "./sync";
+import { checkupDir } from "./utils/file";
 import { JWT } from "./utils/jwt";
 import {
   generateQZoneLoginQRCode,
@@ -49,11 +52,20 @@ const COOKIE_OPTIONS: Partial<ElysiaCookie> = {
   sameSite: "strict",
 };
 
+checkupDir(SERVER_TEMPORARY_DIR);
+checkupDir(SERVER_STATIC_DIR);
+
 new Elysia()
   .use(
     cors({
       origin: ALLOWED_ORIGIN,
       credentials: true,
+    }),
+  )
+  .use(
+    staticPlugin({
+      assets: SERVER_STATIC_DIR,
+      prefix: "/static",
     }),
   )
   .onError(({ request, error }) => {

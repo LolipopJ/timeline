@@ -41,3 +41,6 @@ next-env.d.ts
 
 # server cache
 /server/.temporary
+
+# server static files
+/server/.static

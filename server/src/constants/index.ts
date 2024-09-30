@@ -1,6 +1,7 @@
 import path from "path";
 
 export const SERVER_TEMPORARY_DIR = path.resolve(__dirname, "../../.temporary");
+export const SERVER_STATIC_DIR = path.resolve(__dirname, "../../.static");
 
 //#region request headers
 export const USER_AGENT_DESKTOP =

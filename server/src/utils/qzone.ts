@@ -101,6 +101,9 @@ const getQZoneLoginQRCodeScanResult = async (
     const responseText = response.data as string;
 
     if (responseText.includes("登录成功")) {
+      console.log(
+        `QQ Zone login QR code is scanned and confirm logged. ${responseText}`,
+      );
       const cookies = response.headers["set-cookie"]?.map((item) =>
         parseSetCookieToCookie(item),
       );
@@ -138,6 +141,9 @@ const getQZoneLoginQRCodeScanResult = async (
         const savePath = getQZoneCookiesFilePath(qqNumber);
         checkupDir(path.dirname(savePath));
         fs.writeFileSync(savePath, JSON.stringify(resultCookies, null, 2));
+        console.log(
+          `QQ Zone cookies are saved to \`${savePath}\` successfully!`,
+        );
 
         return resultCookies;
       }

@@ -1,52 +1,69 @@
-import { useEffect } from "react";
-import videojs from "video.js";
-
+import { SERVER_STATIC_PREFIX } from "@/constants";
 import type { TimelineComponent } from "@/interfaces/timeline";
+
+import VideoPlayer from "../VideoPlayer";
+
+const resolveQQZoneContent = (content: string) => {
+  return content
+    .replace(
+      /\[em\](.*?)\[\/em\]/g,
+      '<img alt="$1" src="http://qzonestyle.gtimg.cn/qzone/em/$1.gif" class="inline">',
+    )
+    .replace(/@{.*?,nick:(.*?),.*?}/g, "@$1");
+};
+
+const QQ_ZONE_VIDEO_EXTENSIONS = ["mp4", "m3u8"];
 
 export default function TimelineItemQQZoneTalk(props: TimelineComponent) {
   const { item, className = "", ...rest } = props;
 
-  useEffect(() => {
-    const { attachments } = item;
-
-    attachments?.forEach(({ url }) => {
-      if (url.endsWith(".m3u8")) {
-        const videoElement = document.getElementById(url);
-        if (videoElement) videojs(videoElement);
-      }
-    });
-  }, [item]);
-
   return (
     <div className={`qq-zone-talk ${className}`} {...rest}>
       <article className="markdown-body px-6 py-8">
-        <div>{item.content}</div>
+        <p
+          dangerouslySetInnerHTML={{
+            __html: resolveQQZoneContent(String(item.content)),
+          }}
+        />
         {item.attachments && (
-          <div>
+          <>
             {item.attachments.map((attachment) => {
-              const { filename, url } = attachment;
+              const { filename, url, coverUrl } = attachment;
 
-              if (url.endsWith(".m3u8")) {
-                console.log(url);
+              const fileType = filename.split(".").pop() ?? "";
+              if (QQ_ZONE_VIDEO_EXTENSIONS.includes(fileType)) {
                 return (
-                  <video
-                    key={url}
-                    id={url}
-                    className="video-js"
-                    controls
-                    preload="auto"
-                  >
-                    <source src={url} type="video/m3u8" />
-                  </video>
+                  <p key={filename}>
+                    <VideoPlayer
+                      id={filename}
+                      options={{
+                        sources: [
+                          {
+                            src: `${SERVER_STATIC_PREFIX}${url}`,
+                            type:
+                              fileType === "m3u8"
+                                ? "application/x-mpegURL"
+                                : `video/${fileType}`,
+                          },
+                        ],
+                        controls: true,
+                        poster: coverUrl,
+                        preload: "none",
+                      }}
+                      className="w-full"
+                    />
+                  </p>
                 );
               }
 
               return (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={url} alt={filename} src={url} />
+                <p key={filename}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img alt={filename} src={url} />
+                </p>
               );
             })}
-          </div>
+          </>
         )}
       </article>
     </div>

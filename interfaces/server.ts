@@ -43,8 +43,12 @@ export interface LoginAccount {
 }
 
 export interface TimelineItemAttachment {
+  /** 文件名 */
   filename: string;
+  /** 文件链接 */
   url: string;
+  /** 文件封面链接 */
+  coverUrl?: string;
   created_at?: Date;
   updated_at?: Date;
 }

@@ -55,7 +55,8 @@
   }
 
   .feed,
-  .github-issue-comment {
+  .github-issue-comment,
+  .qq-zone-talk {
     .markdown-body {
       a {
         @apply transition text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
@@ -63,6 +64,10 @@
 
       img {
         @apply mx-auto rounded max-h-screen-3/5;
+      }
+
+      video {
+        @apply w-full rounded;
       }
 
       figure.highlight {
@@ -86,7 +91,8 @@
     }
   }
 
-  .github-issue-comment {
+  .github-issue-comment,
+  .qq-zone-talk {
     .markdown-body {
       @apply lg:overflow-auto lg:max-h-screen-4/5;
     }
