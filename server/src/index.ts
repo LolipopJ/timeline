@@ -66,6 +66,10 @@ new Elysia()
     staticPlugin({
       assets: SERVER_STATIC_DIR,
       prefix: "/static",
+      alwaysStatic: false,
+      staticLimit: 0,
+      enableDecodeURI: true,
+      maxAge: 60 * 60 * 24 * 7,
     }),
   )
   .onError(({ request, error }) => {
