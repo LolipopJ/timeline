@@ -1,13 +1,13 @@
 import type { AxiosError, AxiosRequestConfig } from "axios";
 import fs from "fs";
 import path from "path";
-import type { CookieParam } from "puppeteer";
 
 import {
   SEC_CH_UA_DESKTOP,
   SERVER_TEMPORARY_DIR,
   USER_AGENT_DESKTOP,
 } from "../constants";
+import type { CookieParam } from "./axios";
 import axios, { parseSetCookieToCookie } from "./axios";
 import { checkupDir } from "./file";
 

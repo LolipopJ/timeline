@@ -24,6 +24,13 @@ export const serverConfig: ServerConfig = {
     //   repo: "github_repo_name",
     //   issueNumber: 1,
     // },
+    // {
+    //   type: SyncServiceType.QZONE_TALK,
+    //   id: "MyQQZone",
+    //   label: "My QQ Zone",
+    //   qqNumber: "408550000",
+    //   from: new Date("2018-01-01"),
+    // },
   ],
   database: {
     user: "your_postgresql_user",
