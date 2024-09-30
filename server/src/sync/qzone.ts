@@ -225,8 +225,12 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
       content: talk.content,
       attachments: talk.pic
         ?.map((item): TimelineItemAttachment | null => {
-          const imageUrl =
-            item.video_info?.pic_url || item.url2 || item.url3 || item.url1;
+          const imageUrl = (
+            item.video_info?.pic_url ||
+            item.url2 ||
+            item.url3 ||
+            item.url1
+          ).replace("http://", "https://");
 
           if (item.is_video) {
             const videoUrl = item.video_info?.url3 ?? "";
