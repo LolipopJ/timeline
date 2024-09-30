@@ -18,6 +18,7 @@ import {
 import axios from "../utils/axios";
 import { checkupDir } from "../utils/file";
 import { getGTk, getQZoneCookies } from "../utils/qzone";
+import { convertVideoToM3u8 } from "../utils/video";
 
 interface QZoneInfo {
   code: number;
@@ -294,6 +295,9 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
                         });
                     },
                   );
+                } else {
+                  // 将其他格式的视频文件转换为 .m3u8 文件
+                  convertVideoToM3u8(videoSavePath, `${videoSavePath}.m3u8`);
                 }
               })
               .catch((error) => {
@@ -303,9 +307,12 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
                 );
               });
 
+            const resolvedVideoFilename = videoFilename.endsWith(".m3u8")
+              ? videoFilename
+              : `${videoFilename}.m3u8`;
             return {
-              filename: videoFilename,
-              url: `/qzone/${videoFilename}`,
+              filename: resolvedVideoFilename,
+              url: `/qzone/${resolvedVideoFilename}`,
               coverUrl: imageUrl,
             };
           } else {

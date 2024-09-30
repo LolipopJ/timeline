@@ -104,6 +104,30 @@ export const serverConfig: ServerConfig = {
 }
 ```
 
+### QQ Zone Talks
+
+同步 QQ 空间说说需要依赖 **[ffmpeg](https://www.ffmpeg.org/)** 对视频文件进行切片，请确保系统中已安装 ffmpeg 并将其可执行文件目录添加到环境变量。
+
+添加需要同步的空间，例如：
+
+```ts
+export const serverConfig: ServerConfig = {
+  services: [
+    {
+      type: SyncServiceType.QZONE_TALK,
+      id: 'MyQQZone',
+      label: 'My QQ Zone',
+      qqNumber: '408550000',
+      from: new Date('2018-01-01'),
+    },
+  ],
+}
+```
+
+获取远程接口所需的 Cookies 信息，访问服务端的 `/qzone-login?qqNumber=408550000` 路由，扫码并确认登录到 QQ 空间。
+
+确认登录后，重启服务端或是等待下一次同步事务即可。
+
 ### Other Configurations
 
 ```ts
