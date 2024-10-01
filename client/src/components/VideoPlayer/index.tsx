@@ -34,12 +34,9 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
 
       // @ts-expect-error: playerRef is writable
       const player = (playerRef.current = videojs(videoElement, options, () => {
-        videojs.log(`player for ${id} is ready.`);
+        videojs.log(`Video player for ${id} is ready.`);
         onReady?.(player);
       }));
-    } else {
-      const player = playerRef.current;
-      player.src(options.sources);
     }
   }, [id, onReady, options, videoRef]);
 
@@ -52,7 +49,7 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
         player.dispose();
         // @ts-expect-error: playerRef is writable
         playerRef.current = null;
-        videojs.log(`player for ${id} is disposed.`);
+        videojs.log(`Video player for ${id} is disposed.`);
       }
     };
   }, [id, playerRef]);
