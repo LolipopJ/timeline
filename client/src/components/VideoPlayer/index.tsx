@@ -54,6 +54,24 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
     };
   }, [id, playerRef]);
 
+  // 离开视野后自动暂停播放
+  useEffect(() => {
+    const video = videoRef.current;
+    const player = playerRef.current;
+
+    if (video && player) {
+      const pauseObserver = new IntersectionObserver(([entry]) => {
+        if (!entry.isIntersecting) {
+          player.pause();
+        }
+      });
+      pauseObserver.observe(video);
+      return () => {
+        pauseObserver.unobserve(video);
+      };
+    }
+  }, [videoRef, playerRef]);
+
   return <div data-vjs-player ref={videoRef} className={className} />;
 };
 
