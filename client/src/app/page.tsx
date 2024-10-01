@@ -79,7 +79,7 @@ export default function Home() {
   }, [isLoadingTimelineItems]);
 
   useEffect(() => {
-    if (isValidatingTimelineItems || isFullyLoaded) return;
+    if (isFullyLoaded || isValidatingTimelineItems) return;
 
     const loadMoreButton = loadMoreButtonRef.current;
     if (loadMoreButton) {
@@ -87,6 +87,7 @@ export default function Home() {
         ([entry]) => {
           if (entry.isIntersecting) {
             setQueryTimelineItemsPage((prev) => prev + 1);
+            loadMoreObserver.unobserve(loadMoreButton);
           }
         },
         { threshold: 0 },
