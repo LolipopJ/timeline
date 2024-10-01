@@ -106,7 +106,7 @@ export const serverConfig: ServerConfig = {
 
 ### QQ Zone Talks
 
-同步 QQ 空间说说需要依赖 **[ffmpeg](https://www.ffmpeg.org/)** 对视频文件进行切片，请确保系统中已安装 ffmpeg 并将其可执行文件目录添加到环境变量。
+同步 QQ 空间说说依赖 **[ffmpeg](https://www.ffmpeg.org/)** 对视频文件进行切片，请确保系统运行内存足够，避免异常跳出。
 
 添加需要同步的空间，例如：
 
