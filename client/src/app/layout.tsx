@@ -46,11 +46,12 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <head>
-        <meta name="referrer" content="no-referrer" />
+        <title>{String(config.metadata?.title ?? "Timeline")}</title>
         {config.metadata &&
           Object.entries(config.metadata).map((entry) => (
             <meta key={entry[0]} name={entry[0]} content={entry[1]} />
           ))}
+        <meta name="referrer" content="no-referrer" />
       </head>
       <body className={`${login ? "overflow-hidden" : ""}`}>
         <main>{!initialized || logout ? null : children}</main>

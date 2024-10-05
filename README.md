@@ -157,6 +157,8 @@ bun run dev:server
 
 ### Client
 
+编辑客户端配置后，需要手动构建方可生效。
+
 ```bash
 bun run build:client
 ```
