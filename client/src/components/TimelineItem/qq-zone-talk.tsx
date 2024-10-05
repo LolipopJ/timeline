@@ -1,7 +1,9 @@
+import dynamic from "next/dynamic";
+
 import { SERVER_STATIC_PREFIX } from "@/constants";
 import type { TimelineComponent } from "@/interfaces/timeline";
 
-import VideoPlayer from "../VideoPlayer";
+const VideoPlayer = dynamic(() => import("@/components/VideoPlayer"));
 
 const resolveQQZoneContent = (content: string) => {
   return content
