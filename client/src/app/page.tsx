@@ -9,22 +9,16 @@ import useSWRInfinite from "swr/infinite";
 
 import message from "@/components/Message";
 import { TimelineCurrentDate } from "@/components/TimelineCurrentDate";
-import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-collection";
-import TimelineItemFeed from "@/components/TimelineItem/feed";
-import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
-import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
-import TimelineItemLabel from "@/components/TimelineItemLabel";
+import TimelineItem from "@/components/TimelineItem";
 import TimelineOwner from "@/components/TimelineOwner";
 import TimelineProgress from "@/components/TimelineProgress";
 import TimelineSearch, {
   type TimelineSearchProps,
 } from "@/components/TimelineSearch";
 import useDebounce from "@/hooks/useDebounce";
-import type { TimelineComponent } from "@/interfaces/timeline";
 import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 
-import { SyncServiceType } from "../../../enums";
 import type {
   GetTimelineItemsParams,
   TimelineItemClient,
@@ -188,52 +182,23 @@ export default function Home() {
           </div>
         </div>
       </>
-      {!isLoadingTimelineItems &&
-        timelineItems?.map((itemsArray, page) =>
-          itemsArray.map((item, index) => {
-            const { id, sync_service_type, created_at } = item;
-            const orderedIndex = page * PAGE_LIMIT + index + 1;
+      {timelineItems?.map((itemsArray, page) =>
+        itemsArray.map((item, index) => {
+          const { id, created_at } = item;
+          const orderedIndex = page * PAGE_LIMIT + index + 1;
 
-            let element = <></>;
-            const elementProps: TimelineComponent = {
-              item,
-              className: "rounded-lg overflow-hidden",
-            };
-
-            switch (sync_service_type) {
-              case SyncServiceType.BILIBILI_COLLECTION:
-                element = <TimelineItemBilibiliCollection {...elementProps} />;
-                break;
-              case SyncServiceType.FEED:
-                element = <TimelineItemFeed {...elementProps} />;
-                break;
-              case SyncServiceType.GITHUB_ISSUE_COMMENT:
-                element = <TimelineItemGithubIssueComment {...elementProps} />;
-                break;
-              case SyncServiceType.QZONE_TALK:
-                element = <TimelineItemQQZoneTalk {...elementProps} />;
-                break;
-              default:
-                element = <div>{JSON.stringify(item)}</div>;
-                console.warn(
-                  `Unknown timeline item type \`${sync_service_type}\``,
-                );
-            }
-
-            return (
-              <div
-                key={id}
-                id={id}
-                className="timeline-item relative mb-8 flex flex-col"
-                data-created-at={created_at}
-                data-ordered-index={orderedIndex}
-              >
-                <TimelineItemLabel item={item} />
-                {element}
-              </div>
-            );
-          }),
-        )}
+          return (
+            <TimelineItem
+              key={id}
+              id={id}
+              item={item}
+              className="mb-8"
+              data-created-at={created_at}
+              data-ordered-index={orderedIndex}
+            />
+          );
+        }),
+      )}
       <div className={`my-16 select-none text-center`}>
         {isFullyLoaded ? (
           <div className="text-foreground-dark">
