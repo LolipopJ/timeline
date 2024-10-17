@@ -1,11 +1,13 @@
 import React from "react";
 
+import ExpandableContainer, {
+  ExpandableContainerProps,
+} from "@/components/ExpandableContainer";
 import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-collection";
 import TimelineItemFeed from "@/components/TimelineItem/feed";
 import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
 import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
 import TimelineItemLabel from "@/components/TimelineItemLabel";
-import { TimelineComponent } from "@/interfaces/timeline";
 
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
@@ -20,23 +22,42 @@ function TimelineItem(props: TimelineItemProps) {
   const { sync_service_type } = item;
 
   let element = <></>;
-  const elementProps: TimelineComponent = {
-    item,
-    className: "rounded-lg overflow-hidden",
+  const expandableContainerProps: ExpandableContainerProps = {
+    expandableHeightThresholdRatio: 0.8,
+    className: "rounded-lg",
   };
 
   switch (sync_service_type) {
     case SyncServiceType.BILIBILI_COLLECTION:
-      element = <TimelineItemBilibiliCollection {...elementProps} />;
+      element = (
+        <ExpandableContainer
+          {...expandableContainerProps}
+          expandableHeightThresholdRatio={Infinity}
+        >
+          <TimelineItemBilibiliCollection item={item} />
+        </ExpandableContainer>
+      );
       break;
     case SyncServiceType.FEED:
-      element = <TimelineItemFeed {...elementProps} />;
+      element = (
+        <ExpandableContainer {...expandableContainerProps}>
+          <TimelineItemFeed item={item} />
+        </ExpandableContainer>
+      );
       break;
     case SyncServiceType.GITHUB_ISSUE_COMMENT:
-      element = <TimelineItemGithubIssueComment {...elementProps} />;
+      element = (
+        <ExpandableContainer {...expandableContainerProps}>
+          <TimelineItemGithubIssueComment item={item} />
+        </ExpandableContainer>
+      );
       break;
     case SyncServiceType.QZONE_TALK:
-      element = <TimelineItemQQZoneTalk {...elementProps} />;
+      element = (
+        <ExpandableContainer {...expandableContainerProps}>
+          <TimelineItemQQZoneTalk item={item} />
+        </ExpandableContainer>
+      );
       break;
     default:
       element = <div>{JSON.stringify(item)}</div>;

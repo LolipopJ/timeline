@@ -16,7 +16,7 @@
   --background-light: #0d1117;
   --background-lighter: #161b22;
   --foreground: #e6edf3;
-  --foreground-light: #ebf0f5;
+  --foreground-light: #fff;
   --foreground-dark: #a1a5aa;
 }
 
@@ -48,16 +48,20 @@
 }
 
 @layer components {
-  .bilibili-collection {
-    img {
-      @apply w-full;
+  .timeline-item {
+    .bilibili-collection {
+      img {
+        @apply w-full;
+      }
     }
-  }
 
-  .feed,
-  .github-issue-comment,
-  .qq-zone-talk {
     .markdown-body {
+      h1,
+      h2,
+      h3 {
+        @apply border-b-0;
+      }
+
       a {
         @apply transition text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
       }
@@ -78,23 +82,20 @@
       figure.highlight table td.code {
         @apply w-full;
       }
-    }
-  }
 
-  .feed {
-    .markdown-body {
-      h1 {
-        a {
-          @apply text-foreground hover:text-primary hover:no-underline transition;
-        }
+      *:last-child {
+        @apply mb-0;
       }
     }
-  }
 
-  .github-issue-comment,
-  .qq-zone-talk {
-    .markdown-body {
-      @apply lg:overflow-auto lg:max-h-screen-4/5;
+    .feed {
+      .markdown-body {
+        h1 {
+          a {
+            @apply text-foreground hover:text-primary hover:no-underline transition;
+          }
+        }
+      }
     }
   }
 }
