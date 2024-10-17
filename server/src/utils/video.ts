@@ -33,7 +33,7 @@ export const convertVideoToM3u8 = (
       new Promise((resolve, reject) => {
         Ffmpeg(videoFilePath)
           .outputFormat("hls")
-          .outputOptions(["-hls_list_size 0", "-hls_time 3"])
+          .outputOptions(["-hls_list_size 0", "-hls_allow_cache 1"])
           .output(_outputFilePath)
           .on("start", () => {
             if (onStart) {
