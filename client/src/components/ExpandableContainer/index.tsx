@@ -59,14 +59,14 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
       {children}
       {showExpandButton && (
         <div
-          className="hover:text-foreground-light absolute inset-x-0 bottom-0 flex cursor-pointer items-center justify-center py-2.5 transition-colors lg:py-3"
+          className="hover:text-foreground-light absolute inset-x-0 bottom-0 flex cursor-pointer items-center justify-center py-2.5 transition-colors"
           style={{
             background:
               "linear-gradient(rgb(10 10 10 / 0.3), rgb(10 10 10 / 0.9))",
           }}
           onClick={onExpand}
         >
-          <Icon path={mdiArrowDownThick} className="size-5 lg:size-6" />
+          <Icon path={mdiArrowDownThick} className="size-5" />
         </div>
       )}
     </div>
