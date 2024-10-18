@@ -21,7 +21,7 @@ export default function TimelineItemQQZoneTalk(props: TimelineComponent) {
 
   return (
     <div className={`qq-zone-talk ${className}`} {...rest}>
-      <article className="markdown-body px-6 py-8">
+      <article className="markdown-body px-4 py-6 lg:px-6 lg:py-8">
         <p
           dangerouslySetInnerHTML={{
             __html: resolveQQZoneContent(String(item.content)),

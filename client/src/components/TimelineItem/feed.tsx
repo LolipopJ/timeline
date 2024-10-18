@@ -6,7 +6,7 @@ export default function TimelineItemFeed(props: TimelineComponent) {
 
   return (
     <div className={`feed ${className}`} {...rest}>
-      <article className="markdown-body bg-background-light max-w-none px-6 py-8">
+      <article className="markdown-body bg-background-light max-w-none px-4 py-6 lg:px-6 lg:py-8">
         <h1>
           <a href={item.url} target="_blank">
             {item.title}

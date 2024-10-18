@@ -9,7 +9,7 @@ export default function TimelineItemGithubIssueComment(
   return (
     <div className={`github-issue-comment ${className}`} {...rest}>
       <article
-        className="markdown-body px-6 py-8"
+        className="markdown-body px-4 py-6 lg:px-6 lg:py-8"
         dangerouslySetInnerHTML={{
           __html: parseMarkdownToHtml(String(item.content)),
         }}

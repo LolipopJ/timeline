@@ -56,14 +56,39 @@
     }
 
     .markdown-body {
+      h1 {
+        @apply text-3xl;
+      }
+
+      h2 {
+        @apply text-2xl;
+      }
+
+      h3 {
+        @apply text-xl;
+      }
+
+      h4 {
+        @apply text-lg;
+      }
+
+      h5,
+      h6 {
+        @apply text-base;
+      }
+
       h1,
       h2,
       h3 {
-        @apply border-b-0;
+        @apply border-b-0 pb-0;
       }
 
       a {
-        @apply transition text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
+        @apply text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
+      }
+
+      code {
+        @apply break-all;
       }
 
       img {
@@ -90,10 +115,8 @@
 
     .feed {
       .markdown-body {
-        h1 {
-          a {
-            @apply text-foreground hover:text-primary hover:no-underline transition;
-          }
+        h1 > a {
+          @apply text-foreground hover:text-primary hover:no-underline transition;
         }
       }
     }
