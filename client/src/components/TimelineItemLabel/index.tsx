@@ -35,10 +35,9 @@ const LABEL_TEXT_COLOR = {
 } as Record<SyncServiceType, string>;
 
 const labelItemBaseClassName =
-  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base";
+  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base !leading-none";
 const labelIconBaseOptions: Partial<IconProps> = {
-  size: 0.75,
-  className: "mr-1",
+  className: "mr-1 size-4 md:size-5",
 };
 
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {

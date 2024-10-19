@@ -50,7 +50,7 @@ export function LoginModal(props: LoginModalProps) {
     <div
       className={`${open ? "block" : "hidden"} fixed inset-0 z-40 bg-neutral-950/20 backdrop-blur-sm`}
     >
-      <div className="bg-background-light shadow-background-lighter relative left-1/2 top-1/2 flex max-w-96 -translate-x-1/2 -translate-y-2/3 flex-col items-center overflow-hidden rounded-lg px-10 py-16 shadow-lg">
+      <div className="bg-background-light shadow-background-lighter border-1 relative left-1/2 top-1/2 flex max-w-96 -translate-x-1/2 -translate-y-2/3 flex-col items-center overflow-hidden rounded-lg border-neutral-50/20 px-10 py-16 shadow-lg">
         <a
           onClick={onClose}
           className="absolute right-2 top-2 cursor-pointer p-2"
