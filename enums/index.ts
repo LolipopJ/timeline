@@ -1,5 +1,6 @@
 export enum SyncServiceType {
   BILIBILI_COLLECTION = "BilibiliCollection",
+  BILIBILI_WORK = "BilibiliWork",
   FEED = "Feed",
   GITHUB_ISSUE_COMMENT = "GithubIssueComment",
   QZONE_TALK = "QZoneTalk",

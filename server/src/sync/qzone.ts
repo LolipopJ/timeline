@@ -176,7 +176,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     if (qZoneInfo.code === -3000) {
       // 登录态过期
       throw new Error(
-        `Syncing QQ Zone talks for ${qqNumber} failed. Cookies are expired, re-scan login QR code please.`,
+        `Syncing QQ Zone talks for ${qqNumber} failed. Cookies are expired, please re-scan login QR code.`,
       );
     }
 

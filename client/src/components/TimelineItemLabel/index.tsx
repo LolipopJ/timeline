@@ -6,6 +6,7 @@ import {
   mdiCommentText,
   mdiRssBox,
   mdiStarShooting,
+  mdiVideoVintage,
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
@@ -22,6 +23,7 @@ interface TimelineItemLabelProps {
 
 const LABEL_ICON_PATH = {
   [SyncServiceType.BILIBILI_COLLECTION]: mdiBookmarkMultiple,
+  [SyncServiceType.BILIBILI_WORK]: mdiVideoVintage,
   [SyncServiceType.FEED]: mdiRssBox,
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
   [SyncServiceType.QZONE_TALK]: mdiStarShooting,
@@ -29,8 +31,9 @@ const LABEL_ICON_PATH = {
 
 const LABEL_TEXT_COLOR = {
   [SyncServiceType.BILIBILI_COLLECTION]: "#fb7299",
+  [SyncServiceType.BILIBILI_WORK]: "#fb7299",
   [SyncServiceType.FEED]: "#818cf8",
-  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "#61bfad",
+  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "#f0f6fc",
   [SyncServiceType.QZONE_TALK]: "#cc8f14",
 } as Record<SyncServiceType, string>;
 
@@ -42,7 +45,7 @@ const labelIconBaseOptions: Partial<IconProps> = {
 
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
-    item: { sync_service_type, created_at, updated_at, label },
+    item: { sync_service_type, created_at, updated_at, label, is_secret },
     className = "",
     ...rest
   } = props;
@@ -69,7 +72,10 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           path={LABEL_ICON_PATH[sync_service_type] ?? mdiCommentProcessing}
           {...labelIconBaseOptions}
         />
-        <span>{label}</span>
+        <span>
+          {label}
+          {is_secret && " (私密)"}
+        </span>
       </div>
       <div className={`${labelItemBaseClassName} lg:top-10 2xl:top-11`}>
         <Icon

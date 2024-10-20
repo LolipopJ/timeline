@@ -27,5 +27,6 @@ export type TimelineItemClient = Pick<
   | "version"
   | "created_at"
   | "updated_at"
+  | "is_secret"
 > &
   Pick<SyncServiceBase, "label">;

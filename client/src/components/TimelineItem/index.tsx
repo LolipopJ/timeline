@@ -29,6 +29,7 @@ function TimelineItem(props: TimelineItemProps) {
 
   switch (sync_service_type) {
     case SyncServiceType.BILIBILI_COLLECTION:
+    case SyncServiceType.BILIBILI_WORK:
       element = (
         <ExpandableContainer
           {...expandableContainerProps}

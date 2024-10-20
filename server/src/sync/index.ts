@@ -1,6 +1,6 @@
 import config from "../../../configs/server";
 import { SyncServiceType } from "../../../enums";
-import { syncBilibiliCollections } from "./bilibili";
+import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
 import { syncQQZoneTalks } from "./qzone";
@@ -15,6 +15,8 @@ export const sync = async () => {
       switch (service.type) {
         case SyncServiceType.BILIBILI_COLLECTION:
           return syncBilibiliCollections(service);
+        case SyncServiceType.BILIBILI_WORK:
+          return syncBilibiliWorks(service);
         case SyncServiceType.FEED:
           return syncFeed(service);
         case SyncServiceType.GITHUB_ISSUE_COMMENT:

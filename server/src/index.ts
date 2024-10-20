@@ -23,6 +23,7 @@ import {
   getTimelineItems,
 } from "./database/controller/timeline-item";
 import sync from "./sync";
+import { saveBilibiliSessionData } from "./utils/bilibili";
 import { checkupDir } from "./utils/file";
 import { JWT } from "./utils/jwt";
 import {
@@ -101,7 +102,7 @@ new Elysia()
         // 启用管理员功能时，如校验不通过，拦截敏感操作路由
         // 若未启用管理员功能，这些路由将正常放行
         if (!isCookieValidated) {
-          if (["/qzone-login"].includes(path)) {
+          if (["/qzone-login", "/set"].includes(path)) {
             set.status = 400;
             return "您未登录，或登录已过期";
           }
@@ -157,17 +158,30 @@ new Elysia()
       });
 
       const resolvedTimelineItems: TimelineItemClient[] = timelineItems.map(
-        (item) => ({
-          id: item.id,
-          label: SERVICE_LABEL_MAP.get(item.sync_service_id),
-          sync_service_type: item.sync_service_type,
-          title: item.title,
-          content: item.content,
-          url: item.url,
-          attachments: item.attachments,
-          version: item.version,
-          created_at: item.created_at,
-          updated_at: item.updated_at,
+        ({
+          id,
+          sync_service_id,
+          sync_service_type,
+          title,
+          content,
+          url,
+          attachments,
+          version,
+          created_at,
+          updated_at,
+          is_secret,
+        }) => ({
+          id,
+          label: SERVICE_LABEL_MAP.get(sync_service_id),
+          sync_service_type,
+          title,
+          content,
+          url,
+          attachments,
+          version,
+          created_at,
+          updated_at,
+          is_secret,
         }),
       );
 
@@ -258,6 +272,24 @@ new Elysia()
     const qrCodeImage = fs.readFileSync(getQZoneQRCodeFilePath(qqNumber));
     set.headers["content-type"] = "image/png";
     return qrCodeImage;
+  })
+  //#endregion
+  //#region 设置服务端配置
+  .get("/set", async ({ query, set }) => {
+    const { bilibiliSessdata } = query;
+
+    if (bilibiliSessdata) {
+      try {
+        saveBilibiliSessionData(bilibiliSessdata);
+      } catch (error) {
+        console.error(`Save Bilibili SESSDATA failed: ${String(error)}`);
+
+        set.status = 500;
+        return "服务端更新 Bilibili SESSDATA 失败";
+      }
+    }
+
+    return "更新服务端配置成功";
   })
   //#endregion
   .onStart(async ({ server }) => {

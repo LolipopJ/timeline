@@ -1,6 +1,9 @@
 import axios from "axios";
 
-import type { SyncServiceBilibiliCollection } from "../../../interfaces/server";
+import type {
+  SyncServiceBilibiliCollection,
+  SyncServiceBilibiliWork,
+} from "../../../interfaces/server";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
@@ -40,6 +43,25 @@ interface BilibiliCollection {
     first_cid: number;
   };
   media_list_link: string;
+}
+
+interface BilibiliWork {
+  aid: number;
+  title: string;
+  pubdate: number;
+  ctime: number;
+  state: number;
+  pic: string;
+  duration: number;
+  stat: {
+    view: number;
+  };
+  bvid: string;
+  ugc_pay: number;
+  interactive_video: boolean;
+  enable_vt: number;
+  vt_display: string;
+  playback_position: number;
 }
 
 export const syncBilibiliCollections = async (
@@ -125,5 +147,71 @@ export const syncBilibiliCollections = async (
   );
   console.log(
     `Insert or update ${collections.length} timeline items of Bilibili collections from ${mediaId} successfully!`,
+  );
+};
+
+export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
+  const { id, type, from, secret, userId } = service;
+
+  const lastExecuteDate = await getSyncTaskLastExecuteTime({
+    id,
+    from,
+  });
+  console.log(
+    `Syncing Bilibili works of ${userId} since ${lastExecuteDate.toISOString()}...`,
+  );
+
+  const works: BilibiliWork[] = [];
+  let queryFinished = false;
+  let page = 1;
+  while (!queryFinished) {
+    const getWorksRes = await axios.get(
+      "https://api.bilibili.com/x/series/recArchivesByKeywords",
+      {
+        params: {
+          mid: userId,
+          keywords: "",
+          pn: page,
+          ps: 20,
+          orderby: "pubdate",
+        },
+      },
+    );
+    const queriedWorks: BilibiliWork[] = getWorksRes.data.data.archives ?? [];
+    const filteredWorks = queriedWorks.filter(
+      (work) => work.ctime * 1000 > lastExecuteDate.getTime(),
+    );
+    works.push(...filteredWorks);
+
+    if (filteredWorks.length > 0) {
+      page += 1;
+    } else {
+      queryFinished = true;
+    }
+  }
+  console.log(`Synced ${works.length} Bilibili works of ${userId}.`);
+
+  await insertOrUpdateTimelineItems(
+    works.map((work) => ({
+      sync_service_id: id,
+      sync_service_type: type,
+      content_id: String(work.aid),
+      title: work.title,
+      // content: work.description,
+      url: `https://www.bilibili.com/video/${work.bvid}`,
+      attachments: [
+        {
+          filename: `cover.${work.pic.split(".").pop()}`,
+          url: work.pic,
+        },
+      ],
+      metadata: JSON.stringify(work),
+      is_secret: secret,
+      created_at: new Date(work.ctime * 1000),
+      updated_at: new Date(work.pubdate * 1000),
+    })),
+  );
+  console.log(
+    `Insert or update ${works.length} timeline items of Bilibili works of ${userId} successfully!`,
   );
 };

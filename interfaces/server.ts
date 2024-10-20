@@ -55,6 +55,7 @@ export interface TimelineItemAttachment {
 
 export type SyncService =
   | SyncServiceBilibiliCollection
+  | SyncServiceBilibiliWork
   | SyncServiceFeed
   | SyncServiceGithubIssueComment
   | SyncServiceQzoneTalk
@@ -75,6 +76,12 @@ export interface SyncServiceBilibiliCollection extends SyncServiceBase {
   type: SyncServiceType.BILIBILI_COLLECTION;
   /** Bilibili 收藏夹 ID */
   mediaId: string;
+}
+
+export interface SyncServiceBilibiliWork extends SyncServiceBase {
+  type: SyncServiceType.BILIBILI_WORK;
+  /** Bilibili 用户 ID */
+  userId: string;
 }
 
 export interface SyncServiceFeed extends SyncServiceBase {
