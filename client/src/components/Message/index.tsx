@@ -66,7 +66,7 @@ function MessageItem(props: Message & React.HTMLAttributes<HTMLDivElement>) {
 
   return (
     <div
-      className={`border-1 bg-background-lighter flex w-fit max-w-96 items-center rounded px-3 py-2 shadow ${borderColor} ${shadowColor} ${className}`}
+      className={`flex w-fit max-w-96 items-center rounded border-1 bg-background-lighter px-3 py-2 shadow ${borderColor} ${shadowColor} ${className}`}
       data-message-key={key}
       {...rest}
     >

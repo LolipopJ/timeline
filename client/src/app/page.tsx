@@ -149,7 +149,7 @@ export default function Home() {
       <>
         <div className="lg:hidden">
           <div
-            className={`bg-background-light shadow-background-lighter fixed inset-x-0 top-0 z-10 flex h-20 items-center px-4 shadow-md sm:px-6 md:h-24 md:px-8`}
+            className={`fixed inset-x-0 top-0 z-10 flex h-20 items-center bg-background-light px-4 shadow-md shadow-background-lighter sm:px-6 md:h-24 md:px-8`}
           >
             <TimelineCurrentDate date={currenDate} className="min-w-28" />
             <TimelineSearch
@@ -208,7 +208,7 @@ export default function Home() {
         ) : (
           <button
             ref={loadMoreButtonRef}
-            className={`bg-background-light hover:bg-background-lighter rounded border-2 px-3 py-2 transition ${isValidatingTimelineItems ? "!bg-disabled" : ""}`}
+            className={`rounded border-2 bg-background-light px-3 py-2 transition hover:bg-background-lighter ${isValidatingTimelineItems ? "!bg-disabled" : ""}`}
             onClick={() => setQueryTimelineItemsPage((prev) => prev + 1)}
             disabled={isValidatingTimelineItems}
           >
