@@ -59,7 +59,7 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
       {children}
       {showExpandButton && (
         <div
-          className="hover:text-foreground-light absolute inset-x-0 bottom-0 flex cursor-pointer items-center justify-center py-2.5 transition-colors"
+          className="absolute inset-x-0 bottom-0 flex cursor-pointer items-center justify-center py-2.5 transition-colors hover:text-foreground-light"
           style={{
             background:
               "linear-gradient(rgb(10 10 10 / 0.3), rgb(10 10 10 / 0.9))",

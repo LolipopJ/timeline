@@ -2,6 +2,7 @@
 
 import "./globals.css";
 
+import { Fancybox } from "@fancyapps/ui";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
@@ -30,10 +31,20 @@ export default function RootLayout({
   );
 
   useEffect(() => {
+    //#region 初始化登录、登出查询
     const url = new URL(window.location.href);
     const params = new URLSearchParams(url.search);
     setLogin(params.get("login") !== null);
     setLogout(params.get("logout") !== null);
+    //#endregion
+
+    //#region 初始化 Fancybox
+    Fancybox.bind("[data-fancybox]", {
+      Carousel: { infinite: false },
+      placeFocusBack: false,
+    });
+    //#endregion
+
     setInitialized(true);
   }, []);
 

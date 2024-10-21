@@ -208,7 +208,7 @@ export default function Home() {
         ) : (
           <button
             ref={loadMoreButtonRef}
-            className={`bg-background-light ${isValidatingTimelineItems ? "!bg-disabled" : ""} hover:bg-background-lighter rounded border-2 px-3 py-2 transition`}
+            className={`bg-background-light hover:bg-background-lighter rounded border-2 px-3 py-2 transition ${isValidatingTimelineItems ? "!bg-disabled" : ""}`}
             onClick={() => setQueryTimelineItemsPage((prev) => prev + 1)}
             disabled={isValidatingTimelineItems}
           >

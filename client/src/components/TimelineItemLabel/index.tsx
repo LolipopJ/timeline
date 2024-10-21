@@ -65,7 +65,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       {...rest}
     >
       <div
-        className={`${labelItemBaseClassName} text-primary font-bold lg:top-2`}
+        className={`${labelItemBaseClassName} font-bold text-primary lg:top-2`}
         style={{ color: LABEL_TEXT_COLOR[sync_service_type] }}
       >
         <Icon

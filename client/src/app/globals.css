@@ -1,6 +1,8 @@
 @import url('https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown-dark.min.css');
 @import url('https://cdn.jsdelivr.net/npm/video.js@8.18.1/dist/video-js.min.css');
 
+@import url('@fancyapps/ui/dist/fancybox/fancybox.css');
+
 @import url('../styles/animation.css');
 
 @tailwind base;

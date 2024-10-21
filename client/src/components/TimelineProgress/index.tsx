@@ -17,11 +17,11 @@ export default function TimelineProgress(props: TimelineProgressProps) {
   return (
     <div className={`select-none ${className}`}>
       <div
-        className={`bg-background-light h-full overflow-hidden rounded-full`}
+        className={`h-full overflow-hidden rounded-full bg-background-light`}
         {...rest}
       >
         <div
-          className="bg-foreground w-full transition-all"
+          className="w-full bg-foreground transition-all"
           style={{ height: `${progress}%` }}
         />
       </div>

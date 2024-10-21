@@ -24,7 +24,7 @@ export default function TimelineItemBilibiliCollection(
             <a
               href={item.url}
               target="_blank"
-              className="hover:text-primary line-clamp-1 transition"
+              className="line-clamp-1 transition hover:text-primary"
             >
               {item.title}
             </a>

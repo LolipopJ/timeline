@@ -60,8 +60,10 @@ export default function TimelineItemQQZoneTalk(props: TimelineComponent) {
 
               return (
                 <p key={filename}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img alt={filename} src={url} />
+                  <a href={url} data-fancybox={`gallery-${item.id}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img alt={filename} src={url} />
+                  </a>
                 </p>
               );
             })}

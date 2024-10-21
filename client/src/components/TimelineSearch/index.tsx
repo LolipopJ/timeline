@@ -13,10 +13,10 @@ export default function TimelineSearch(props: TimelineSearchProps) {
     <div className={`${className} relative`}>
       <input
         value={value}
-        className={`bg-background-lighter h-8 w-full rounded-md pl-10`}
+        className={`h-8 w-full rounded-md bg-background-lighter pl-10`}
         {...rest}
       />
-      <div className="bg-background-light absolute left-0 top-0 size-8 rounded-md">
+      <div className="absolute left-0 top-0 size-8 rounded-md bg-background-light">
         <Icon
           path={mdiCommentSearch}
           className="absolute left-1.5 top-1.5 size-5"
@@ -27,7 +27,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
           onClick={onClear}
           className="absolute -right-1 top-1 flex size-6 translate-x-full cursor-pointer items-center justify-center"
         >
-          <Icon path={mdiCloseThick} className="text-foreground-dark size-4" />
+          <Icon path={mdiCloseThick} className="size-4 text-foreground-dark" />
         </span>
       )}
     </div>

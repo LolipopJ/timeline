@@ -25,7 +25,7 @@ export default function TimelineOwner(props: TimelineOwnerProps) {
             <a key={item.key} href={item.url} target="_blank">
               <Icon
                 path={item.icon}
-                className={`text-background-lighter hover:text-foreground size-6 transition ${iconClassName}`}
+                className={`size-6 text-background-lighter transition hover:text-foreground ${iconClassName}`}
               />
             </a>
           ),
