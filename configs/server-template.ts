@@ -10,6 +10,12 @@ export const serverConfig: ServerConfig = {
     //   mediaId: "75618059",
     // },
     // {
+    //   type: SyncServiceType.BILIBILI_WORK,
+    //   id: "MyBilibiliWorks",
+    //   label: "My Bilibili Works",
+    //   userId: "15487659",
+    // },
+    // {
     //   type: SyncServiceType.FEED,
     //   id: "MyBlog",
     //   label: "My Blog Articles",
@@ -38,6 +44,15 @@ export const serverConfig: ServerConfig = {
     host: "127.0.0.1",
     port: 5432,
     database: "timeline",
+  },
+  admin: {
+    secretKey: "change_this_field_to_your_secret_key",
+    accounts: [
+      {
+        username: "admin_username",
+        password: "admin_password",
+      },
+    ],
   },
   listeningPort: 4000,
   syncInterval: "*/30 * * * *",

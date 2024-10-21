@@ -48,13 +48,12 @@ const IS_ADMIN_ENABLED = JWT_SECRET_KEY && ADMIN_ACCOUNTS.length;
 const COOKIE_TOKEN_KEY = "access-token";
 const jwt = new JWT(JWT_SECRET_KEY ?? "won't used");
 
+const SENSITIVE_ROUTES: string[] = ["/qzone-login", "/set"];
+
 const COOKIE_OPTIONS: Partial<ElysiaCookie> = {
   httpOnly: true,
   sameSite: "strict",
 };
-
-checkupDir(SERVER_TEMPORARY_DIR);
-checkupDir(SERVER_STATIC_DIR);
 
 new Elysia()
   .use(
@@ -81,7 +80,7 @@ new Elysia()
   .onBeforeHandle(
     ({ path, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       if (IS_ADMIN_ENABLED) {
-        // 服务端启用了管理员功能，在正式处理请求前校验登录态
+        // 服务端启用了管理员功能，在正式处理请求前校验登录态 Cookie
         let isCookieValidated = false;
         if (cookieToken.value) {
           try {
@@ -91,7 +90,7 @@ new Elysia()
           } catch (error) {
             // 校验不通过，清除 cookieToken.value
             console.error(
-              `请求包含不合法的用户 Token \`${cookieToken.value}\`。`,
+              `请求包含不合法的用户 Token \`${cookieToken.value}\`。\n`,
               String(error),
             );
             cookieToken.set(COOKIE_OPTIONS);
@@ -99,17 +98,21 @@ new Elysia()
           }
         }
 
-        // 启用管理员功能时，如校验不通过，拦截敏感操作路由
-        // 若未启用管理员功能，这些路由将正常放行
+        // 如登录态 Cookie 校验不通过，拦截敏感操作路由
         if (!isCookieValidated) {
-          if (["/qzone-login", "/set"].includes(path)) {
+          if (SENSITIVE_ROUTES.includes(path)) {
             set.status = 400;
-            return "您未登录，或登录已过期";
+            return "您未登录，或登录态已过期";
           }
         }
       } else {
-        // 服务端未启用管理员功能，拦截登录相关路由
-        if (["/login", "/logout"].includes(path)) {
+        // 服务端未启用管理员功能
+        if (
+          // 拦截登录相关路由
+          ["/login", "/logout"].includes(path) ||
+          // 拦截敏感操作路由
+          SENSITIVE_ROUTES.includes(path)
+        ) {
           set.status = 400;
           return "管理员功能未启用";
         }
@@ -296,6 +299,9 @@ new Elysia()
     console.log(
       `Timeline server is running at ${server?.url ?? `127.0.0.1:${server?.port}`}`,
     );
+
+    checkupDir(SERVER_TEMPORARY_DIR);
+    checkupDir(SERVER_STATIC_DIR);
 
     await database.initialize();
     console.log("Database connection initialized.");
