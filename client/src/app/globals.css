@@ -110,6 +110,16 @@
         @apply w-full;
       }
 
+      table {
+        tbody {
+          tr {
+            td {
+              @apply min-w-32;
+            }
+          }
+        }
+      }
+
       *:last-child {
         @apply mb-0;
       }
