@@ -111,10 +111,10 @@
       }
 
       table {
-        tbody {
+        thead {
           tr {
-            td {
-              @apply min-w-32;
+            th {
+              @apply min-w-20 sm:min-w-24 md:min-w-28;
             }
           }
         }
