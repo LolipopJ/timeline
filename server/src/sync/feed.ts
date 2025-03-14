@@ -46,6 +46,30 @@ interface AtomJSON {
   };
 }
 
+interface RssJson {
+  rss: {
+    channel: {
+      title: { _cdata: string };
+      description: { _cdata: string };
+      link: { _text: string };
+      generator: { _text: string };
+      lastBuildDate: { _text: string };
+      item: ({
+        title: { _cdata: string };
+        description: { _cdata: string };
+        link: { _text: string };
+        guid: { _attributes: { _isPermaLink: string }; _text: string };
+        category: { _cdata: string };
+        pubDate: { _text: string };
+      } & {
+        [key: string]: {
+          _text: string;
+        };
+      })[];
+    };
+  };
+}
+
 export const syncFeed = async (service: SyncServiceFeed) => {
   const {
     id,
@@ -64,6 +88,24 @@ export const syncFeed = async (service: SyncServiceFeed) => {
   const feedJSON = JSON.parse(xml2json(feedContent, { compact: true }));
   let entries: TimelineItem[] = [];
   switch (syntax) {
+    case "rss":
+      entries = (feedJSON as RssJson).rss.channel.item.map((entry) => ({
+        sync_service_id: id,
+        sync_service_type: type,
+        content_id: entry.guid._text,
+        title: entry.title._cdata,
+        content: entry.description._cdata,
+        url: entry.link._text,
+        metadata: JSON.stringify(entry),
+        is_secret: secret,
+        created_at: new Date(
+          entry["content:created-at"]?._text ?? entry.pubDate._text,
+        ),
+        updated_at: new Date(
+          entry["content:updated-at"]?._text ?? entry.pubDate._text,
+        ),
+      }));
+      break;
     case "atom":
     default:
       entries = (feedJSON as AtomJSON).feed.entry

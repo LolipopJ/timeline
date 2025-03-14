@@ -89,8 +89,9 @@ export interface SyncServiceFeed extends SyncServiceBase {
   /**
    * Supported syntaxes:
    * @enum `atom` - http://www.w3.org/2005/Atom
+   * @enum `rss` - https://web.resource.org/rss/1.0/modules/content/
    */
-  syntax?: "atom";
+  syntax?: "atom" | "rss";
   url: string;
 }
 
