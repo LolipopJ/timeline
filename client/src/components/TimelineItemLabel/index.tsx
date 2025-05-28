@@ -11,8 +11,6 @@ import {
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
 
-import { getDateLocaleString } from "@/utils/date";
-
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
 
@@ -43,6 +41,39 @@ const labelIconBaseOptions: Partial<IconProps> = {
   className: "mr-1 size-4 md:size-5",
 };
 
+const getDisplayedDateTime = (date: Date) => {
+  const inputDate = new Date(date);
+  const months = inputDate.getMonth() + 1;
+  const days = inputDate.getDate();
+  const hours = inputDate.getHours();
+  const minutes = inputDate.getMinutes();
+  const dateString = `${String(months).padStart(2, "0")}/${String(days).padStart(2, "0")}`;
+  const timeString = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  inputDate.setHours(0, 0, 0, 0);
+  const timeDiff = today.getTime() - inputDate.getTime();
+  const daysDiff = timeDiff / 86400000;
+
+  if (daysDiff <= 7) {
+    return `${
+      [
+        "今天",
+        "昨天",
+        "前天",
+        "三天前",
+        "四天前",
+        "五天前",
+        "六天前",
+        "一周前",
+      ][daysDiff]
+    } ${timeString}`;
+  }
+
+  return `${dateString}, ${timeString}`;
+};
+
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
     item: { sync_service_type, created_at, updated_at, label, is_secret },
@@ -57,7 +88,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const createdAtString = createdAt.toLocaleString();
   const updatedAtString = updatedAt.toLocaleString();
 
-  const createdAtDisplayString = getDateLocaleString(createdAt);
+  const createdAtDisplayString = getDisplayedDateTime(createdAt);
 
   return (
     <div
