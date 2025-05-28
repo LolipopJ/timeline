@@ -1,7 +1,6 @@
-@import url('https://cdn.jsdelivr.net/npm/github-markdown-css@5.7.0/github-markdown-dark.min.css');
-@import url('https://cdn.jsdelivr.net/npm/video.js@8.18.1/dist/video-js.min.css');
-
+@import url('github-markdown-css/github-markdown-dark.css');
 @import url('@fancyapps/ui/dist/fancybox/fancybox.css');
+@import url('video.js/dist/video-js.css');
 
 @import url('../styles/animation.css');
 
@@ -13,10 +12,10 @@
   --primary: #61bfad;
   --primary-light: #80cbbd;
   --primary-dark: #438579;
-  --disabled: #262626;
-  --background: #0b0b0b;
-  --background-light: #0d1117;
-  --background-lighter: #161b22;
+  --disabled: #3f3f46; /** Zinc 700 */
+  --background: #0a0a0a; /** Neutral 950 */
+  --background-light: #171717; /** Neutral 900 */
+  --background-lighter: #262626; /** Neutral 800 */
   --foreground: #e6edf3;
   --foreground-light: #fff;
   --foreground-dark: #a1a5aa;
@@ -24,8 +23,9 @@
 
 @layer base {
   html {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
-      Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Noto Sans', 'Segoe UI', Helvetica,
+      Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   }
 
   body {
@@ -37,11 +37,11 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-gray-900;
+    @apply bg-zinc-900;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-700 hover:bg-gray-600 rounded;
+    @apply bg-zinc-700 hover:bg-zinc-600 rounded;
   }
 
   ::selection {
@@ -58,6 +58,8 @@
     }
 
     .markdown-body {
+      @apply bg-background-light;
+
       h1 {
         @apply text-3xl;
       }
@@ -89,6 +91,11 @@
         @apply text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
       }
 
+      pre,
+      .highlight pre {
+        @apply bg-background-lighter;
+      }
+
       code {
         @apply break-all;
       }
@@ -111,12 +118,34 @@
       }
 
       table {
+        tr {
+          @apply bg-background-light;
+
+          &:nth-child(2n) {
+            @apply bg-background-lighter;
+          }
+        }
+
         thead {
           tr {
             th {
               @apply min-w-20 sm:min-w-24 md:min-w-28;
             }
           }
+        }
+      }
+
+      kbd {
+        @apply bg-background-lighter;
+      }
+
+      .csv-data {
+        .blob-num {
+          @apply bg-primary-light;
+        }
+
+        th {
+          @apply bg-background-lighter;
         }
       }
 
