@@ -10,6 +10,9 @@ import {
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
+import { useContext } from "react";
+
+import GlobalContext from "@/contexts/GlobalContext";
 
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
@@ -80,15 +83,18 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     className = "",
     ...rest
   } = props;
+  const { lastVisitDate } = useContext(GlobalContext);
 
   const createdAt = new Date(created_at);
+  const createdAtString = createdAt.toLocaleString();
   const updatedAt = new Date(updated_at);
+  const updatedAtString = updatedAt.toLocaleString();
   const hasUpdated = updatedAt.getTime() !== createdAt.getTime();
 
-  const createdAtString = createdAt.toLocaleString();
-  const updatedAtString = updatedAt.toLocaleString();
-
   const createdAtDisplayString = getDisplayedDateTime(createdAt);
+
+  const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
+  const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
 
   return (
     <div
@@ -105,7 +111,14 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
         />
         <span>
           {label}
-          {is_secret && " (私密)"}
+          {(isNewlyCreated || isNewlyUpdated) && (
+            <sup className="ml-1 opacity-75">
+              <i>
+                {isNewlyCreated ? "new" : isNewlyUpdated ? "updated" : null}
+              </i>
+            </sup>
+          )}
+          {is_secret && <sub className="ml-1 opacity-75">私密</sub>}
         </span>
       </div>
       <div className={`${labelItemBaseClassName} lg:top-10 2xl:top-11`}>

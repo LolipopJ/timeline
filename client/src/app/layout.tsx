@@ -9,6 +9,11 @@ import useSWR from "swr";
 
 import { LoginModal } from "@/components/LoginModal";
 import { MessageContainer } from "@/components/Message";
+import { LS_LAST_VISIT_DATE } from "@/constants";
+import GlobalContext, {
+  GLOBAL_CONTEXT_DEFAULT_VALUE,
+  type GlobalContextValue,
+} from "@/contexts/GlobalContext";
 import { fetcherPOST } from "@/services/axios";
 
 import config from "../../../configs/client";
@@ -21,6 +26,9 @@ export default function RootLayout({
   const router = useRouter();
   const pathname = usePathname();
 
+  const [globalContext, setGlobalContext] = useState<GlobalContextValue>(
+    GLOBAL_CONTEXT_DEFAULT_VALUE,
+  );
   const [initialized, setInitialized] = useState<boolean>(false);
   const [login, setLogin] = useState<boolean>(false);
   const [logout, setLogout] = useState<boolean>(false);
@@ -29,6 +37,14 @@ export default function RootLayout({
     logout ? "/logout" : null,
     fetcherPOST,
   );
+
+  useEffect(() => {
+    const lsLastVisitDate = localStorage.getItem(LS_LAST_VISIT_DATE);
+    const lastVisitDate = lsLastVisitDate ? new Date(lsLastVisitDate) : null;
+    setGlobalContext({ lastVisitDate });
+
+    localStorage.setItem(LS_LAST_VISIT_DATE, String(new Date()));
+  }, []);
 
   useEffect(() => {
     //#region 初始化登录、登出查询
@@ -65,18 +81,20 @@ export default function RootLayout({
         <meta name="referrer" content="no-referrer" />
       </head>
       <body className={`${login ? "overflow-hidden" : ""}`}>
-        <main>{!initialized || logout ? null : children}</main>
-        {login && (
-          <LoginModal
-            open={true}
-            onClose={() => {
-              setLogin(false);
-              router.replace(pathname);
-            }}
-            onLogged={() => window.location.replace(pathname)}
-          />
-        )}
-        <MessageContainer />
+        <GlobalContext.Provider value={globalContext}>
+          <main>{!initialized || logout ? null : children}</main>
+          {login && (
+            <LoginModal
+              open={true}
+              onClose={() => {
+                setLogin(false);
+                router.replace(pathname);
+              }}
+              onLogged={() => window.location.replace(pathname)}
+            />
+          )}
+          <MessageContainer />
+        </GlobalContext.Provider>
       </body>
     </html>
   );
