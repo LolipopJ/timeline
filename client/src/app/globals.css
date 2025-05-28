@@ -58,8 +58,6 @@
     }
 
     .markdown-body {
-      @apply bg-background-light;
-
       h1 {
         @apply text-3xl;
       }
@@ -120,10 +118,10 @@
       table {
         tr {
           @apply bg-background-light;
+        }
 
-          &:nth-child(2n) {
-            @apply bg-background-lighter;
-          }
+        tr:nth-child(2n) {
+          @apply bg-background-lighter;
         }
 
         thead {
@@ -160,6 +158,10 @@
           @apply text-foreground hover:text-primary hover:no-underline transition;
         }
       }
+    }
+
+    .markdown-body {
+      @apply bg-background-light;
     }
   }
 }
