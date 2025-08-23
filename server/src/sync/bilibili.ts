@@ -151,14 +151,21 @@ export const syncBilibiliCollections = async (
 };
 
 export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
-  const { id, type, from, secret, userId } = service;
-
-  const lastExecuteDate = await getSyncTaskLastExecuteTime({
+  const {
     id,
-    from,
-  });
+    type,
+    // from,
+    secret,
+    userId,
+  } = service;
+
+  // const lastExecuteDate = await getSyncTaskLastExecuteTime({
+  //   id,
+  //   from,
+  // });
   console.log(
-    `Syncing Bilibili works of ${userId} since ${lastExecuteDate.toISOString()}...`,
+    // `Syncing Bilibili works of ${userId} since ${lastExecuteDate.toISOString()}...`,
+    `Syncing Bilibili works of ${userId}...`,
   );
 
   const works: BilibiliWork[] = [];
@@ -179,7 +186,8 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
     );
     const queriedWorks: BilibiliWork[] = getWorksRes.data.data.archives ?? [];
     const filteredWorks = queriedWorks.filter(
-      (work) => work.ctime * 1000 > lastExecuteDate.getTime(),
+      // (work) => work.ctime * 1000 > lastExecuteDate.getTime(),
+      (work) => !!work,
     );
     works.push(...filteredWorks);
 
