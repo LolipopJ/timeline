@@ -53,6 +53,7 @@ export default function Home() {
     isLoading: isLoadingTimelineItems,
     isValidating: isValidatingTimelineItems,
     setSize: setQueryTimelineItemsPage,
+    error: queryTimelineItemsError,
   } = useSWRInfinite<TimelineItemClient[]>(getTimelineItemsKey, fetcherGET);
   const isFullyLoaded =
     timelineItems &&
@@ -73,7 +74,8 @@ export default function Home() {
   }, [isLoadingTimelineItems]);
 
   useEffect(() => {
-    if (isFullyLoaded || isValidatingTimelineItems) return;
+    if (isFullyLoaded || isValidatingTimelineItems || queryTimelineItemsError)
+      return;
 
     const loadMoreButton = loadMoreButtonRef.current;
     if (loadMoreButton) {
@@ -91,7 +93,12 @@ export default function Home() {
         loadMoreObserver.unobserve(loadMoreButton);
       };
     }
-  }, [isFullyLoaded, isValidatingTimelineItems, setQueryTimelineItemsPage]);
+  }, [
+    isFullyLoaded,
+    isValidatingTimelineItems,
+    queryTimelineItemsError,
+    setQueryTimelineItemsPage,
+  ]);
 
   useEffect(() => {
     if (isValidatingTimelineItems) return;
@@ -149,7 +156,7 @@ export default function Home() {
       <>
         <div className="lg:hidden">
           <div
-            className={`fixed inset-x-0 top-0 z-10 flex h-20 items-center bg-background-light px-4 shadow-md shadow-background-lighter sm:px-6 md:h-24 md:px-8`}
+            className={`bg-background-light shadow-background-lighter fixed inset-x-0 top-0 z-10 flex h-20 items-center px-4 shadow-md sm:px-6 md:h-24 md:px-8`}
           >
             <TimelineCurrentDate date={currenDate} className="min-w-28" />
             <TimelineSearch
@@ -208,7 +215,7 @@ export default function Home() {
         ) : (
           <button
             ref={loadMoreButtonRef}
-            className={`rounded border-2 bg-background-light px-3 py-2 transition hover:bg-background-lighter ${isValidatingTimelineItems ? "!bg-disabled" : ""}`}
+            className={`bg-background-light hover:bg-background-lighter rounded border-2 px-3 py-2 transition ${isValidatingTimelineItems ? "!bg-disabled" : ""}`}
             onClick={() => setQueryTimelineItemsPage((prev) => prev + 1)}
             disabled={isValidatingTimelineItems}
           >
