@@ -86,6 +86,12 @@
         @apply text-primary-light hover:text-primary hover:underline hover:underline-offset-2 hover:decoration-wavy hover:decoration-2;
       }
 
+      blockquote {
+        p {
+          @apply whitespace-break-spaces;
+        }
+      }
+
       pre,
       .highlight pre {
         @apply bg-background-lighter;
