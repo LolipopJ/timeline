@@ -2,15 +2,17 @@
 
 ## 前置准备
 
-本项目基于 Bun 开发，您需要全局安装 Bun：
+本项目基于 Bun 开发，服务端依赖于 PostgreSQL 数据库。
+
+全局安装 Bun：
 
 ```bash
 npm install -g bun
 ```
 
-本项目依赖于 PostgreSQL 数据库。
+分别复制 `configs/client.example.ts` 和 `configs/server.example.ts` 为 `configs/client.ts` 和 `configs/server.ts`，配置您的客户端和服务端。
 
-编辑 `config/server.ts`，填写连接到 PostgreSQL 数据库的配置信息：
+编辑 `configs/server.ts`，填写连接到 PostgreSQL 数据库的配置信息：
 
 ```ts
 export const serverConfig: ServerConfig = {
@@ -37,8 +39,6 @@ CREATE DATABASE timeline_dev;
 ```
 
 ## 配置项目
-
-分别复制 `config/client-template.ts` 和 `config/server-template.ts` 为 `config/client.ts` 和 `config/server.ts`，配置您的客户端和服务端。
 
 ### 管理员用户
 
