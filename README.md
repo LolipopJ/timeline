@@ -1,18 +1,12 @@
 # Timeline
 
-## Preparation / Configuration
-
-分别复制 `config/client-template.ts` 和 `config/server-template.ts` 为 `config/client.ts` 和 `config/server.ts`，配置您的客户端和服务端。
-
-### 【必要】Bun
+## 前置准备
 
 本项目基于 Bun 开发，您需要全局安装 Bun：
 
 ```bash
 npm install -g bun
 ```
-
-### 【必要】数据库
 
 本项目依赖于 PostgreSQL 数据库。
 
@@ -41,6 +35,10 @@ CREATE DATABASE timeline;
 ```sql
 CREATE DATABASE timeline_dev;
 ```
+
+## 配置项目
+
+分别复制 `config/client-template.ts` 和 `config/server-template.ts` 为 `config/client.ts` 和 `config/server.ts`，配置您的客户端和服务端。
 
 ### 管理员用户
 
@@ -206,7 +204,7 @@ bun run build:client
 
 构建后的静态资源存放在 `client/out` 目录。
 
-### 客户端部署
+### 服务端部署
 
 ```bash
 bun run start:server
