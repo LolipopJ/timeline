@@ -1,2 +1,1 @@
-bun run lint:client:fix
-bun run lint:server:fix
+bun run lint-staged --allow-empty

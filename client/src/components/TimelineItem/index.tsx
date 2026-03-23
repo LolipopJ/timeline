@@ -12,8 +12,7 @@ import TimelineItemLabel from "@/components/TimelineItemLabel";
 import { SyncServiceType } from "../../../../enums";
 import type { TimelineItemClient } from "../../../../interfaces/api";
 
-export interface TimelineItemProps
-  extends React.HTMLAttributes<HTMLDivElement> {
+export interface TimelineItemProps extends React.HTMLAttributes<HTMLDivElement> {
   item: TimelineItemClient;
 }
 

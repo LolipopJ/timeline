@@ -3,8 +3,7 @@ import Icon from "@mdi/react";
 import { useEffect, useRef, useState } from "react";
 
 export interface ExpandableContainerProps
-  extends React.PropsWithChildren,
-    React.HTMLAttributes<HTMLDivElement> {
+  extends React.PropsWithChildren, React.HTMLAttributes<HTMLDivElement> {
   expandableHeightThresholdRatio: number;
 }
 

@@ -61,8 +61,10 @@ interface QZoneTalk {
   video?: QZoneTalkVideo[];
 }
 
-interface QZoneTalkComment
-  extends Pick<QZoneTalk, "content" | "created_time" | "name" | "tid" | "uin"> {
+interface QZoneTalkComment extends Pick<
+  QZoneTalk,
+  "content" | "created_time" | "name" | "tid" | "uin"
+> {
   /** 二级评论列表 */
   list_3?: Pick<
     QZoneTalk,

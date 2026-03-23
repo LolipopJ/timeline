@@ -180,23 +180,37 @@ export const serverConfig: ServerConfig = {
 
 ### 客户端开发
 
-客户端默认监听 `localhost:3000`。
+启动客户端，默认监听 `localhost:3000`。
 
 ```bash
 bun run dev:client
 ```
 
+修复客户端代码质量问题：
+
+```bash
+bun run lint:client
+```
+
 ### 服务端开发
+
+启动服务端，默认监听 `localhost:4000`：
 
 ```bash
 bun run dev:server
+```
+
+修复服务端代码质量问题：
+
+```bash
+bun run lint:server
 ```
 
 ## 项目部署
 
 ### 客户端部署
 
-编辑客户端配置后，需要手动构建新的静态资源。
+编译构建客户端静态资源：
 
 ```bash
 bun run build:client
@@ -205,6 +219,8 @@ bun run build:client
 构建后的静态资源存放在 `client/out` 目录。
 
 ### 服务端部署
+
+启动服务端生产环境：
 
 ```bash
 bun run start:server
