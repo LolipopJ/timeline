@@ -37,10 +37,6 @@ export const getTimelineItems = async (
   return await dataSource.getRepository(TimelineItem).find({
     cache: true,
     ...options,
-    order: {
-      created_at: "DESC",
-      ...options.order,
-    },
   });
 };
 

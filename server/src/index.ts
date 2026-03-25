@@ -68,7 +68,7 @@ new Elysia()
       prefix: "/static",
       alwaysStatic: false,
       staticLimit: 0,
-      enableDecodeURI: true,
+      decodeURI: true,
       maxAge: 60 * 60 * 24 * 7,
     }),
   )
@@ -85,7 +85,7 @@ new Elysia()
         if (cookieToken.value) {
           try {
             // 若校验通过，后续路由可以通过 cookieToken.value 值是否为空来判断是否已登录
-            jwt.verify(cookieToken.value);
+            jwt.verify(String(cookieToken.value));
             isCookieValidated = true;
           } catch (error) {
             // 校验不通过，清除 cookieToken.value
@@ -126,6 +126,7 @@ new Elysia()
       const {
         page = "0",
         limit = "20",
+        orderBy = "created_at",
         serviceId,
         serviceType,
         search,
@@ -158,6 +159,9 @@ new Elysia()
         take,
         skip,
         where,
+        ...(orderBy === "updated_at"
+          ? { order: { updated_at: "DESC" } }
+          : { order: { created_at: "DESC" } }),
       });
 
       const resolvedTimelineItems: TimelineItemClient[] = timelineItems.map(

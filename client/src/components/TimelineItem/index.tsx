@@ -7,17 +7,19 @@ import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-c
 import TimelineItemFeed from "@/components/TimelineItem/feed";
 import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
 import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
-import TimelineItemLabel from "@/components/TimelineItemLabel";
+import TimelineItemLabel, {
+  type TimelineItemLabelProps,
+} from "@/components/TimelineItemLabel";
 
 import { SyncServiceType } from "../../../../enums";
-import type { TimelineItemClient } from "../../../../interfaces/api";
 
-export interface TimelineItemProps extends React.HTMLAttributes<HTMLDivElement> {
-  item: TimelineItemClient;
-}
+export interface TimelineItemProps
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
+    Omit<TimelineItemLabelProps, "className"> {}
 
 function TimelineItem(props: TimelineItemProps) {
-  const { item, className, ...rest } = props;
+  const { item, displayedDateTime, className, ...rest } = props;
   const { sync_service_type } = item;
 
   let element = <></>;
@@ -69,7 +71,7 @@ function TimelineItem(props: TimelineItemProps) {
       className={`timeline-item relative flex flex-col ${className}`}
       {...rest}
     >
-      <TimelineItemLabel item={item} />
+      <TimelineItemLabel item={item} displayedDateTime={displayedDateTime} />
       {element}
     </div>
   );

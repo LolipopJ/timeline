@@ -5,6 +5,7 @@ import type { SyncServiceBase } from "./server";
 export type GetTimelineItemsParams = {
   page?: string;
   limit?: string;
+  orderBy?: "created_at" | "updated_at";
   serviceId?: string;
   serviceType?: SyncServiceType;
   search?: string;

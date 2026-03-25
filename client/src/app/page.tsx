@@ -29,6 +29,7 @@ const PAGE_LIMIT = 20;
 export default function Home() {
   const [searchParams, setSearchParams] = useState<GetTimelineItemsParams>({
     search: "",
+    orderBy: "created_at",
   });
   const debouncedSearchParams = useDebounce(searchParams, 500);
 
@@ -142,14 +143,11 @@ export default function Home() {
     }
   }, [timelineItems]);
 
-  const timelineSearchProps = useMemo<TimelineSearchProps>(
-    () => ({
-      onChange: (e) =>
-        setSearchParams((prev) => ({ ...prev, search: e.target.value })),
-      onClear: () => setSearchParams((prev) => ({ ...prev, search: "" })),
-    }),
-    [],
-  );
+  const timelineSearchProps: TimelineSearchProps = {
+    value: searchParams,
+    onChange: setSearchParams,
+    onClear: () => setSearchParams((prev) => ({ ...prev, search: "" })),
+  };
 
   return (
     <div className="mt-20 max-w-screen-md px-4 py-6 sm:px-6 sm:py-8 md:mx-auto md:mt-24 md:px-8 md:py-10 lg:mt-0">
@@ -161,7 +159,6 @@ export default function Home() {
             <TimelineCurrentDate date={currenDate} className="min-w-28" />
             <TimelineSearch
               {...timelineSearchProps}
-              value={searchParams.search}
               className="ml-auto mr-12 hidden w-40 sm:block md:mr-16 md:w-48"
             />
             <TimelineOwner
@@ -175,11 +172,7 @@ export default function Home() {
             className={`fixed -mt-10 flex h-screen w-40 -translate-x-full flex-col py-10 pr-10 2xl:w-48 2xl:pr-12`}
           >
             <TimelineCurrentDate date={currenDate} />
-            <TimelineSearch
-              {...timelineSearchProps}
-              value={searchParams.search}
-              className="-ml-1.5 mt-6"
-            />
+            <TimelineSearch {...timelineSearchProps} className="-ml-1.5 mt-6" />
             <TimelineProgress
               total={timelineItemsCount}
               current={currentIndex}
@@ -191,7 +184,7 @@ export default function Home() {
       </>
       {timelineItems?.map((itemsArray, page) =>
         itemsArray.map((item, index) => {
-          const { id, created_at } = item;
+          const { id, created_at, updated_at } = item;
           const orderedIndex = page * PAGE_LIMIT + index + 1;
 
           return (
@@ -199,8 +192,10 @@ export default function Home() {
               key={id}
               id={id}
               item={item}
+              displayedDateTime={searchParams.orderBy}
               className="mb-8"
               data-created-at={created_at}
+              data-updated-at={updated_at}
               data-ordered-index={orderedIndex}
             />
           );

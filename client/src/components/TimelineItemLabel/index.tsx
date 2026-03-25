@@ -15,10 +15,14 @@ import { useContext } from "react";
 import GlobalContext from "@/contexts/GlobalContext";
 
 import { SyncServiceType } from "../../../../enums";
-import type { TimelineItemClient } from "../../../../interfaces/api";
+import type {
+  GetTimelineItemsParams,
+  TimelineItemClient,
+} from "../../../../interfaces/api";
 
-interface TimelineItemLabelProps {
+export interface TimelineItemLabelProps {
   item: TimelineItemClient;
+  displayedDateTime?: GetTimelineItemsParams["orderBy"];
   className?: string;
 }
 
@@ -80,6 +84,7 @@ const getDisplayedDateTime = (date: Date) => {
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
     item: { sync_service_type, created_at, updated_at, label, is_secret },
+    displayedDateTime = "created_at",
     className = "",
     ...rest
   } = props;
@@ -91,7 +96,9 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const updatedAtString = updatedAt.toLocaleString();
   const hasUpdated = updatedAt.getTime() !== createdAt.getTime();
 
-  const createdAtDisplayString = getDisplayedDateTime(createdAt);
+  const displayedDateTimeString = getDisplayedDateTime(
+    displayedDateTime === "updated_at" ? updatedAt : createdAt,
+  );
 
   const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
   const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
@@ -132,7 +139,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
             (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
           }
         >
-          {createdAtDisplayString}
+          {displayedDateTimeString}
         </span>
       </div>
     </div>
