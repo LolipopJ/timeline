@@ -159,11 +159,11 @@ export default function Home() {
             <TimelineCurrentDate date={currenDate} className="min-w-28" />
             <TimelineSearch
               {...timelineSearchProps}
-              className="ml-auto mr-12 hidden w-40 sm:block md:mr-16 md:w-48"
+              className="ml-auto w-48 sm:w-52 md:w-60"
             />
             <TimelineOwner
-              className="ml-auto sm:ml-0"
-              iconClassName="size-6 sm:size-8 text-foreground"
+              className="ml-12 hidden sm:flex"
+              iconClassName="text-foreground"
             />
           </div>
         </div>
@@ -178,7 +178,7 @@ export default function Home() {
               current={currentIndex}
               className="my-20 w-2 flex-auto 2xl:my-24 2xl:w-3"
             />
-            <TimelineOwner iconClassName="2xl:size-8" />
+            <TimelineOwner />
           </div>
         </div>
       </>

@@ -61,7 +61,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
       </button>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-2 w-fit rounded-md bg-background-light shadow-md">
+        <div className="absolute left-0 z-50 mt-2 w-fit rounded-md bg-background-light shadow-md shadow-background-lighter">
           <ul className="p-1">
             <li>
               <button
