@@ -109,14 +109,24 @@ export default function Home() {
       const loadMoreObserver = new IntersectionObserver(
         ([entry]) => {
           if (entry.isIntersecting) {
-            const timelineItemCreateAt =
-              entry.target.getAttribute("data-created-at");
+            if (searchParams.orderBy === "updated_at") {
+              const timelineItemUpdateAt =
+                entry.target.getAttribute("data-updated-at");
+              if (timelineItemUpdateAt) {
+                const timelineItemUpdateAtDate = new Date(timelineItemUpdateAt);
+                setCurrentDate(timelineItemUpdateAtDate);
+              }
+            } else {
+              const timelineItemCreateAt =
+                entry.target.getAttribute("data-created-at");
+              if (timelineItemCreateAt) {
+                const timelineItemCreateAtDate = new Date(timelineItemCreateAt);
+                setCurrentDate(timelineItemCreateAtDate);
+              }
+            }
+
             const timelineItemOrderedIndex =
               entry.target.getAttribute("data-ordered-index");
-            if (timelineItemCreateAt) {
-              const timelineItemCreateAtDate = new Date(timelineItemCreateAt);
-              setCurrentDate(timelineItemCreateAtDate);
-            }
             if (timelineItemOrderedIndex) {
               setCurrentIndex(Number(timelineItemOrderedIndex));
             }
@@ -134,7 +144,7 @@ export default function Home() {
         });
       };
     }
-  }, [isValidatingTimelineItems]);
+  }, [isValidatingTimelineItems, searchParams.orderBy]);
 
   useEffect(() => {
     // 过滤得到的时间线列表为空时，显示消息提示
