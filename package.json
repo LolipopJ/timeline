@@ -12,8 +12,8 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "client/**/*": "bun run lint:client",
-    "server/**/*": "bun run lint:server"
+    "client/**/*.{ts,tsx}": "bun run lint:client",
+    "server/**/*.{ts}": "bun run lint:server"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",

@@ -1,6 +1,6 @@
-@import url('https://unpkg.com/github-markdown-css@5.8.1/github-markdown-dark.css');
-@import url('https://unpkg.com/@fancyapps/ui@5.0.36/dist/fancybox/fancybox.css');
-@import url('https://unpkg.com/video.js@8.23.3/dist/video-js.min.css');
+@import url('https://unpkg.com/github-markdown-css@5.9.0/github-markdown-dark.css');
+@import url('https://unpkg.com/@fancyapps/ui@6.1.13/dist/fancybox/fancybox.css');
+@import url('https://unpkg.com/video.js@8.23.8/dist/video-js.min.css');
 
 @import url('../styles/animation.css');
 
