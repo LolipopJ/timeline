@@ -101,6 +101,11 @@
         @apply break-all;
       }
 
+      ol,
+      ul {
+        list-style: auto;
+      }
+
       img {
         @apply mx-auto rounded max-h-screen-3/5;
       }
