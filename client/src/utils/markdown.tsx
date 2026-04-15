@@ -1,11 +1,13 @@
 import parse from "html-react-parser";
 import { Marked } from "marked";
+import markedAlert from "marked-alert";
 import dynamic from "next/dynamic";
 import { v4 as uuid } from "uuid";
 
 const VideoPlayer = dynamic(() => import("@/components/VideoPlayer"));
 
 const marked = new Marked();
+marked.use(markedAlert());
 
 const parseMarkdownToReactNode = (markdown: string, id?: string) => {
   const _id = id ?? uuid();
