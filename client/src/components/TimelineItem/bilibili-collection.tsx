@@ -12,10 +12,14 @@ export default function TimelineItemBilibiliCollection(
   return (
     <div className={`bilibili-collection ${className}`} {...rest}>
       {cover && (
-        <div className="relative">
+        <div className="relative aspect-video bg-background-light">
           <a href={item.url} target="_blank" className="select-none">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt={`${cover.url}`} src={cover.url} />
+            <img
+              alt={`${cover.url}`}
+              src={cover.url}
+              className="size-full object-cover"
+            />
           </a>
           <h1
             className={`${imageIntroClassName} top-0 font-bold sm:text-lg`}
