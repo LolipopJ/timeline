@@ -6,6 +6,7 @@ import {
   mdiCommentText,
   mdiEyeOffOutline,
   mdiEyeOutline,
+  mdiOpenInNew,
   mdiRssBox,
   mdiStarShooting,
   mdiTrashCanOutline,
@@ -90,7 +91,15 @@ const getDisplayedDateTime = (date: Date) => {
 
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
-    item: { id, sync_service_type, created_at, updated_at, label, is_secret },
+    item: {
+      id,
+      sync_service_type,
+      created_at,
+      updated_at,
+      label,
+      url,
+      is_secret,
+    },
     displayedDateTime = "created_at",
     mutateTimelineItems,
     className = "",
@@ -177,17 +186,19 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
   const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
 
+  const hasMenu = isLoggedIn || url;
+
   return (
     <div
       className={`mb-3 flex select-none justify-between lg:mb-0 ${className}`}
       {...rest}
     >
       <div
-        ref={isLoggedIn ? menuRef : undefined}
-        onClick={() => isLoggedIn && setMenuOpen((v) => !v)}
-        aria-haspopup={isLoggedIn ? "menu" : undefined}
-        aria-expanded={isLoggedIn ? menuOpen : undefined}
-        className={`${labelItemBaseClassName} relative z-10 font-bold text-primary lg:top-2 ${isLoggedIn ? "cursor-pointer" : ""}`}
+        ref={hasMenu ? menuRef : undefined}
+        onClick={() => hasMenu && setMenuOpen((v) => !v)}
+        aria-haspopup={hasMenu ? "menu" : undefined}
+        aria-expanded={hasMenu ? menuOpen : undefined}
+        className={`${labelItemBaseClassName} relative z-10 font-bold text-primary lg:top-2 ${hasMenu ? "cursor-pointer" : ""}`}
         style={{ color: LABEL_TEXT_COLOR[sync_service_type] }}
       >
         <Icon
@@ -205,40 +216,57 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           )}
           {is_secret && <sub className="ml-1 opacity-75">私密</sub>}
         </span>
-        {isLoggedIn && menuOpen && (
+        {hasMenu && menuOpen && (
           <div className="absolute left-0 top-0 z-50 w-32 rounded-md bg-background-light text-sm font-normal shadow-md shadow-background-lighter">
             <ul className="p-1">
-              <li>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    handleToggleSecret();
-                  }}
-                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
-                >
-                  <Icon
-                    path={is_secret ? mdiEyeOutline : mdiEyeOffOutline}
-                    size={0.7}
-                  />
-                  {is_secret ? "设为公开" : "设为私密"}
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    handleDelete();
-                  }}
-                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-red-400 hover:bg-background-lighter"
-                >
-                  <Icon path={mdiTrashCanOutline} size={0.7} />
-                  删除
-                </button>
-              </li>
+              {url ? (
+                <li>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
+                  >
+                    <Icon path={mdiOpenInNew} size={0.7} />
+                    打开链接
+                  </a>
+                </li>
+              ) : null}
+              {isLoggedIn ? (
+                <>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        handleToggleSecret();
+                      }}
+                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
+                    >
+                      <Icon
+                        path={is_secret ? mdiEyeOutline : mdiEyeOffOutline}
+                        size={0.7}
+                      />
+                      {is_secret ? "设为公开" : "设为私密"}
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        handleDelete();
+                      }}
+                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-red-400 hover:bg-background-lighter"
+                    >
+                      <Icon path={mdiTrashCanOutline} size={0.7} />
+                      删除
+                    </button>
+                  </li>
+                </>
+              ) : null}
             </ul>
           </div>
         )}
