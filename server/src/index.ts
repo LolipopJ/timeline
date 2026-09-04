@@ -14,6 +14,7 @@ import type {
   CountTimelineItemsParams,
   GetTimelineItemsParams,
   TimelineItemClient,
+  UpdateTimelineItemParams,
 } from "../../interfaces/api";
 import type { LoginAccount } from "../../interfaces/server";
 import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
@@ -21,6 +22,9 @@ import database from "./database";
 import {
   countTimelineItems,
   getTimelineItems,
+  restoreSoftDeletedTimelineItem,
+  softDeleteTimelineItem,
+  updateTimelineItem,
 } from "./database/controller/timeline-item";
 import sync from "./sync";
 import { saveBilibiliSessionData } from "./utils/bilibili";
@@ -48,11 +52,29 @@ const IS_ADMIN_ENABLED = JWT_SECRET_KEY && ADMIN_ACCOUNTS.length;
 const COOKIE_TOKEN_KEY = "access-token";
 const jwt = new JWT(JWT_SECRET_KEY ?? "won't used");
 
-const SENSITIVE_ROUTES: string[] = ["/qzone-login", "/set"];
+interface SensitiveRoute {
+  method: string;
+  pattern: RegExp;
+}
+
+const SENSITIVE_ROUTES: SensitiveRoute[] = [
+  { method: "GET", pattern: /^\/qzone-login$/ },
+  { method: "GET", pattern: /^\/set$/ },
+  { method: "PATCH", pattern: /^\/timeline-items\/[^/]+$/ },
+  { method: "DELETE", pattern: /^\/timeline-items\/[^/]+$/ },
+  { method: "POST", pattern: /^\/timeline-items\/[^/]+\/restore$/ },
+];
+
+const isSensitiveRoute = (method: string, path: string) =>
+  SENSITIVE_ROUTES.some(
+    (route) => route.method === method && route.pattern.test(path),
+  );
 
 const COOKIE_OPTIONS: Partial<ElysiaCookie> = {
   httpOnly: true,
-  sameSite: "strict",
+  ...(process.env.NODE_ENV === "development"
+    ? { sameSite: "none", secure: true }
+    : { sameSite: "strict" }),
 };
 
 new Elysia()
@@ -78,7 +100,7 @@ new Elysia()
     );
   })
   .onBeforeHandle(
-    ({ path, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
+    ({ path, request, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       if (IS_ADMIN_ENABLED) {
         // 服务端启用了管理员功能，在正式处理请求前校验登录态 Cookie
         let isCookieValidated = false;
@@ -99,19 +121,18 @@ new Elysia()
         }
 
         // 如登录态 Cookie 校验不通过，拦截敏感操作路由
-        if (!isCookieValidated) {
-          if (SENSITIVE_ROUTES.includes(path)) {
-            set.status = 400;
-            return "您未登录，或登录态已过期";
-          }
+        if (!isCookieValidated && isSensitiveRoute(request.method, path)) {
+          set.status = 401;
+          return "您未登录，或登录态已过期";
         }
       } else {
         // 服务端未启用管理员功能
         if (
-          // 拦截登录相关路由
-          ["/login", "/logout"].includes(path) ||
+          // 拦截登录、登出路由，但放行查询登录状态的 GET /login
+          ((path === "/login" || path === "/logout") &&
+            request.method !== "GET") ||
           // 拦截敏感操作路由
-          SENSITIVE_ROUTES.includes(path)
+          isSensitiveRoute(request.method, path)
         ) {
           set.status = 400;
           return "管理员功能未启用";
@@ -221,8 +242,25 @@ new Elysia()
       return timelineItemsCount;
     },
   )
+  .patch("/timeline-items/:id", async ({ params, body }) => {
+    const { id } = params;
+    const { is_secret } = body as UpdateTimelineItemParams;
+    return await updateTimelineItem(id, {
+      is_secret,
+    });
+  })
+  .delete("/timeline-items/:id", async ({ params }) => {
+    return await softDeleteTimelineItem(params.id);
+  })
+  .post("/timeline-items/:id/restore", async ({ params }) => {
+    return await restoreSoftDeletedTimelineItem(params.id);
+  })
   //#endregion
   //#region 系统管理员用户登录、登出
+  .get("/login", async ({ cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
+    // 未启用管理员功能时，或登录态 Cookie 未通过校验时，cookieToken.value 均为空
+    return { isLoggedIn: Boolean(IS_ADMIN_ENABLED && cookieToken.value) };
+  })
   .post(
     "/login",
     async ({ body, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {

@@ -4,15 +4,21 @@ import {
   mdiClockTimeSeven,
   mdiCommentProcessing,
   mdiCommentText,
+  mdiEyeOffOutline,
+  mdiEyeOutline,
   mdiRssBox,
   mdiStarShooting,
+  mdiTrashCanOutline,
   mdiVideoVintage,
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
-import { useContext } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import type { SWRInfiniteKeyedMutator } from "swr/infinite";
 
+import message from "@/components/Message";
 import GlobalContext from "@/contexts/GlobalContext";
+import { fetcherDELETE, fetcherPATCH } from "@/services/axios";
 
 import { SyncServiceType } from "../../../../enums";
 import type {
@@ -22,6 +28,7 @@ import type {
 
 export interface TimelineItemLabelProps {
   item: TimelineItemClient;
+  mutateTimelineItems: SWRInfiniteKeyedMutator<TimelineItemClient[][]>;
   displayedDateTime?: GetTimelineItemsParams["orderBy"];
   className?: string;
 }
@@ -83,12 +90,79 @@ const getDisplayedDateTime = (date: Date) => {
 
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
-    item: { sync_service_type, created_at, updated_at, label, is_secret },
+    item: { id, sync_service_type, created_at, updated_at, label, is_secret },
     displayedDateTime = "created_at",
+    mutateTimelineItems,
     className = "",
     ...rest
   } = props;
-  const { lastVisitDate } = useContext(GlobalContext);
+  const { lastVisitDate, isLoggedIn } = useContext(GlobalContext);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
+
+  const updateTimelineItemsCache = (
+    updater: (data: TimelineItemClient[]) => TimelineItemClient[],
+  ) => {
+    mutateTimelineItems((pages) => pages?.map((page) => updater(page)), {
+      revalidate: false,
+    });
+  };
+
+  const handleToggleSecret = async () => {
+    if (
+      submitting ||
+      !window.confirm(
+        is_secret ? "确认将该时间线项设为公开？" : "确认将该时间线项设为私密？",
+      )
+    )
+      return;
+
+    const nextIsSecret = !is_secret;
+    setSubmitting(true);
+    try {
+      await fetcherPATCH(`/timeline-items/${id}`, {
+        is_secret: nextIsSecret,
+      });
+      message.success(nextIsSecret ? "已设为私密" : "已设为公开");
+      updateTimelineItemsCache((items) =>
+        items.map((it) =>
+          it.id === id ? { ...it, is_secret: nextIsSecret } : it,
+        ),
+      );
+    } catch (error) {
+      message.error(String(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (submitting || !window.confirm("确认删除该时间线项？")) return;
+
+    setSubmitting(true);
+    try {
+      await fetcherDELETE(`/timeline-items/${id}`);
+      message.success("已删除");
+      updateTimelineItemsCache((items) => items.filter((it) => it.id !== id));
+    } catch (error) {
+      message.error(String(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const createdAt = new Date(created_at);
   const createdAtString = createdAt.toLocaleString();
@@ -109,7 +183,11 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       {...rest}
     >
       <div
-        className={`${labelItemBaseClassName} font-bold text-primary lg:top-2`}
+        ref={isLoggedIn ? menuRef : undefined}
+        onClick={() => isLoggedIn && setMenuOpen((v) => !v)}
+        aria-haspopup={isLoggedIn ? "menu" : undefined}
+        aria-expanded={isLoggedIn ? menuOpen : undefined}
+        className={`${labelItemBaseClassName} relative z-10 font-bold text-primary lg:top-2 ${isLoggedIn ? "cursor-pointer" : ""}`}
         style={{ color: LABEL_TEXT_COLOR[sync_service_type] }}
       >
         <Icon
@@ -127,6 +205,43 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           )}
           {is_secret && <sub className="ml-1 opacity-75">私密</sub>}
         </span>
+        {isLoggedIn && menuOpen && (
+          <div className="absolute left-0 top-0 z-50 w-32 rounded-md bg-background-light text-sm font-normal shadow-md shadow-background-lighter">
+            <ul className="p-1">
+              <li>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    handleToggleSecret();
+                  }}
+                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
+                >
+                  <Icon
+                    path={is_secret ? mdiEyeOutline : mdiEyeOffOutline}
+                    size={0.7}
+                  />
+                  {is_secret ? "设为公开" : "设为私密"}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    handleDelete();
+                  }}
+                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-red-400 hover:bg-background-lighter"
+                >
+                  <Icon path={mdiTrashCanOutline} size={0.7} />
+                  删除
+                </button>
+              </li>
+            </ul>
+          </div>
+        )}
       </div>
       <div className={`${labelItemBaseClassName} lg:top-10 2xl:top-11`}>
         <Icon

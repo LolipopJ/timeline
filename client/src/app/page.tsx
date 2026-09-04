@@ -51,6 +51,7 @@ export default function Home() {
   );
   const {
     data: timelineItems,
+    mutate: mutateTimelineItems,
     isLoading: isLoadingTimelineItems,
     isValidating: isValidatingTimelineItems,
     setSize: setQueryTimelineItemsPage,
@@ -203,6 +204,7 @@ export default function Home() {
               id={id}
               item={item}
               displayedDateTime={searchParams.orderBy}
+              mutateTimelineItems={mutateTimelineItems}
               className="mb-8"
               data-created-at={created_at}
               data-updated-at={updated_at}

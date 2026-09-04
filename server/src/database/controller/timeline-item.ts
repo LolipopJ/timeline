@@ -31,6 +31,15 @@ export const insertOrUpdateTimelineItems = async (
   });
 };
 
+export const updateTimelineItem = async (
+  id: string,
+  updateData: Partial<TimelineItem>,
+) => {
+  return await dataSource
+    .getRepository(TimelineItem)
+    .update({ id }, updateData);
+};
+
 export const getTimelineItems = async (
   options: FindManyOptions<TimelineItem>,
 ) => {
@@ -50,4 +59,12 @@ export const countTimelineItems = async (
   options?: FindManyOptions<TimelineItem>,
 ) => {
   return await dataSource.getRepository(TimelineItem).count(options);
+};
+
+export const softDeleteTimelineItem = async (id: string) => {
+  return await dataSource.getRepository(TimelineItem).softDelete({ id });
+};
+
+export const restoreSoftDeletedTimelineItem = async (id: string) => {
+  return await dataSource.getRepository(TimelineItem).restore({ id });
 };

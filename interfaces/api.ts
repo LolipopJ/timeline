@@ -17,6 +17,8 @@ export interface CountTimelineItemsParams {
   search?: string;
 }
 
+export type UpdateTimelineItemParams = Partial<Pick<TimelineItem, "is_secret">>;
+
 export type TimelineItemClient = Pick<
   TimelineItem,
   | "id"

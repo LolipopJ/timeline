@@ -19,7 +19,8 @@ export interface TimelineItemProps
     Omit<TimelineItemLabelProps, "className"> {}
 
 function TimelineItem(props: TimelineItemProps) {
-  const { item, displayedDateTime, className, ...rest } = props;
+  const { item, displayedDateTime, mutateTimelineItems, className, ...rest } =
+    props;
   const { sync_service_type } = item;
 
   let element = <></>;
@@ -71,7 +72,11 @@ function TimelineItem(props: TimelineItemProps) {
       className={`timeline-item relative flex flex-col ${className}`}
       {...rest}
     >
-      <TimelineItemLabel item={item} displayedDateTime={displayedDateTime} />
+      <TimelineItemLabel
+        item={item}
+        displayedDateTime={displayedDateTime}
+        mutateTimelineItems={mutateTimelineItems}
+      />
       {element}
     </div>
   );

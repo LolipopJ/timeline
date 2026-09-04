@@ -14,7 +14,7 @@ import GlobalContext, {
   GLOBAL_CONTEXT_DEFAULT_VALUE,
   type GlobalContextValue,
 } from "@/contexts/GlobalContext";
-import { fetcherPOST } from "@/services/axios";
+import { AUTH_EXPIRED_EVENT, fetcherGET, fetcherPOST } from "@/services/axios";
 
 import config from "../../../configs/client";
 
@@ -37,13 +37,34 @@ export default function RootLayout({
     logout ? "/logout" : null,
     fetcherPOST,
   );
+  const { data: loginStatus } = useSWR<{ isLoggedIn: boolean }>(
+    "/login",
+    fetcherGET,
+  );
 
   useEffect(() => {
     const lsLastVisitDate = localStorage.getItem(LS_LAST_VISIT_DATE);
     const lastVisitDate = lsLastVisitDate ? new Date(lsLastVisitDate) : null;
-    setGlobalContext({ lastVisitDate });
+    setGlobalContext((prev) => ({ ...prev, lastVisitDate }));
 
     localStorage.setItem(LS_LAST_VISIT_DATE, String(new Date()));
+  }, []);
+
+  useEffect(() => {
+    if (loginStatus) {
+      setGlobalContext((prev) => ({
+        ...prev,
+        isLoggedIn: loginStatus.isLoggedIn,
+      }));
+    }
+  }, [loginStatus]);
+
+  useEffect(() => {
+    // 服务端返回登录态已过期（401）时，清除本地登录状态
+    const onAuthExpired = () =>
+      setGlobalContext((prev) => ({ ...prev, isLoggedIn: false }));
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
   }, []);
 
   useEffect(() => {
@@ -66,6 +87,7 @@ export default function RootLayout({
 
   useEffect(() => {
     if (logout && !isRequestingLogout) {
+      setGlobalContext((prev) => ({ ...prev, isLoggedIn: false }));
       window.location.replace(pathname);
     }
   }, [isRequestingLogout, logout, pathname]);
@@ -90,7 +112,10 @@ export default function RootLayout({
                 setLogin(false);
                 router.replace(pathname);
               }}
-              onLogged={() => window.location.replace(pathname)}
+              onLogged={() => {
+                setGlobalContext((prev) => ({ ...prev, isLoggedIn: true }));
+                window.location.replace(pathname);
+              }}
             />
           )}
           <MessageContainer />
