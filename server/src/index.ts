@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { cors } from "@elysiajs/cors";
 import { staticPlugin } from "@elysiajs/static";
 import { Elysia } from "elysia";
-import type { ElysiaCookie } from "elysia/cookies";
+import type { Cookie, ElysiaCookie } from "elysia/cookies";
 import fs from "fs";
 import schedule from "node-schedule";
 import { ILike } from "typeorm";
@@ -77,6 +77,15 @@ const COOKIE_OPTIONS: Partial<ElysiaCookie> = {
     : { sameSite: "strict" }),
 };
 
+const clearCookieToken = (cookieToken: Cookie<unknown>) => {
+  cookieToken.set({
+    ...COOKIE_OPTIONS,
+    value: "",
+    expires: new Date(0),
+    maxAge: 0,
+  });
+};
+
 new Elysia()
   .use(
     cors({
@@ -115,8 +124,7 @@ new Elysia()
               `请求包含不合法的用户 Token \`${cookieToken.value}\`。\n`,
               String(error),
             );
-            cookieToken.set(COOKIE_OPTIONS);
-            cookieToken.remove();
+            clearCookieToken(cookieToken);
           }
         }
 
@@ -283,8 +291,7 @@ new Elysia()
     },
   )
   .post("/logout", async ({ cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
-    cookieToken.set(COOKIE_OPTIONS);
-    cookieToken.remove();
+    clearCookieToken(cookieToken);
     return "您已登出";
   })
   //#endregion
