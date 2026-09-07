@@ -165,7 +165,7 @@ export default function Home() {
       <>
         <div className="lg:hidden">
           <div
-            className={`fixed inset-x-0 top-0 z-10 flex h-20 items-center bg-background-light px-4 shadow-md shadow-background-lighter sm:px-6 md:h-24 md:px-8`}
+            className={`fixed inset-x-0 top-0 z-20 flex h-20 items-center bg-background-light px-4 shadow-md shadow-background-lighter sm:px-6 md:h-24 md:px-8`}
           >
             <TimelineCurrentDate date={currenDate} className="min-w-28" />
             <TimelineSearch
