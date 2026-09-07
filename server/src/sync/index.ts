@@ -34,11 +34,27 @@ export const sync = async () => {
           );
       }
     });
-    await Promise.all(syncTasks);
 
-    console.log("Sync tasks fulfilled!");
+    const results = await Promise.allSettled(syncTasks);
+
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error(
+          `Sync task ${JSON.stringify(services[index])} failed:\n${result.reason}`,
+        );
+      }
+    });
+
+    const failedCount = results.filter((r) => r.status === "rejected").length;
+    if (failedCount > 0) {
+      console.error(
+        `Sync tasks completed with ${failedCount} failure${failedCount > 1 ? "s" : ""}.`,
+      );
+    } else {
+      console.log("Sync tasks fulfilled!");
+    }
   } catch (error) {
-    console.error("Meet an error while doing sync tasks:\n", error);
+    console.error(`An error occurred while doing sync tasks:\n${error}`);
   }
 };
 

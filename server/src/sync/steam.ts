@@ -8,7 +8,6 @@ import type {
   SyncServiceSteamRecentlyPlayedTime,
 } from "../../../interfaces/server";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
-import httpClient from "../utils/axios";
 
 interface SteamUserSummary {
   steamid: string;
@@ -243,7 +242,7 @@ export const syncSteamGameReviews = async (
   let queryFinished = false;
   let page = 1;
   while (!queryFinished) {
-    const getReviewsRes = await httpClient.get(
+    const getReviewsRes = await axios.get(
       `https://steamcommunity.com/id/${userId}/recommended/`,
       {
         params: { p: page, l: "english" },
