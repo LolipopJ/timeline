@@ -2,7 +2,6 @@ import {
   Column,
   DeleteDateColumn,
   Entity,
-  PrimaryColumn,
   PrimaryGeneratedColumn,
   Unique,
   VersionColumn,
@@ -23,13 +22,13 @@ export class TimelineItem {
   @Column({ type: "simple-array", nullable: true })
   children?: string[];
 
-  @PrimaryColumn({ type: "text" })
+  @Column({ type: "text" })
   sync_service_id!: string;
 
   @Column({ type: "enum", enum: SyncServiceType })
   sync_service_type!: SyncServiceType;
 
-  @PrimaryColumn({ type: "text" })
+  @Column({ type: "text" })
   content_id!: string;
 
   @Column({ type: "text", nullable: true })

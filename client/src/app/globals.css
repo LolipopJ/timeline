@@ -51,9 +51,19 @@
 
 @layer components {
   .timeline-item {
+    img {
+      @apply bg-background-lighter;
+    }
+
     .bilibili-collection {
       img {
         @apply w-full;
+      }
+    }
+
+    .steam-game-review {
+      .bb_spoiler {
+        @apply text-black bg-black px-2 hover:text-foreground-light transition-colors;
       }
     }
 

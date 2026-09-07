@@ -7,6 +7,7 @@ import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-c
 import TimelineItemFeed from "@/components/TimelineItem/feed";
 import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
 import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
+import TimelineItemSteamGameReview from "@/components/TimelineItem/steam-game-review";
 import TimelineItemLabel, {
   type TimelineItemLabelProps,
 } from "@/components/TimelineItemLabel";
@@ -59,6 +60,13 @@ function TimelineItem(props: TimelineItemProps) {
       element = (
         <ExpandableContainer {...expandableContainerProps}>
           <TimelineItemQQZoneTalk item={item} />
+        </ExpandableContainer>
+      );
+      break;
+    case SyncServiceType.STEAM_GAME_REVIEW:
+      element = (
+        <ExpandableContainer {...expandableContainerProps}>
+          <TimelineItemSteamGameReview item={item} />
         </ExpandableContainer>
       );
       break;

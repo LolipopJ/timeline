@@ -14,6 +14,9 @@ export const AppDataSource = new DataSource({
     (process.env.NODE_ENV === "development" ? "_dev" : ""),
   entities: [TimelineItem],
   synchronize: true,
+  invalidWhereValuesBehavior: {
+    undefined: "ignore",
+  },
   logging: false,
 });
 

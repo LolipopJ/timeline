@@ -198,6 +198,7 @@ new Elysia()
           id,
           sync_service_id,
           sync_service_type,
+          content_id,
           title,
           content,
           url,
@@ -208,8 +209,10 @@ new Elysia()
           is_secret,
         }) => ({
           id,
+          sync_service_id,
           label: SERVICE_LABEL_MAP.get(sync_service_id),
           sync_service_type,
+          content_id,
           title,
           content,
           url,

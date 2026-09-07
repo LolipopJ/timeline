@@ -9,6 +9,7 @@ import {
   mdiOpenInNew,
   mdiRssBox,
   mdiStarShooting,
+  mdiSteam,
   mdiTrashCanOutline,
   mdiVideoVintage,
 } from "@mdi/js";
@@ -40,14 +41,16 @@ const LABEL_ICON_PATH = {
   [SyncServiceType.FEED]: mdiRssBox,
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
   [SyncServiceType.QZONE_TALK]: mdiStarShooting,
+  [SyncServiceType.STEAM_GAME_REVIEW]: mdiSteam,
 } as Record<SyncServiceType, string>;
 
 const LABEL_TEXT_COLOR = {
   [SyncServiceType.BILIBILI_COLLECTION]: "#fb7299",
   [SyncServiceType.BILIBILI_WORK]: "#fb7299",
   [SyncServiceType.FEED]: "#818cf8",
-  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "#f0f6fc",
+  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "#fafaf9",
   [SyncServiceType.QZONE_TALK]: "#cc8f14",
+  [SyncServiceType.STEAM_GAME_REVIEW]: "#95a1ae",
 } as Record<SyncServiceType, string>;
 
 const labelItemBaseClassName =
@@ -73,16 +76,7 @@ const getDisplayedDateTime = (date: Date) => {
 
   if (daysDiff <= 7) {
     return `${
-      [
-        "今天",
-        "昨天",
-        "前天",
-        "三天前",
-        "四天前",
-        "五天前",
-        "六天前",
-        "一周前",
-      ][daysDiff]
+      ["今天", "昨天", "前天", "三天前", "四天前", "五天前", "六天前"][daysDiff]
     } ${timeString}`;
   }
 
@@ -173,6 +167,9 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     }
   };
 
+  const isTimezonePT = [SyncServiceType.STEAM_GAME_REVIEW].includes(
+    sync_service_type,
+  );
   const createdAt = new Date(created_at);
   const createdAtString = createdAt.toLocaleString();
   const updatedAt = new Date(updated_at);
@@ -224,7 +221,6 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                   <a
                     href={url}
                     target="_blank"
-                    rel="noopener noreferrer"
                     className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
                   >
                     <Icon path={mdiOpenInNew} size={0.7} />
@@ -278,11 +274,14 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
         />
         <span
           title={
-            `创建于：${createdAtString}` +
-            (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
+            `创建于：${createdAtString}${isTimezonePT ? " (PT)" : ""}` +
+            (hasUpdated
+              ? `\n最后更新于：${updatedAtString}${isTimezonePT ? " (PT)" : ""}`
+              : "")
           }
         >
           {displayedDateTimeString}
+          {isTimezonePT && " (PT)"}
         </span>
       </div>
     </div>

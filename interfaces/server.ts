@@ -59,7 +59,8 @@ export type SyncService =
   | SyncServiceFeed
   | SyncServiceGithubIssueComment
   | SyncServiceQzoneTalk
-  | SyncServiceSteamRecentlyPlayedTime;
+  | SyncServiceSteamRecentlyPlayedTime
+  | SyncServiceSteamGameReview;
 
 export interface SyncServiceBase {
   id: string;
@@ -113,7 +114,14 @@ export interface SyncServiceSteamRecentlyPlayedTime extends SyncServiceBase {
   steamId: string;
 }
 
+export interface SyncServiceSteamGameReview extends SyncServiceBase {
+  type: SyncServiceType.STEAM_GAME_REVIEW;
+  /** Steam 用户 ID */
+  userId: string;
+}
+
 export interface SyncServiceTelegramChat extends SyncServiceBase {
   type: SyncServiceType.TELEGRAM_CHAT;
+  /** Telegram 聊天 ID */
   chatId: string;
 }

@@ -4,7 +4,7 @@ import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
 import { syncQQZoneTalks } from "./qzone";
-import { syncSteamRecentlyPlayedGames } from "./steam";
+import { syncSteamGameReviews, syncSteamRecentlyPlayedGames } from "./steam";
 
 export const sync = async () => {
   try {
@@ -25,6 +25,8 @@ export const sync = async () => {
           return syncQQZoneTalks(service);
         case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
           return syncSteamRecentlyPlayedGames(service);
+        case SyncServiceType.STEAM_GAME_REVIEW:
+          return syncSteamGameReviews(service);
         default:
           return Promise.reject(
             // @ts-expect-error: throw an error if user provide a unknown type

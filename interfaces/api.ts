@@ -22,7 +22,9 @@ export type UpdateTimelineItemParams = Partial<Pick<TimelineItem, "is_secret">>;
 export type TimelineItemClient = Pick<
   TimelineItem,
   | "id"
+  | "sync_service_id"
   | "sync_service_type"
+  | "content_id"
   | "title"
   | "content"
   | "url"

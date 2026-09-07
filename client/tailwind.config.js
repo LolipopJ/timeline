@@ -1,27 +1,12 @@
-import type { Config } from "tailwindcss";
-
-const config: Config = {
+const config = {
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  safelist: [
-    // #region Resolve react-transition-group styles
-    {
-      pattern: /^.+-enter(-active|-done)?$/,
-    },
-    {
-      pattern: /^.+-appear(-active|-done)?$/,
-    },
-    {
-      pattern: /^.+-exit(-active|-done)?$/,
-    },
-    // #endregion
-  ],
   theme: {
     extend: {
       borderWidth: {
-        "1": "1px",
+        1: "1px",
       },
       colors: {
         primary: "var(--primary)",
@@ -45,4 +30,5 @@ const config: Config = {
   },
   plugins: [],
 };
+
 export default config;
