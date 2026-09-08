@@ -65,11 +65,13 @@ export type SyncService =
 export interface SyncServiceBase {
   id: string;
   type: SyncServiceType;
+  /** 是否启动定时同步功能 */
+  enabled?: boolean;
   /** 前端展示的标签 */
   label?: string;
   /** 同步内容的最早日期 */
   from?: Date;
-  /** 仅管理员用户可见 */
+  /** 是否仅管理员用户可见 */
   secret?: boolean;
 }
 

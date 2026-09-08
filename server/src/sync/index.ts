@@ -11,29 +11,31 @@ export const sync = async () => {
     console.log("Start to execute sync tasks.");
 
     const { services = [] } = config;
-    const syncTasks = services.map((service) => {
-      switch (service.type) {
-        case SyncServiceType.BILIBILI_COLLECTION:
-          return syncBilibiliCollections(service);
-        case SyncServiceType.BILIBILI_WORK:
-          return syncBilibiliWorks(service);
-        case SyncServiceType.FEED:
-          return syncFeed(service);
-        case SyncServiceType.GITHUB_ISSUE_COMMENT:
-          return syncGithubIssueComments(service);
-        case SyncServiceType.QZONE_TALK:
-          return syncQQZoneTalks(service);
-        case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
-          return syncSteamRecentlyPlayedGames(service);
-        case SyncServiceType.STEAM_GAME_REVIEW:
-          return syncSteamGameReviews(service);
-        default:
-          return Promise.reject(
-            // @ts-expect-error: throw an error if user provide a unknown type
-            `Sync service type \`${service.type}\` is not supported.`,
-          );
-      }
-    });
+    const syncTasks = services
+      .filter((service) => service.enabled !== false)
+      .map((service) => {
+        switch (service.type) {
+          case SyncServiceType.BILIBILI_COLLECTION:
+            return syncBilibiliCollections(service);
+          case SyncServiceType.BILIBILI_WORK:
+            return syncBilibiliWorks(service);
+          case SyncServiceType.FEED:
+            return syncFeed(service);
+          case SyncServiceType.GITHUB_ISSUE_COMMENT:
+            return syncGithubIssueComments(service);
+          case SyncServiceType.QZONE_TALK:
+            return syncQQZoneTalks(service);
+          case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
+            return syncSteamRecentlyPlayedGames(service);
+          case SyncServiceType.STEAM_GAME_REVIEW:
+            return syncSteamGameReviews(service);
+          default:
+            return Promise.reject(
+              // @ts-expect-error: throw an error if user provide a unknown type
+              `Sync service type \`${service.type}\` is not supported.`,
+            );
+        }
+      });
 
     const results = await Promise.allSettled(syncTasks);
 
