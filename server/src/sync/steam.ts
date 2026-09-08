@@ -1,4 +1,5 @@
 import axios from "axios";
+import { sleep } from "bun";
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
@@ -8,6 +9,7 @@ import type {
   SyncServiceSteamRecentlyPlayedTime,
 } from "../../../interfaces/server";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
+import { withRetry } from "../utils/promise";
 
 interface SteamUserSummary {
   steamid: string;
@@ -136,51 +138,114 @@ interface SteamGameReview {
 
 /** 评测页面最多展示的评测数，用于判断是否翻至最后一页 */
 const STEAM_GAME_REVIEWS_PAGE_SIZE = 10;
-
-const STEAM_REVIEW_MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
+/** 请求评测页面使用的语言，后续基于此语言进行解析 */
+const STEAM_REQUEST_LANG = "english";
+/** 请求评测页面的基础延迟（毫秒） */
+const STEAM_REQUEST_BASE_DELAY = 2000;
+/** 评测页面日期相关的月份缩写 */
+const STEAM_DETAIL_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
   "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
-/** 解析形如 `5 September` 或 `4 December, 2025` 的评测日期文本，缺省年份视为当前年份 */
-const parseSteamReviewDateText = (dateText: string) => {
-  const match = dateText.trim().match(/^(\d{1,2}) (\w+)(?:, (\d{4}))?$/);
-  if (!match) {
-    return null;
-  }
+const parseSteamReviewDetailDateText = (dateText: string): Date | null => {
+  if (!dateText) return null;
 
-  const [, day, monthName, year] = match;
-  const month = STEAM_REVIEW_MONTHS.indexOf(monthName);
-  if (month === -1) {
-    return null;
-  }
+  const match = dateText
+    .trim()
+    .match(
+      /^(\d{1,2})\s+(\w+),?\s*(\d{4})?\s*@\s*(\d{1,2}):(\d{2})\s*(am|pm)$/i,
+    );
+  if (!match) return null;
+  const [, dayStr, monthStr, yearStr, hourStr, minuteStr, ampm] = match;
 
-  return new Date(Number(year ?? new Date().getFullYear()), month, Number(day));
+  const year = yearStr ? parseInt(yearStr, 10) : new Date().getFullYear();
+  const month =
+    STEAM_DETAIL_MONTHS.findIndex(
+      (m) => m.toLowerCase() === monthStr.toLowerCase(),
+    ) + 1;
+  if (month === 0) return null;
+  const day = parseInt(dayStr, 10);
+  let hour = parseInt(hourStr, 10);
+  // 12 小时制转 24 小时制
+  const isPm = ampm.toLowerCase() === "pm";
+  if (isPm && hour !== 12) hour += 12;
+  if (!isPm && hour === 12) hour = 0;
+  const minute = parseInt(minuteStr, 10);
+
+  const zdt = Temporal.ZonedDateTime.from({
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    timeZone: "America/Los_Angeles",
+  });
+
+  return new Date(zdt.epochMilliseconds);
 };
 
-const parseSteamGameReviewElement = (
+const fetchSteamReviewDetail = async (reviewUrl: string) => {
+  try {
+    const res = await axios.get(reviewUrl, {
+      params: { l: STEAM_REQUEST_LANG },
+      timeout: 10000,
+    });
+    const $ = cheerio.load(res.data);
+
+    const coverImageUrl = $("#rightContents img.game_capsule").attr("src");
+
+    const recommendationDateHtml = $(".recommendation_date").html() || "";
+    const postedMatch = recommendationDateHtml.match(
+      /Posted:\s*(.+?)(?:<br|$)/i,
+    );
+    const postedAt = postedMatch
+      ? parseSteamReviewDetailDateText(postedMatch[1].trim())
+      : null;
+    const updatedMatch = recommendationDateHtml.match(
+      /Updated:\s*(.+?)(?:<br|$)/i,
+    );
+    const editedAt = updatedMatch
+      ? parseSteamReviewDetailDateText(updatedMatch[1].trim())
+      : null;
+
+    return { coverImageUrl, postedAt, editedAt };
+  } catch (error) {
+    console.warn(`Failed to fetch review detail for ${reviewUrl}:`, error);
+    return { coverImageUrl: null, postedAt: null, editedAt: null };
+  }
+};
+
+const parseSteamGameReviewElement = async (
   $reviewBox: cheerio.Cheerio<AnyNode>,
-): SteamGameReview | null => {
+): Promise<SteamGameReview | null> => {
   const gameLinkHref = $reviewBox
     .find(".leftcol a.game_capsule_ctn")
     .attr("href");
   const appId = Number(gameLinkHref?.match(/\/app\/(\d+)/)?.[1]);
-  const coverImageUrl = $reviewBox
-    .find(".leftcol img.game_capsule")
-    .attr("src");
   const reviewUrl = $reviewBox.find(".thumb a").attr("href");
-  if (!appId || !coverImageUrl || !reviewUrl) {
-    return null;
+  if (!appId || !reviewUrl) {
+    throw new Error(
+      "Parse steam review element failed: missing appId or reviewUrl",
+    );
+  }
+
+  const detail = await fetchSteamReviewDetail(reviewUrl);
+  const { coverImageUrl, postedAt, editedAt } = detail;
+  if (!coverImageUrl || !postedAt) {
+    throw new Error(
+      "Parse steam review element failed: missing coverImageUrl or postedAt",
+    );
   }
 
   const hoursText = $reviewBox.find(".hours").text();
@@ -190,20 +255,9 @@ const parseSteamGameReviewElement = (
   const hoursAtReviewTimeText = hoursText.match(
     /\(([\d,.]+)\s*hrs at review time\)/,
   )?.[1];
-  if (Number.isNaN(hoursOnRecord)) {
-    return null;
-  }
-
-  const postedText = $reviewBox.find(".posted").text();
-  const postedAt = parseSteamReviewDateText(
-    postedText.match(/Posted ([^.]+)\./)?.[1] ?? "",
-  );
-  const editedAt = parseSteamReviewDateText(
-    postedText.match(/Last edited ([^.]+)\./)?.[1] ?? "",
-  );
-  if (!postedAt) {
-    return null;
-  }
+  const hoursAtReviewTime = hoursAtReviewTimeText
+    ? parseFloat(hoursAtReviewTimeText.replace(/,/g, ""))
+    : null;
 
   const content = $reviewBox
     .find(".content")
@@ -222,9 +276,7 @@ const parseSteamGameReviewElement = (
     coverImageUrl,
     recommended,
     hoursOnRecord,
-    hoursAtReviewTime: hoursAtReviewTimeText
-      ? parseFloat(hoursAtReviewTimeText.replace(/,/g, ""))
-      : null,
+    hoursAtReviewTime,
     content,
     postedAt,
     editedAt,
@@ -245,19 +297,39 @@ export const syncSteamGameReviews = async (
     const getReviewsRes = await axios.get(
       `https://steamcommunity.com/id/${userId}/recommended/`,
       {
-        params: { p: page, l: "english" },
+        params: { p: page, l: STEAM_REQUEST_LANG },
         timeout: 10000,
       },
     );
 
     const $ = cheerio.load(getReviewsRes.data);
-    const queriedReviews = $(".review_box")
-      .map((_, el) => parseSteamGameReviewElement($(el)))
-      .get()
-      .filter((review): review is SteamGameReview => !!review);
-    reviews.push(...queriedReviews);
+    const $reviewBoxes = $(".review_box")
+      .toArray()
+      .map((el) => $(el));
+    for (const $reviewBox of $reviewBoxes) {
+      try {
+        const parsedReview = await withRetry(
+          () => parseSteamGameReviewElement($reviewBox),
+          {
+            maxRetries: 3,
+            baseDelayMs: STEAM_REQUEST_BASE_DELAY,
+            onRetry: (attempt, err) =>
+              console.warn(
+                `Failed to parse Steam game review element, attempt ${attempt}:`,
+                err,
+              ),
+          },
+        );
+        if (parsedReview) {
+          reviews.push(parsedReview);
+        }
+        await sleep(STEAM_REQUEST_BASE_DELAY);
+      } catch (error) {
+        console.warn("Failed to parse Steam game review element:", error);
+      }
+    }
 
-    if (queriedReviews.length === STEAM_GAME_REVIEWS_PAGE_SIZE) {
+    if ($reviewBoxes.length === STEAM_GAME_REVIEWS_PAGE_SIZE) {
       page += 1;
     } else {
       queryFinished = true;

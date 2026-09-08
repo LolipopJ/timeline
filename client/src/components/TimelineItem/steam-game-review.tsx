@@ -19,7 +19,7 @@ export default function TimelineItemSteamGameReview(props: TimelineComponent) {
               <img
                 src={attachments[0].url}
                 alt={attachments[0].filename}
-                className="h-[69px] rounded-b-none"
+                className="h-[86px] rounded-b-none"
                 style={{ marginLeft: 0 }}
                 loading="lazy"
               />

@@ -87,6 +87,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
     item: {
       id,
+      sync_service_id,
       sync_service_type,
       created_at,
       updated_at,
@@ -167,9 +168,6 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     }
   };
 
-  const isTimezonePT = [SyncServiceType.STEAM_GAME_REVIEW].includes(
-    sync_service_type,
-  );
   const createdAt = new Date(created_at);
   const createdAtString = createdAt.toLocaleString();
   const updatedAt = new Date(updated_at);
@@ -203,7 +201,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           {...labelIconBaseOptions}
         />
         <span>
-          {label}
+          {label || sync_service_id}
           {(isNewlyCreated || isNewlyUpdated) && (
             <sup className="ml-1 opacity-75">
               <i>
@@ -274,14 +272,11 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
         />
         <span
           title={
-            `创建于：${createdAtString}${isTimezonePT ? " (PT)" : ""}` +
-            (hasUpdated
-              ? `\n最后更新于：${updatedAtString}${isTimezonePT ? " (PT)" : ""}`
-              : "")
+            `创建于：${createdAtString}` +
+            (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
           }
         >
           {displayedDateTimeString}
-          {isTimezonePT && " (PT)"}
         </span>
       </div>
     </div>
