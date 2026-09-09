@@ -59,27 +59,55 @@ const labelIconBaseOptions: Partial<IconProps> = {
   className: "mr-1 size-4 md:size-5",
 };
 
-const getDisplayedDateTime = (date: Date) => {
+const getDisplayedDateTime = (date: Date): string => {
   const inputDate = new Date(date);
-  const months = inputDate.getMonth() + 1;
-  const days = inputDate.getDate();
   const hours = inputDate.getHours();
   const minutes = inputDate.getMinutes();
-  const dateString = `${String(months).padStart(2, "0")}/${String(days).padStart(2, "0")}`;
   const timeString = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 
+  // 归一化到当天零点，避免时分秒干扰日期比较
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   inputDate.setHours(0, 0, 0, 0);
-  const timeDiff = today.getTime() - inputDate.getTime();
-  const daysDiff = timeDiff / 86400000;
 
-  if (daysDiff <= 7) {
-    return `${
-      ["今天", "昨天", "前天", "三天前", "四天前", "五天前", "六天前"][daysDiff]
-    } ${timeString}`;
+  const dayDiff = Math.floor(
+    (today.getTime() - inputDate.getTime()) / 86400000,
+  );
+
+  // 1. 两天以内特殊显示
+  if (dayDiff >= 0 && dayDiff <= 2) {
+    const labels = ["今天", "昨天", "前天"];
+    return `${labels[dayDiff]} ${timeString}`;
   }
 
+  // 获取本周一（周一为一周起始）
+  const getMonday = (d: Date): Date => {
+    const result = new Date(d);
+    const day = result.getDay(); // 0=周日, 1=周一, ..., 6=周六
+    const diff = day === 0 ? -6 : 1 - day;
+    result.setDate(result.getDate() + diff);
+    return result;
+  };
+
+  const thisMonday = getMonday(today);
+  const weekDays = ["日", "一", "二", "三", "四", "五", "六"];
+
+  // 2. 本周（本周一 ~ 今天）
+  if (inputDate >= thisMonday && inputDate <= today) {
+    return `周${weekDays[inputDate.getDay()]} ${timeString}`;
+  }
+
+  // 3. 上周（上周一 ~ 上周日）
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(lastMonday.getDate() - 7);
+  if (inputDate >= lastMonday && inputDate < thisMonday) {
+    return `上周${weekDays[inputDate.getDay()]} ${timeString}`;
+  }
+
+  // 4. 更早的日期
+  const months = inputDate.getMonth() + 1;
+  const days = inputDate.getDate();
+  const dateString = `${String(months).padStart(2, "0")}/${String(days).padStart(2, "0")}`;
   return `${dateString}, ${timeString}`;
 };
 
