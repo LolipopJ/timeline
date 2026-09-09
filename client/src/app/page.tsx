@@ -2,6 +2,7 @@
 
 import { mdiLoading, mdiSlashForwardBox } from "@mdi/js";
 import Icon from "@mdi/react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyLoader } from "swr";
 import useSWR from "swr";
@@ -27,16 +28,25 @@ import type {
 const PAGE_LIMIT = 20;
 
 export default function Home() {
-  const [searchParams, setSearchParams] = useState<GetTimelineItemsParams>({
-    search: "",
-    orderBy: "created_at",
-  });
-  const debouncedSearchParams = useDebounce(searchParams, 500);
+  const router = useRouter();
+  const pathname = usePathname();
+  const urlSearchParams = useSearchParams();
+
+  const [searchParamsState, setSearchParamsState] =
+    useState<GetTimelineItemsParams>({
+      search: urlSearchParams.get("search") ?? "",
+      orderBy:
+        (urlSearchParams.get("orderBy") as "created_at" | "updated_at") ??
+        "created_at",
+    });
+
+  const debouncedSearchParams = useDebounce(searchParamsState, 500);
 
   const [currenDate, setCurrentDate] = useState<Date>(new Date());
   const [currentIndex, setCurrentIndex] = useState<number>(0);
 
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
+  const isFirstRender = useRef(true);
 
   const getTimelineItemsKey = useCallback<NonNullable<KeyLoader>>(
     (pageIndex, previousPageData) => {
@@ -68,6 +78,35 @@ export default function Home() {
     getTimelineItemsCountKey,
     fetcherGET,
   );
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (debouncedSearchParams.search) {
+      params.set("search", debouncedSearchParams.search);
+    }
+    if (
+      debouncedSearchParams.orderBy &&
+      debouncedSearchParams.orderBy !== "created_at"
+    ) {
+      params.set("orderBy", debouncedSearchParams.orderBy);
+    }
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+    const currentQueryString = urlSearchParams.toString();
+    const currentUrl = currentQueryString
+      ? `${pathname}?${currentQueryString}`
+      : pathname;
+
+    if (newUrl !== currentUrl) {
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [debouncedSearchParams, pathname, router, urlSearchParams]);
 
   useEffect(() => {
     if (isLoadingTimelineItems) {
@@ -110,7 +149,7 @@ export default function Home() {
       const loadMoreObserver = new IntersectionObserver(
         ([entry]) => {
           if (entry.isIntersecting) {
-            if (searchParams.orderBy === "updated_at") {
+            if (searchParamsState.orderBy === "updated_at") {
               const timelineItemUpdateAt =
                 entry.target.getAttribute("data-updated-at");
               if (timelineItemUpdateAt) {
@@ -145,19 +184,18 @@ export default function Home() {
         });
       };
     }
-  }, [isValidatingTimelineItems, searchParams.orderBy]);
+  }, [isValidatingTimelineItems, searchParamsState.orderBy]);
 
   useEffect(() => {
-    // 过滤得到的时间线列表为空时，显示消息提示
     if (timelineItems && timelineItems[0].length === 0) {
       message.info("时间线上没有更多的噜~");
     }
   }, [timelineItems]);
 
   const timelineSearchProps: TimelineSearchProps = {
-    value: searchParams,
-    onChange: setSearchParams,
-    onClear: () => setSearchParams((prev) => ({ ...prev, search: "" })),
+    value: searchParamsState,
+    onChange: setSearchParamsState,
+    onClear: () => setSearchParamsState((prev) => ({ ...prev, search: "" })),
   };
 
   return (
@@ -203,7 +241,7 @@ export default function Home() {
               key={id}
               id={id}
               item={item}
-              displayedDateTime={searchParams.orderBy}
+              displayedDateTime={searchParamsState.orderBy}
               mutateTimelineItems={mutateTimelineItems}
               className="mb-8"
               data-created-at={created_at}
