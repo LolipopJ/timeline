@@ -73,6 +73,8 @@ export interface SyncServiceBase {
   from?: Date;
   /** 是否仅管理员用户可见 */
   secret?: boolean;
+  /** 是否执行全量同步，忽略上次同步时间，仅受 `from` 字段约束 */
+  full?: boolean;
 }
 
 export interface SyncServiceBilibiliCollection extends SyncServiceBase {

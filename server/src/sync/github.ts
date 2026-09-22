@@ -29,7 +29,7 @@ export const getGithubAccountDetails = async () => {
 export const syncGithubIssueComments = async (
   service: SyncServiceGithubIssueComment,
 ) => {
-  const { id, type, from, secret, owner, repo, issueNumber } = service;
+  const { id, type, from, secret, owner, repo, issueNumber, full } = service;
   const PER_PAGE = 30;
 
   const { id: currentUserId } = await getGithubAccountDetails();
@@ -37,6 +37,7 @@ export const syncGithubIssueComments = async (
   const lastExecuteDate = await getSyncTaskLastExecuteTime({
     id,
     from,
+    full,
   });
   console.log(
     `Syncing Github issue comments from ${owner}/${repo}/${issueNumber} since ${lastExecuteDate.toISOString()}...`,

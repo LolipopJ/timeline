@@ -225,3 +225,9 @@ bun run build:client
 ```bash
 bun run start:server
 ```
+
+若需要在启动时对所有同步服务执行一次全量同步（忽略上次同步时间，仅受各服务 `from` 字段约束），可设置 `FULL_SYNC=true` 环境变量，全量同步完成后仍会按 `syncInterval` 正常进行增量同步：
+
+```bash
+FULL_SYNC=true bun run start:server
+```

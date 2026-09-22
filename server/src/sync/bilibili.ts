@@ -67,11 +67,12 @@ interface BilibiliWork {
 export const syncBilibiliCollections = async (
   service: SyncServiceBilibiliCollection,
 ) => {
-  const { id, type, from, secret, mediaId } = service;
+  const { id, type, from, secret, mediaId, full } = service;
 
   const lastExecuteDate = await getSyncTaskLastExecuteTime({
     id,
     from,
+    full,
   });
   console.log(
     `Syncing Bilibili collections from ${mediaId} since ${lastExecuteDate.toISOString()}...`,
@@ -157,12 +158,14 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
     type,
     // from,
     secret,
+    // full,
     userId,
   } = service;
 
   // const lastExecuteDate = await getSyncTaskLastExecuteTime({
   //   id,
   //   from,
+  //   full,
   // });
   console.log(
     // `Syncing Bilibili works of ${userId} since ${lastExecuteDate.toISOString()}...`,

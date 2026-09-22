@@ -46,6 +46,9 @@ const SERVICE_LABEL_MAP = new Map(
 
 const SYNC_INTERVAL = config.syncInterval ?? "*/30 * * * *";
 
+// 启动时设置环境变量 `FULL_SYNC=true` 可触发一次全量同步，后续定时任务仍按增量同步执行
+const IS_FULL_SYNC_ON_START = process.env["FULL_SYNC"] === "true";
+
 const JWT_SECRET_KEY = config.admin?.secretKey;
 const ADMIN_ACCOUNTS = config.admin?.accounts ?? [];
 const IS_ADMIN_ENABLED = JWT_SECRET_KEY && ADMIN_ACCOUNTS.length;
@@ -358,8 +361,17 @@ new Elysia()
     await database.initialize();
     console.log("Database connection initialized.");
 
-    const syncJob = schedule.scheduleJob(SYNC_INTERVAL, sync);
-    syncJob.invoke();
+    if (IS_FULL_SYNC_ON_START) {
+      console.log(
+        "`FULL_SYNC` is enabled: performing a full sync of all data before scheduling incremental sync tasks.",
+      );
+      await sync(true);
+    }
+
+    const syncJob = schedule.scheduleJob(SYNC_INTERVAL, () => sync());
+    if (!IS_FULL_SYNC_ON_START) {
+      syncJob.invoke();
+    }
   })
   .onStop(async () => {
     await schedule.gracefulShutdown();

@@ -99,7 +99,7 @@ interface QZoneTalkVideo {
 }
 
 export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
-  const { id, type, from, secret, qqNumber } = service;
+  const { id, type, from, secret, qqNumber, full } = service;
 
   const cookies = getQZoneCookies(qqNumber);
   if (!cookies?.length) {
@@ -126,6 +126,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
   const lastExecuteDate = await getSyncTaskLastExecuteTime({
     id,
     from,
+    full,
   });
   const lastExecuteDateTime = lastExecuteDate.getTime();
   console.log(

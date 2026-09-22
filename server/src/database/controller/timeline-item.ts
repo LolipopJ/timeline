@@ -5,9 +5,15 @@ import TimelineItem from "../entity/timeline-item";
 import dataSource from "../index";
 
 export const getSyncTaskLastExecuteTime = async (
-  syncService: Pick<SyncService, "id" | "from">,
+  syncService: Pick<SyncService, "id" | "from" | "full">,
 ) => {
-  const { id, from } = syncService;
+  const { id, from, full } = syncService;
+
+  if (full) {
+    // 全量同步：忽略数据库中已同步的时间，仅保留 `from` 字段的下限约束
+    return new Date(from ?? 0);
+  }
+
   const lastUpdatedTimelineItem = await dataSource
     .getRepository(TimelineItem)
     .findOne({
