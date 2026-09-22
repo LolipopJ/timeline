@@ -84,7 +84,7 @@ export const syncBilibiliCollections = async (
   const collections: BilibiliCollection[] = [];
   let queryFinished = false;
   let page = 1;
-  const perPage = 20;
+  const perPage = 36;
   while (!queryFinished) {
     const getCollectionsRes = await axios.get(
       "https://api.bilibili.com/x/v3/fav/resource/list",
@@ -93,10 +93,20 @@ export const syncBilibiliCollections = async (
           media_id: mediaId,
           pn: page,
           ps: perPage,
+          keyword: "",
           order: "mtime",
           type: 0,
           tid: 0,
           platform: "web",
+          space_login_group: 3,
+          web_location: 0.0,
+          ["x-bili-locale-json"]: {},
+          ["x-bili-device-req-json"]: {
+            platform: "web",
+            device: "pc",
+            spmid: "0.0",
+            mobi_app: "web_cn",
+          },
         },
       },
     );
@@ -107,7 +117,8 @@ export const syncBilibiliCollections = async (
     );
     collections.push(...filteredCollections);
 
-    if (filteredCollections.length === perPage) {
+    if (filteredCollections.length > 0) {
+      // 不使用 perPage 判断结束，是因为接口可能返回少于 perPage 的数据，但仍有更多未同步的收藏
       page += 1;
     } else {
       queryFinished = true;
