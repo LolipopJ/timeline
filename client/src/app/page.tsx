@@ -234,11 +234,38 @@ export default function Home() {
       {timelineItems?.map((itemsArray, page) =>
         itemsArray.map((item, index) => {
           const { id, created_at, updated_at } = item;
+
+          if (index > 0) {
+            const previousItem = itemsArray[index - 1];
+            const previousYear = new Date(
+              searchParamsState.orderBy === "updated_at"
+                ? previousItem.updated_at
+                : previousItem.created_at,
+            ).getFullYear();
+            const currentYear = new Date(
+              searchParamsState.orderBy === "updated_at"
+                ? updated_at
+                : created_at,
+            ).getFullYear();
+            if (previousYear !== currentYear) {
+              return (
+                <div
+                  key={`year-${currentYear}`}
+                  className="my-4 flex select-none items-center justify-end md:my-6 lg:my-12"
+                >
+                  <span className="text-4xl font-black tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
+                    {currentYear}
+                  </span>
+                </div>
+              );
+            }
+          }
+
           const orderedIndex = page * PAGE_LIMIT + index + 1;
 
           return (
             <TimelineItem
-              key={id}
+              key={`item-${id}}`}
               id={id}
               item={item}
               displayedDateTime={searchParamsState.orderBy}

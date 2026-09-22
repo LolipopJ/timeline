@@ -60,6 +60,8 @@ export function TimelineCurrentDate(props: TimelineCurrentDateProps) {
         <CSSTransition
           key={month}
           nodeRef={monthNodeRef}
+          appear
+          timeout={300}
           addEndListener={(done) => {
             monthNodeRef?.current?.addEventListener(
               "transitionend",
