@@ -7,6 +7,9 @@ import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
 } from "../database/controller/timeline-item";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("GitHub");
 
 const octokit = new Octokit({
   auth: config.githubPersonalAccessToken,
@@ -16,7 +19,7 @@ let githubAccountDetails: RestEndpointMethodTypes["users"]["getAuthenticated"]["
 export const getGithubAccountDetails = async () => {
   if (!githubAccountDetails) {
     const { data } = await octokit.rest.users.getAuthenticated();
-    console.log(
+    logger.success(
       `Auth to Github successfully! You are logged as ${data.login}.`,
     );
 
@@ -39,7 +42,7 @@ export const syncGithubIssueComments = async (
     from,
     full,
   });
-  console.log(
+  logger.info(
     `Syncing Github issue comments from ${owner}/${repo}/${issueNumber} since ${lastExecuteDate.toISOString()}...`,
   );
 
@@ -68,7 +71,7 @@ export const syncGithubIssueComments = async (
       queryFinished = true;
     }
   }
-  console.log(
+  logger.info(
     `Synced ${comments.length} Github issue comments from ${owner}/${repo}/${issueNumber}.`,
   );
 
@@ -85,7 +88,7 @@ export const syncGithubIssueComments = async (
       updated_at: new Date(comment.updated_at),
     })),
   );
-  console.log(
+  logger.success(
     `Insert or update ${comments.length} timeline items of Github issue comments from ${owner}/${repo}/${issueNumber} successfully!`,
   );
 };

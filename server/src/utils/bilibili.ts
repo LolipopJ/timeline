@@ -5,6 +5,9 @@ import path from "path";
 import { SERVER_TEMPORARY_DIR, USER_AGENT_DESKTOP } from "../constants";
 import axios from "./axios";
 import { checkupDir } from "./file";
+import { createLogger } from "./logger";
+
+const logger = createLogger("Bilibili");
 
 const BILIBILI_SESSDATA_FILE_PATH = path.resolve(
   SERVER_TEMPORARY_DIR,
@@ -21,7 +24,7 @@ const readBilibiliSessionData = () => {
   try {
     return fs.readFileSync(BILIBILI_SESSDATA_FILE_PATH).toString();
   } catch (error) {
-    console.error(
+    logger.error(
       `Read Bilibili SESSDATA from file \`${BILIBILI_SESSDATA_FILE_PATH}\` failed.`,
       String(error),
     );

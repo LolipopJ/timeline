@@ -10,6 +10,9 @@ import {
 import type { CookieParam } from "./axios";
 import axios, { parseSetCookieToCookie } from "./axios";
 import { checkupDir } from "./file";
+import { createLogger } from "./logger";
+
+const logger = createLogger("QZone");
 
 const AXIOS_HEADERS_QZONE: AxiosRequestConfig["headers"] = {
   authority: "user.qzone.qq.com",
@@ -57,7 +60,7 @@ export const generateQZoneLoginQRCode = async (qqNumber: string) => {
 
     return qrsig;
   } catch (error) {
-    console.error(`Generate QQ Zone login QR code failed:`, String(error));
+    logger.error(`Generate QQ Zone login QR code failed:`, String(error));
     return undefined;
   }
 };
@@ -101,7 +104,7 @@ const getQZoneLoginQRCodeScanResult = async (
     const responseText = response.data as string;
 
     if (responseText.includes("登录成功")) {
-      console.log(
+      logger.success(
         `QQ Zone login QR code is scanned and confirm logged. ${responseText}`,
       );
       const cookies = response.headers["set-cookie"]?.map((item) =>
@@ -141,20 +144,20 @@ const getQZoneLoginQRCodeScanResult = async (
         const savePath = getQZoneCookiesFilePath(qqNumber);
         checkupDir(path.dirname(savePath));
         fs.writeFileSync(savePath, JSON.stringify(resultCookies, null, 2));
-        console.log(
+        logger.success(
           `QQ Zone cookies are saved to \`${savePath}\` successfully!`,
         );
 
         return resultCookies;
       }
     } else {
-      console.log(
+      logger.info(
         `Getting QQ Zone login QR code scan result... ${responseText}`,
       );
       return undefined;
     }
   } catch (error) {
-    console.error(
+    logger.error(
       `Get QQ Zone login QR code scan result failed:`,
       String(error),
     );
@@ -190,7 +193,7 @@ export const getQZoneCookies = (qqNumber: string) => {
     const cookiesFileContent = fs.readFileSync(cookiesFilePath).toString();
     return JSON.parse(cookiesFileContent) as CookieParam[];
   } catch (error) {
-    console.error(
+    logger.error(
       `Read QQ Zone cookies from file \`${cookiesFilePath}\` failed.`,
       String(error),
     );

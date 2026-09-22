@@ -30,11 +30,14 @@ import sync from "./sync";
 import { saveBilibiliSessionData } from "./utils/bilibili";
 import { checkupDir } from "./utils/file";
 import { JWT } from "./utils/jwt";
+import { createLogger } from "./utils/logger";
 import {
   generateQZoneLoginQRCode,
   getQZoneQRCodeFilePath,
   pollGetQZoneLoginQRCodeScanResult,
 } from "./utils/qzone";
+
+const logger = createLogger("Server");
 
 const PORT = Number(config.listeningPort ?? 4000);
 
@@ -107,7 +110,7 @@ new Elysia()
     }),
   )
   .onError(({ request, error }) => {
-    console.error(
+    logger.error(
       `An error occurred while resolving request \`${request.url}\`:\n\t${error}`,
     );
   })
@@ -123,7 +126,7 @@ new Elysia()
             isCookieValidated = true;
           } catch (error) {
             // 校验不通过，清除 cookieToken.value
-            console.error(
+            logger.error(
               `请求包含不合法的用户 Token \`${cookieToken.value}\`。\n`,
               String(error),
             );
@@ -340,7 +343,7 @@ new Elysia()
       try {
         saveBilibiliSessionData(bilibiliSessdata);
       } catch (error) {
-        console.error(`Save Bilibili SESSDATA failed: ${String(error)}`);
+        logger.error(`Save Bilibili SESSDATA failed: ${String(error)}`);
 
         set.status = 500;
         return "服务端更新 Bilibili SESSDATA 失败";
@@ -351,7 +354,7 @@ new Elysia()
   })
   //#endregion
   .onStart(async ({ server }) => {
-    console.log(
+    logger.success(
       `Timeline server is running at ${server?.url ?? `127.0.0.1:${server?.port}`}`,
     );
 
@@ -359,10 +362,10 @@ new Elysia()
     checkupDir(SERVER_STATIC_DIR);
 
     await database.initialize();
-    console.log("Database connection initialized.");
+    logger.success("Database connection initialized.");
 
     if (IS_FULL_SYNC_ON_START) {
-      console.log(
+      logger.info(
         "`FULL_SYNC` is enabled: performing a full sync of all data before scheduling incremental sync tasks.",
       );
       await sync(true);
@@ -375,10 +378,10 @@ new Elysia()
   })
   .onStop(async () => {
     await schedule.gracefulShutdown();
-    console.log("Scheduled tasks cancelled.");
+    logger.info("Scheduled tasks cancelled.");
 
     await database.destroy();
-    console.log("Database connection destroyed.");
+    logger.info("Database connection destroyed.");
 
     process.exit(0);
   })

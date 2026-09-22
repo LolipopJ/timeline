@@ -1,8 +1,11 @@
 import { sleep } from "bun";
 
+import { createLogger } from "./logger";
+
 export const createPromiseQueue = () => {
   const queue: (() => Promise<void>)[] = [];
   let isProcessing = false;
+  const logger = createLogger("Queue");
 
   const processQueue = async () => {
     if (isProcessing) return;
@@ -13,7 +16,7 @@ export const createPromiseQueue = () => {
       try {
         await task?.(); // 执行任务
       } catch (error) {
-        console.error("Queue task failed:", error);
+        logger.error("Queue task failed:", error);
       }
     }
 

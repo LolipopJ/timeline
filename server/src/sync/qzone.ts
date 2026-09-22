@@ -17,8 +17,11 @@ import {
 } from "../database/controller/timeline-item";
 import axios from "../utils/axios";
 import { checkupDir } from "../utils/file";
+import { createLogger } from "../utils/logger";
 import { getGTk, getQZoneCookies } from "../utils/qzone";
 import { convertVideoToM3u8 } from "../utils/video";
+
+const logger = createLogger("QZone");
 
 interface QZoneInfo {
   code: number;
@@ -103,7 +106,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
 
   const cookies = getQZoneCookies(qqNumber);
   if (!cookies?.length) {
-    console.error(
+    logger.error(
       "Sync QQ Zone talks failed: cookies are not exist. Visit `/qzone-login`, scan QR code and confirm login to refresh cookies.",
     );
     return;
@@ -116,7 +119,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     cookies.find((cookie) => cookie.name === "p_skey")?.value,
   ];
   if (!skey || !p_uin || !pt4_token || !p_skey) {
-    console.error(
+    logger.error(
       "Sync QQ Zone talks failed: cookies are not valid. Visit `/qzone-login`, scan QR code and confirm login to refresh cookies.",
     );
     return;
@@ -129,7 +132,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     full,
   });
   const lastExecuteDateTime = lastExecuteDate.getTime();
-  console.log(
+  logger.info(
     `Syncing QQ Zone talks for ${qqNumber} since ${lastExecuteDate.toISOString()}...`,
   );
 
@@ -219,7 +222,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
       queryFinished = true;
     }
   }
-  console.log(`Synced ${talks.length} QQ Zone talks for ${qqNumber}.`);
+  logger.info(`Synced ${talks.length} QQ Zone talks for ${qqNumber}.`);
 
   await insertOrUpdateTimelineItems(
     talks.map((talk) => ({
@@ -253,7 +256,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
 
                 checkupDir(videoSaveDir);
                 fs.writeFileSync(videoSavePath, responseData);
-                console.log(
+                logger.success(
                   `Save video file \`${videoFilename}\` of QQ Zone talk to \`${videoSavePath}\` successfully!`,
                 );
 
@@ -286,12 +289,12 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
                             sliceSavePath,
                             getSliceResponse.data,
                           );
-                          console.log(
+                          logger.success(
                             `Save video slice file \`${sliceFilename}\` of \`${videoFilename}\` to \`${sliceSavePath}\` successfully!`,
                           );
                         })
                         .catch((error) => {
-                          console.error(
+                          logger.error(
                             `Save video slice file \`${sliceFilename}\` of \`${videoFilename}\` to \`${sliceSavePath}\` failed.`,
                             String(error),
                           );
@@ -304,7 +307,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
                 }
               })
               .catch((error) => {
-                console.error(
+                logger.error(
                   `Save video file \`${videoFilename}\` of QQ Zone talk to \`${videoSavePath}\` failed.`,
                   String(error),
                 );
@@ -332,7 +335,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
       updated_at: new Date((talk.lastmodify || talk.created_time) * 1000),
     })),
   );
-  console.log(
+  logger.success(
     `Insert or update ${talks.length} timeline items of QQ Zone talks for ${qqNumber} successfully!`,
   );
 };

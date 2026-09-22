@@ -1,7 +1,10 @@
 import pathToFfmpeg from "ffmpeg-static";
 import Ffmpeg from "fluent-ffmpeg";
 
+import { createLogger } from "./logger";
 import { createPromiseQueue } from "./promise";
+
+const logger = createLogger("Video");
 
 if (pathToFfmpeg) {
   Ffmpeg.setFfmpegPath(pathToFfmpeg);
@@ -39,7 +42,7 @@ export const convertVideoToM3u8 = (
             if (onStart) {
               onStart();
             } else {
-              console.log(
+              logger.info(
                 `Start to convert mp4 file \`${videoFilePath}\` to m3u8 file \`${_outputFilePath}\`...`,
               );
             }
@@ -48,7 +51,7 @@ export const convertVideoToM3u8 = (
             if (onEnd) {
               onEnd();
             } else {
-              console.log(
+              logger.success(
                 `Convert mp4 file \`${videoFilePath}\` to m3u8 file \`${_outputFilePath}\` successfully!`,
               );
             }
@@ -58,7 +61,7 @@ export const convertVideoToM3u8 = (
             if (onError) {
               onError(error);
             } else {
-              console.error(
+              logger.error(
                 `Convert mp4 file \`${videoFilePath}\` to m3u8 file \`${_outputFilePath}\` failed.`,
                 String(error),
               );

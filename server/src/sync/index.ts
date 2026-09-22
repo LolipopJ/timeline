@@ -1,23 +1,26 @@
 import config from "../../../configs/server";
 import { SyncServiceType } from "../../../enums";
+import { createLogger } from "../utils/logger";
 import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
 import { syncQQZoneTalks } from "./qzone";
 import { syncSteamGameReviews, syncSteamRecentlyPlayedGames } from "./steam";
 
+const logger = createLogger("Sync");
+
 let isSyncing = false;
 
 /** @param forceFull 强制所有服务执行一次全量同步，忽略各服务自身的 `full` 配置 */
 export const sync = async (forceFull = false) => {
   if (isSyncing) {
-    console.log("Sync is already in progress, skipping this invocation.");
+    logger.warn("Sync is already in progress, skipping this invocation.");
     return;
   }
   isSyncing = true;
 
   try {
-    console.log(
+    logger.info(
       forceFull
         ? "Start to execute a full sync of all data."
         : "Start to execute sync tasks.",
@@ -58,7 +61,7 @@ export const sync = async (forceFull = false) => {
 
     results.forEach((result, index) => {
       if (result.status === "rejected") {
-        console.error(
+        logger.error(
           `Sync task ${JSON.stringify(services[index])} failed:\n${result.reason}`,
         );
       }
@@ -66,14 +69,14 @@ export const sync = async (forceFull = false) => {
 
     const failedCount = results.filter((r) => r.status === "rejected").length;
     if (failedCount > 0) {
-      console.error(
+      logger.error(
         `Sync tasks completed with ${failedCount} failure${failedCount > 1 ? "s" : ""}.`,
       );
     } else {
-      console.log("Sync tasks fulfilled!");
+      logger.success("Sync tasks fulfilled!");
     }
   } catch (error) {
-    console.error(`An error occurred while doing sync tasks:\n${error}`);
+    logger.error(`An error occurred while doing sync tasks:\n${error}`);
   } finally {
     isSyncing = false;
   }

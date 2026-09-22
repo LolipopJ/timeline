@@ -4,6 +4,9 @@ import { xml2json } from "xml-js";
 import type { SyncServiceFeed } from "../../../interfaces/server";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type TimelineItem from "../database/entity/timeline-item";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("Feed");
 
 interface AtomJSON {
   feed: {
@@ -81,7 +84,7 @@ export const syncFeed = async (service: SyncServiceFeed) => {
   } = service;
   const since = from.toISOString();
 
-  console.log(`Syncing feed entries from ${url} since ${since}...`);
+  logger.info(`Syncing feed entries from ${url} since ${since}...`);
   const getFeedRes = await axios.get(url);
 
   const feedContent = getFeedRes.data;
@@ -126,10 +129,10 @@ export const syncFeed = async (service: SyncServiceFeed) => {
         )
         .filter((entry) => entry.created_at >= from);
   }
-  console.log(`Synced ${entries.length} feed entries from ${url}.`);
+  logger.info(`Synced ${entries.length} feed entries from ${url}.`);
 
   await insertOrUpdateTimelineItems(entries);
-  console.log(
+  logger.success(
     `Insert or update ${entries.length} feed entries from ${url} successfully!`,
   );
 };

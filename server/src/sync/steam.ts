@@ -9,7 +9,10 @@ import type {
   SyncServiceSteamRecentlyPlayedTime,
 } from "../../../interfaces/server";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
+import { createLogger } from "../utils/logger";
 import { withRetry } from "../utils/promise";
+
+const logger = createLogger("Steam");
 
 interface SteamUserSummary {
   steamid: string;
@@ -59,7 +62,7 @@ export const getSteamAccountDetails = async (steamId: string) => {
     );
     const accountDetails = getSteamAccountDetailsRes.data.response
       .players[0] as SteamUserSummary;
-    console.log(
+    logger.success(
       `Auth to Steam successfully! You are logged as ${accountDetails.personaname}.`,
     );
 
@@ -83,7 +86,7 @@ export const syncSteamRecentlyPlayedGames = async (
   const { id, type, secret, steamId } = service;
   const currentDate = new Date();
 
-  console.log(`Syncing Steam recently played games for player ${steamId}...`);
+  logger.info(`Syncing Steam recently played games for player ${steamId}...`);
   const getRecentlyPlayedGamesRes = await axios.get(
     "https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v0001",
     {
@@ -97,7 +100,7 @@ export const syncSteamRecentlyPlayedGames = async (
 
   const recentlyPlayedGames = getRecentlyPlayedGamesRes.data.response
     .games as SteamGamePlaytime[];
-  console.log(
+  logger.info(
     `Synced ${recentlyPlayedGames.length} records of Steam recently played games for player ${steamId}.`,
   );
 
@@ -116,7 +119,7 @@ export const syncSteamRecentlyPlayedGames = async (
       updated_at: currentDate,
     })),
   );
-  console.log(
+  logger.success(
     `Insert or update ${recentlyPlayedGames.length} records of Steam recently played games for player ${steamId} successfully!`,
   );
 };
@@ -221,7 +224,7 @@ const fetchSteamReviewDetail = async (reviewUrl: string) => {
 
     return { coverImageUrl, postedAt, editedAt };
   } catch (error) {
-    console.warn(`Failed to fetch review detail for ${reviewUrl}:`, error);
+    logger.warn(`Failed to fetch review detail for ${reviewUrl}:`, error);
     return { coverImageUrl: null, postedAt: null, editedAt: null };
   }
 };
@@ -288,7 +291,7 @@ export const syncSteamGameReviews = async (
 ) => {
   const { id, type, secret, userId } = service;
 
-  console.log(`Syncing Steam game reviews of ${userId}...`);
+  logger.info(`Syncing Steam game reviews of ${userId}...`);
 
   const reviews: SteamGameReview[] = [];
   let queryFinished = false;
@@ -314,7 +317,7 @@ export const syncSteamGameReviews = async (
             maxRetries: 3,
             baseDelayMs: STEAM_REQUEST_BASE_DELAY,
             onRetry: (attempt, err) =>
-              console.warn(
+              logger.warn(
                 `Failed to parse Steam game review element, attempt ${attempt}:`,
                 err,
               ),
@@ -325,7 +328,7 @@ export const syncSteamGameReviews = async (
         }
         await sleep(STEAM_REQUEST_BASE_DELAY);
       } catch (error) {
-        console.warn("Failed to parse Steam game review element:", error);
+        logger.warn("Failed to parse Steam game review element:", error);
       }
     }
 
@@ -335,7 +338,7 @@ export const syncSteamGameReviews = async (
       queryFinished = true;
     }
   }
-  console.log(`Synced ${reviews.length} Steam game reviews of ${userId}.`);
+  logger.info(`Synced ${reviews.length} Steam game reviews of ${userId}.`);
 
   await insertOrUpdateTimelineItems(
     reviews.map((review) => ({
@@ -352,7 +355,7 @@ export const syncSteamGameReviews = async (
       updated_at: review.editedAt ?? review.postedAt,
     })),
   );
-  console.log(
+  logger.success(
     `Insert or update ${reviews.length} timeline items of Steam game reviews of ${userId} successfully!`,
   );
 };

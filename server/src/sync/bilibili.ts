@@ -8,6 +8,9 @@ import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
 } from "../database/controller/timeline-item";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("Bilibili");
 
 interface BilibiliCollection {
   id: number;
@@ -74,7 +77,7 @@ export const syncBilibiliCollections = async (
     from,
     full,
   });
-  console.log(
+  logger.info(
     `Syncing Bilibili collections from ${mediaId} since ${lastExecuteDate.toISOString()}...`,
   );
 
@@ -110,7 +113,7 @@ export const syncBilibiliCollections = async (
       queryFinished = true;
     }
   }
-  console.log(
+  logger.info(
     `Synced ${collections.length} Bilibili collections from ${mediaId}.`,
   );
 
@@ -147,7 +150,7 @@ export const syncBilibiliCollections = async (
         };
       }),
   );
-  console.log(
+  logger.success(
     `Insert or update ${collections.length} timeline items of Bilibili collections from ${mediaId} successfully!`,
   );
 };
@@ -167,7 +170,7 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
   //   from,
   //   full,
   // });
-  console.log(
+  logger.info(
     // `Syncing Bilibili works of ${userId} since ${lastExecuteDate.toISOString()}...`,
     `Syncing Bilibili works of ${userId}...`,
   );
@@ -201,7 +204,7 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
       queryFinished = true;
     }
   }
-  console.log(`Synced ${works.length} Bilibili works of ${userId}.`);
+  logger.info(`Synced ${works.length} Bilibili works of ${userId}.`);
 
   await insertOrUpdateTimelineItems(
     works.map((work) => ({
@@ -223,7 +226,7 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
       updated_at: new Date(work.pubdate * 1000),
     })),
   );
-  console.log(
+  logger.success(
     `Insert or update ${works.length} timeline items of Bilibili works of ${userId} successfully!`,
   );
 };
