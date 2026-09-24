@@ -39,6 +39,10 @@ export default function Home() {
         (urlSearchParams.get("orderBy") as "created_at" | "updated_at") ??
         "created_at",
     });
+  const orderByRef = useRef(searchParamsState.orderBy);
+  useEffect(() => {
+    orderByRef.current = searchParamsState.orderBy;
+  }, [searchParamsState.orderBy]);
 
   const debouncedSearchParams = useDebounce(searchParamsState, 500);
 
@@ -60,7 +64,7 @@ export default function Home() {
     [debouncedSearchParams],
   );
   const {
-    data: timelineItems,
+    data: timelineItems = [[]],
     mutate: mutateTimelineItems,
     isLoading: isLoadingTimelineItems,
     isValidating: isValidatingTimelineItems,
@@ -68,8 +72,34 @@ export default function Home() {
     error: queryTimelineItemsError,
   } = useSWRInfinite<TimelineItemClient[]>(getTimelineItemsKey, fetcherGET);
   const isFullyLoaded =
+    !isLoadingTimelineItems &&
+    !isValidatingTimelineItems &&
     timelineItems &&
     timelineItems[timelineItems.length - 1].length < PAGE_LIMIT;
+  const flatTimelineItems = useMemo(() => {
+    const items: (
+      ({ type: "item" } & TimelineItemClient) | { type: "year"; year: number }
+    )[] = [];
+
+    let previousYear = new Date().getFullYear();
+    timelineItems.forEach((itemsArray) => {
+      itemsArray.forEach((item) => {
+        const currentDate = new Date(
+          orderByRef.current === "updated_at"
+            ? item.updated_at
+            : item.created_at,
+        );
+        const currentYear = currentDate.getFullYear();
+        if (previousYear !== currentYear) {
+          previousYear = currentYear;
+          items.push({ type: "year", year: currentYear });
+        }
+        items.push({ type: "item", ...item });
+      });
+    });
+
+    return items;
+  }, [timelineItems]);
 
   const getTimelineItemsCountKey = useMemo(() => {
     return `/timeline-items/count?${getSearchParamsFromObject(debouncedSearchParams)}`;
@@ -115,6 +145,10 @@ export default function Home() {
   }, [isLoadingTimelineItems]);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [debouncedSearchParams]);
+
+  useEffect(() => {
     if (isFullyLoaded || isValidatingTimelineItems || queryTimelineItemsError)
       return;
 
@@ -145,52 +179,38 @@ export default function Home() {
     if (isValidatingTimelineItems) return;
 
     const timelineItemDOMs = document.querySelectorAll(".timeline-item");
-    if (timelineItemDOMs.length) {
-      const loadMoreObserver = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            if (searchParamsState.orderBy === "updated_at") {
-              const timelineItemUpdateAt =
-                entry.target.getAttribute("data-updated-at");
-              if (timelineItemUpdateAt) {
-                const timelineItemUpdateAtDate = new Date(timelineItemUpdateAt);
-                setCurrentDate(timelineItemUpdateAtDate);
-              }
-            } else {
-              const timelineItemCreateAt =
-                entry.target.getAttribute("data-created-at");
-              if (timelineItemCreateAt) {
-                const timelineItemCreateAtDate = new Date(timelineItemCreateAt);
-                setCurrentDate(timelineItemCreateAtDate);
-              }
-            }
+    if (!timelineItemDOMs.length) return;
 
-            const timelineItemOrderedIndex =
-              entry.target.getAttribute("data-ordered-index");
-            if (timelineItemOrderedIndex) {
-              setCurrentIndex(Number(timelineItemOrderedIndex));
-            }
-          }
-        },
-        { threshold: 0 },
-      );
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
 
-      timelineItemDOMs.forEach((dom) => {
-        loadMoreObserver.observe(dom);
-      });
-      return () => {
-        timelineItemDOMs.forEach((dom) => {
-          loadMoreObserver.unobserve(dom);
-        });
-      };
-    }
-  }, [isValidatingTimelineItems, searchParamsState.orderBy]);
+        const field = orderByRef.current;
+        const attrName =
+          field === "updated_at" ? "data-updated-at" : "data-created-at";
+        const dateStr = entry.target.getAttribute(attrName);
+
+        if (dateStr) {
+          setCurrentDate(new Date(dateStr));
+        }
+
+        const orderedIndex = entry.target.getAttribute("data-ordered-index");
+        if (orderedIndex) {
+          setCurrentIndex(Number(orderedIndex));
+        }
+      },
+      { threshold: 0 },
+    );
+
+    timelineItemDOMs.forEach((dom) => observer.observe(dom));
+    return () => observer.disconnect();
+  }, [isValidatingTimelineItems]);
 
   useEffect(() => {
-    if (timelineItems && timelineItems[0].length === 0) {
-      message.info("时间线上没有更多的噜~");
+    if (!isLoadingTimelineItems && timelineItems[0].length === 0) {
+      message.info("嘟嘟噜，时间线上没有找到相关内容喔~");
     }
-  }, [timelineItems]);
+  }, [isLoadingTimelineItems, timelineItems]);
 
   const timelineSearchProps: TimelineSearchProps = {
     value: searchParamsState,
@@ -231,53 +251,44 @@ export default function Home() {
           </div>
         </div>
       </>
-      {timelineItems?.map((itemsArray, page) =>
-        itemsArray.map((item, index) => {
-          const { id, created_at, updated_at } = item;
+      <div
+        className={`transition-opacity ${isLoadingTimelineItems ? "opacity-75" : "opacity-100"}`}
+      >
+        {flatTimelineItems.map((item, index) => {
+          if (item.type === "item") {
+            const { id, created_at, updated_at } = item;
+            const orderedIndex = index + 1;
 
-          if (index > 0) {
-            const previousItem = itemsArray[index - 1];
-            const previousYear = new Date(
-              searchParamsState.orderBy === "updated_at"
-                ? previousItem.updated_at
-                : previousItem.created_at,
-            ).getFullYear();
-            const currentYear = new Date(
-              searchParamsState.orderBy === "updated_at"
-                ? updated_at
-                : created_at,
-            ).getFullYear();
-            if (previousYear !== currentYear) {
-              return (
-                <div
-                  key={`year-${currentYear}`}
-                  className="my-4 flex select-none items-center justify-end md:my-6 lg:my-12"
-                >
-                  <span className="text-4xl font-black tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
-                    {currentYear}
-                  </span>
-                </div>
-              );
-            }
+            return (
+              <TimelineItem
+                key={`item-${id}}`}
+                id={id}
+                item={item}
+                displayedDateTime={orderByRef.current}
+                mutateTimelineItems={mutateTimelineItems}
+                className="mb-8"
+                data-created-at={created_at}
+                data-updated-at={updated_at}
+                data-ordered-index={orderedIndex}
+              />
+            );
+          } else if (item.type === "year") {
+            const { year } = item;
+            return (
+              <div
+                key={`year-${year}`}
+                className="my-4 flex select-none items-center justify-end md:my-6 lg:my-12"
+              >
+                <span className="text-4xl font-black tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
+                  {year}
+                </span>
+              </div>
+            );
+          } else {
+            return null;
           }
-
-          const orderedIndex = page * PAGE_LIMIT + index + 1;
-
-          return (
-            <TimelineItem
-              key={`item-${id}}`}
-              id={id}
-              item={item}
-              displayedDateTime={searchParamsState.orderBy}
-              mutateTimelineItems={mutateTimelineItems}
-              className="mb-8"
-              data-created-at={created_at}
-              data-updated-at={updated_at}
-              data-ordered-index={orderedIndex}
-            />
-          );
-        }),
-      )}
+        })}
+      </div>
       <div className={`my-16 select-none text-center`}>
         {isFullyLoaded ? (
           <div className="text-foreground-dark">
