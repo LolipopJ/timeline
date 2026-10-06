@@ -1,4 +1,4 @@
-import type { SyncServiceType } from "../enums/index";
+import type { SyncServiceType } from "@timeline/contracts";
 
 export interface ServerConfig {
   services: SyncService[];
@@ -49,8 +49,9 @@ export interface TimelineItemAttachment {
   url: string;
   /** 文件封面链接 */
   coverUrl?: string;
-  created_at?: Date;
-  updated_at?: Date;
+  /** Date before persistence, ISO string when read from the JSON column. */
+  created_at?: Date | string;
+  updated_at?: Date | string;
 }
 
 export type SyncService =

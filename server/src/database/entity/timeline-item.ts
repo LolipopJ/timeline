@@ -1,3 +1,4 @@
+import { SyncServiceType } from "@timeline/contracts";
 import {
   Column,
   DeleteDateColumn,
@@ -7,8 +8,7 @@ import {
   VersionColumn,
 } from "typeorm";
 
-import { SyncServiceType } from "../../../../enums";
-import type { TimelineItemAttachment } from "../../../../interfaces/server";
+import type { TimelineItemAttachment } from "../../types/config";
 
 @Entity()
 @Unique("unique_service_content", ["sync_service_id", "content_id"])
@@ -32,22 +32,22 @@ export class TimelineItem {
   content_id!: string;
 
   @Column({ type: "text", nullable: true })
-  title?: string;
+  title?: string | null;
 
   @Column({ type: "text", nullable: true })
-  content?: string;
+  content?: string | null;
 
   @Column({ type: "text", nullable: true })
-  url?: string;
+  url?: string | null;
 
   @Column({ type: "json", nullable: true })
-  attachments?: TimelineItemAttachment[];
+  attachments?: TimelineItemAttachment[] | null;
 
   @Column({ type: "text", nullable: true })
   metadata?: string;
 
   @Column({ type: "boolean", nullable: true, default: false })
-  is_secret?: boolean;
+  is_secret?: boolean | null;
 
   @VersionColumn()
   version?: number;

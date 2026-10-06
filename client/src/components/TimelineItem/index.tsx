@@ -1,3 +1,4 @@
+import { SyncServiceType } from "@timeline/contracts";
 import React from "react";
 
 import ExpandableContainer, {
@@ -11,8 +12,6 @@ import TimelineItemSteamGameReview from "@/components/TimelineItem/steam-game-re
 import TimelineItemLabel, {
   type TimelineItemLabelProps,
 } from "@/components/TimelineItemLabel";
-
-import { SyncServiceType } from "../../../../enums";
 
 export interface TimelineItemProps
   extends

@@ -1,7 +1,7 @@
 import { mdiEmail, mdiGithub, mdiWebBox } from "@mdi/js";
 import Icon from "@mdi/react";
 
-import config from "../../../../configs/client";
+import config from "../../../configs/client";
 
 export interface TimelineOwnerProps {
   className?: string;
@@ -22,7 +22,7 @@ export default function TimelineOwner(props: TimelineOwnerProps) {
       ].map(
         (item) =>
           item.key && (
-            <a key={item.key} href={item.url} target="_blank">
+            <a key={item.key} href={item.url ?? undefined} target="_blank">
               <Icon
                 path={item.icon}
                 className={`size-8 text-background-lighter transition hover:text-foreground ${iconClassName}`}

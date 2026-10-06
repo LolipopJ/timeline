@@ -4,15 +4,9 @@
 
 本项目基于 Bun 开发，服务端依赖于 PostgreSQL 数据库。
 
-全局安装 Bun：
+分别复制 `client/configs/client.example.ts` 和 `server/configs/server.example.ts` 为 `client/configs/client.ts` 和 `server/configs/server.ts`，配置您的客户端和服务端。
 
-```bash
-npm install -g bun
-```
-
-分别复制 `configs/client.example.ts` 和 `configs/server.example.ts` 为 `configs/client.ts` 和 `configs/server.ts`，配置您的客户端和服务端。
-
-编辑 `configs/server.ts`，填写连接到 PostgreSQL 数据库的配置信息：
+服务端配置 `server/configs/server.ts` 需填写连接到 PostgreSQL 数据库的配置信息：
 
 ```ts
 export const serverConfig: ServerConfig = {
@@ -176,7 +170,67 @@ export const serverConfig: ServerConfig = {
 }
 ```
 
+## 项目部署
+
+请确保 Node.js >= 22.12.0。
+
+### 安装依赖
+
+项目依赖于 Bun 工具包：
+
+```bash
+npm install -g bun
+```
+
+在仓库根目录执行下面的命令安装依赖：
+
+```bash
+bun install --frozen-lockfile
+```
+
+### 客户端部署
+
+编译构建客户端静态资源：
+
+```bash
+bun run build:client
+```
+
+构建后的静态资源存放在 `client/out` 目录。
+
+预览编译后的客户端：
+
+```bash
+bun run start:client
+```
+
+### 服务端部署
+
+服务端源码部署需要保留 monorepo 的相对布局：根 `package.json`、`bun.lock`、`bunfig.toml`、`tsconfig.base.json`、`scripts/prepare.ts`、所有 workspace 的 `package.json`、`server/src` 和 `packages/contracts/src`。客户端源码和 `client/out` 可以省略。先在目标平台执行：
+
+```bash
+bun install --production --frozen-lockfile --filter '@timeline/server...'
+```
+
+安装后完整保留根 `node_modules/.bun` 和各 workspace 的依赖链接，注入 `server/configs/server.ts`，挂载或保留 `server/.static`、`server/.temporary`。ffmpeg 在目标平台下载，不能将 Windows 二进制复制到 Linux。生产或 CI 安装跳过 Husky，ffmpeg-static 的安装脚本仍会执行。
+
+启动服务端生产环境：
+
+```bash
+bun run start:server
+```
+
+若需要在启动时对所有同步服务执行一次全量同步（忽略上次同步时间，仅受各服务 `from` 字段约束），可设置 `FULL_SYNC=true` 环境变量，全量同步完成后仍会按 `syncInterval` 正常进行增量同步：
+
+```bash
+FULL_SYNC=true bun run start:server
+```
+
 ## 项目开发
+
+项目使用 Bun Workspaces：`client` 为 Next.js 静态客户端，`server` 为 Elysia 服务端，`packages/contracts` 为无框架依赖的接口契约。两端仅通过 `@timeline/contracts` 共享枚举和 HTTP DTO，不引用对方源码。安装入口和锁文件均在根目录。
+
+同时启动两端可运行 `bun run dev`。也可以在 `client` 或 `server` 目录执行 `bun run dev`；服务端从自己的目录运行，持久化目录仍为 `server/.static`、`server/.temporary`。客户端只需 `client/configs/client.ts`，其内容是公开构建输入，修改 API 地址后需要重新构建。
 
 ### 客户端开发
 
@@ -206,59 +260,14 @@ bun run lint:client:fix
 bun run dev:server
 ```
 
-检查服务端与共享 TypeScript 代码质量：
+检查服务端和契约代码质量：
 
 ```bash
 bun run lint:server
 ```
 
-自动修复可修复的服务端与共享代码问题：
+自动修复可修复的服务端和契约问题：
 
 ```bash
 bun run lint:server:fix
-```
-
-### 类型、构建与浏览器检查
-
-在仓库根目录执行完整检查；生成 Next.js 类型后，再独立检查前后端类型：
-
-```bash
-bun install --frozen-lockfile
-bun run lint:client
-bun run lint:server
-bun run typegen:client
-bun run typecheck:client
-bun run typecheck:server
-```
-
-## 项目部署
-
-### 客户端部署
-
-编译构建客户端静态资源：
-
-```bash
-bun run build:client
-```
-
-构建后的静态资源存放在 `client/out` 目录。
-
-预览编译后的客户端：
-
-```bash
-bun run start:client
-```
-
-### 服务端部署
-
-启动服务端生产环境：
-
-```bash
-bun run start:server
-```
-
-若需要在启动时对所有同步服务执行一次全量同步（忽略上次同步时间，仅受各服务 `from` 字段约束），可设置 `FULL_SYNC=true` 环境变量，全量同步完成后仍会按 `syncInterval` 正常进行增量同步：
-
-```bash
-FULL_SYNC=true bun run start:server
 ```

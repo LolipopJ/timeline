@@ -1,12 +1,12 @@
 import type { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import { Octokit } from "octokit";
 
-import config from "../../../configs/server";
-import type { SyncServiceGithubIssueComment } from "../../../interfaces/server";
+import config from "../../configs/server";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
 } from "../database/controller/timeline-item";
+import type { SyncServiceGithubIssueComment } from "../types/config";
 import { createLogger } from "../utils/logger";
 
 const logger = createLogger("GitHub");

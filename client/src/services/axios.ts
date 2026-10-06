@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import clientConfig from "../../../configs/client";
+import clientConfig from "../../configs/client";
 
 export const AUTH_EXPIRED_EVENT = "auth-expired";
 

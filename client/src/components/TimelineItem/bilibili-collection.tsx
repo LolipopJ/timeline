@@ -13,7 +13,11 @@ export default function TimelineItemBilibiliCollection(
     <div className={`bilibili-collection ${className}`} {...rest}>
       {cover && (
         <div className="relative aspect-video bg-background-light">
-          <a href={item.url} target="_blank" className="select-none">
+          <a
+            href={item.url ?? undefined}
+            target="_blank"
+            className="select-none"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt={`${cover.url}`}
@@ -23,10 +27,10 @@ export default function TimelineItemBilibiliCollection(
           </a>
           <h1
             className={`${imageIntroClassName} top-0 font-bold sm:text-lg`}
-            title={item.title}
+            title={item.title ?? undefined}
           >
             <a
-              href={item.url}
+              href={item.url ?? undefined}
               target="_blank"
               className="line-clamp-1 transition hover:text-primary"
             >

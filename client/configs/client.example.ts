@@ -1,4 +1,4 @@
-import type { ClientConfig } from "../interfaces/client";
+import type { ClientConfig } from "../src/types/config";
 
 export const clientConfig: ClientConfig = {
   homepage: "https://www.example.com",

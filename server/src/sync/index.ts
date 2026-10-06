@@ -1,5 +1,6 @@
-import config from "../../../configs/server";
-import { SyncServiceType } from "../../../enums";
+import { SyncServiceType } from "@timeline/contracts";
+
+import config from "../../configs/server";
 import { createLogger } from "../utils/logger";
 import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { syncFeed } from "./feed";

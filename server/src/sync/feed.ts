@@ -1,9 +1,9 @@
 import axios from "axios";
 import { xml2json } from "xml-js";
 
-import type { SyncServiceFeed } from "../../../interfaces/server";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type TimelineItem from "../database/entity/timeline-item";
+import type { SyncServiceFeed } from "../types/config";
 import { createLogger } from "../utils/logger";
 
 const logger = createLogger("Feed");

@@ -2,6 +2,10 @@
 
 import { mdiLoading, mdiSlashForwardBox } from "@mdi/js";
 import Icon from "@mdi/react";
+import type {
+  GetTimelineItemsParams,
+  TimelineItemClient,
+} from "@timeline/contracts";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyLoader } from "swr";
@@ -19,11 +23,6 @@ import TimelineSearch, {
 import useDebounce from "@/hooks/useDebounce";
 import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
-
-import type {
-  GetTimelineItemsParams,
-  TimelineItemClient,
-} from "../../../../interfaces/api";
 
 const PAGE_LIMIT = 20;
 

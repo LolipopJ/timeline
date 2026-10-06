@@ -1,10 +1,6 @@
 import fs from "fs";
 import path from "path";
 
-import type {
-  SyncServiceQzoneTalk,
-  TimelineItemAttachment,
-} from "../../../interfaces/server";
 import {
   SEC_CH_UA_DESKTOP,
   SERVER_STATIC_DIR,
@@ -15,6 +11,10 @@ import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
 } from "../database/controller/timeline-item";
+import type {
+  SyncServiceQzoneTalk,
+  TimelineItemAttachment,
+} from "../types/config";
 import axios from "../utils/axios";
 import { checkupDir } from "../utils/file";
 import { createLogger } from "../utils/logger";

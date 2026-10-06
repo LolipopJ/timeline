@@ -3,6 +3,7 @@
 import "./globals.css";
 
 import { Fancybox } from "@fancyapps/ui";
+import type { LoginStatus } from "@timeline/contracts";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
@@ -16,7 +17,7 @@ import GlobalContext, {
 } from "@/contexts/GlobalContext";
 import { AUTH_EXPIRED_EVENT, fetcherGET, fetcherPOST } from "@/services/axios";
 
-import config from "../../../configs/client";
+import config from "../../configs/client";
 
 export default function RootLayout({
   children,
@@ -35,9 +36,10 @@ export default function RootLayout({
     logout ? "/logout" : null,
     fetcherPOST,
   );
-  const { data: loginStatus, mutate: mutateLoginStatus } = useSWR<{
-    isLoggedIn: boolean;
-  }>("/login", fetcherGET);
+  const { data: loginStatus, mutate: mutateLoginStatus } = useSWR<LoginStatus>(
+    "/login",
+    fetcherGET,
+  );
 
   const globalContext: GlobalContextValue = {
     ...GLOBAL_CONTEXT_DEFAULT_VALUE,

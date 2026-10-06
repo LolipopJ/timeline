@@ -2,21 +2,22 @@ import "reflect-metadata";
 
 import { cors } from "@elysiajs/cors";
 import { staticPlugin } from "@elysiajs/static";
+import type {
+  CountTimelineItemsParams,
+  GetTimelineItemsParams,
+  LoginParams,
+  LoginStatus,
+  UpdateTimelineItemParams,
+} from "@timeline/contracts";
+import { SyncServiceType } from "@timeline/contracts";
 import { Elysia } from "elysia";
 import type { Cookie, ElysiaCookie } from "elysia/cookies";
 import fs from "fs";
 import schedule from "node-schedule";
 import { ILike } from "typeorm";
 
-import config from "../../configs/server";
-import { SyncServiceType } from "../../enums";
-import type {
-  CountTimelineItemsParams,
-  GetTimelineItemsParams,
-  TimelineItemClient,
-  UpdateTimelineItemParams,
-} from "../../interfaces/api";
-import type { LoginAccount } from "../../interfaces/server";
+import config from "../configs/server";
+import { serializeTimelineItem } from "./api/serializers";
 import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import database from "./database";
 import {
@@ -92,7 +93,7 @@ const clearCookieToken = (cookieToken: Cookie<unknown>) => {
   });
 };
 
-new Elysia()
+export const app = new Elysia()
   .use(
     cors({
       origin: ALLOWED_ORIGIN,
@@ -199,35 +200,11 @@ new Elysia()
           : { order: { created_at: "DESC" } }),
       });
 
-      const resolvedTimelineItems: TimelineItemClient[] = timelineItems.map(
-        ({
-          id,
-          sync_service_id,
-          sync_service_type,
-          content_id,
-          title,
-          content,
-          url,
-          attachments,
-          version,
-          created_at,
-          updated_at,
-          is_secret,
-        }) => ({
-          id,
-          sync_service_id,
-          label: SERVICE_LABEL_MAP.get(sync_service_id),
-          sync_service_type,
-          content_id,
-          title,
-          content,
-          url,
-          attachments,
-          version,
-          created_at,
-          updated_at,
-          is_secret,
-        }),
+      const resolvedTimelineItems = timelineItems.map((item) =>
+        serializeTimelineItem(
+          item,
+          SERVICE_LABEL_MAP.get(item.sync_service_id),
+        ),
       );
 
       return resolvedTimelineItems;
@@ -276,12 +253,14 @@ new Elysia()
   //#region 系统管理员用户登录、登出
   .get("/login", async ({ cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
     // 未启用管理员功能时，或登录态 Cookie 未通过校验时，cookieToken.value 均为空
-    return { isLoggedIn: Boolean(IS_ADMIN_ENABLED && cookieToken.value) };
+    return {
+      isLoggedIn: Boolean(IS_ADMIN_ENABLED && cookieToken.value),
+    } satisfies LoginStatus;
   })
   .post(
     "/login",
     async ({ body, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
-      const { username, password } = body as LoginAccount;
+      const { username, password } = body as LoginParams;
       const currentAccount = ADMIN_ACCOUNTS.find(
         (item) => item.username === username && item.password === password,
       );

@@ -1,19 +1,30 @@
 import js from "@eslint/js";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTypescript from "eslint-config-next/typescript";
 import prettierRecommended from "eslint-plugin-prettier/recommended";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
-import tailwindcss from "eslint-plugin-tailwindcss";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+// Server-only development installs do not include the Next parser or CSS toolchain.
+const clientInstalled = existsSync(
+  new URL("./client/node_modules/next/package.json", import.meta.url),
+);
+const nextVitals = clientInstalled
+  ? (await import("eslint-config-next/core-web-vitals")).default
+  : [];
+const nextTypescript = clientInstalled
+  ? (await import("eslint-config-next/typescript")).default
+  : [];
+const tailwindcss = clientInstalled
+  ? (await import("eslint-plugin-tailwindcss")).default
+  : undefined;
 
 const clientFiles = ["client/**/*.{js,jsx,mjs,ts,tsx}"];
 const sharedFiles = [
   "server/**/*.ts",
-  "configs/**/*.ts",
-  "enums/**/*.ts",
-  "interfaces/**/*.ts",
+  "packages/contracts/**/*.ts",
+  "scripts/**/*.{ts,mjs}",
 ];
 
 // Intersect each preset's own file patterns with the application boundary.
@@ -49,8 +60,9 @@ export default defineConfig([
     "**/yarn-debug.log*",
     "**/yarn-error.log*",
     "**/.env*",
-    "configs/client.ts",
-    "configs/server.ts",
+    ".migration-backup/**",
+    "client/configs/client.ts",
+    "server/configs/server.ts",
     "**/.vercel/**",
     "**/*.tsbuildinfo",
     "**/next-env.d.ts",
@@ -58,7 +70,7 @@ export default defineConfig([
     "server/.static/**",
   ]),
   ...scope([...nextVitals, ...nextTypescript], clientFiles),
-  ...scope(tailwindcss.configs.recommended, clientFiles),
+  ...scope(tailwindcss?.configs.recommended ?? [], clientFiles),
   {
     files: clientFiles,
     settings: {
@@ -69,7 +81,7 @@ export default defineConfig([
         ),
       },
     },
-    rules: { "tailwindcss/no-custom-classname": "off" },
+    rules: clientInstalled ? { "tailwindcss/no-custom-classname": "off" } : {},
   },
   ...scope(
     [js.configs.recommended, ...tsPlugin.configs["flat/recommended"]],

@@ -79,7 +79,7 @@ export default function TimelineItemSteamGameReview(props: TimelineComponent) {
             </a>
           )}
           <div className="flex items-center rounded-b-sm bg-background-lighter">
-            <a href={url} target="_blank">
+            <a href={url ?? undefined} target="_blank">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={

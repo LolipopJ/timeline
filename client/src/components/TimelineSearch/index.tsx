@@ -1,8 +1,7 @@
 import { mdiCloseThick, mdiCommentSearch } from "@mdi/js";
 import Icon from "@mdi/react";
+import type { GetTimelineItemsParams } from "@timeline/contracts";
 import React, { useEffect, useRef, useState } from "react";
-
-import type { GetTimelineItemsParams } from "../../../../interfaces/api";
 
 type SearchParams = Pick<GetTimelineItemsParams, "search" | "orderBy">;
 

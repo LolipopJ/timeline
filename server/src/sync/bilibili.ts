@@ -1,13 +1,13 @@
 import axios from "axios";
 
-import type {
-  SyncServiceBilibiliCollection,
-  SyncServiceBilibiliWork,
-} from "../../../interfaces/server";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
 } from "../database/controller/timeline-item";
+import type {
+  SyncServiceBilibiliCollection,
+  SyncServiceBilibiliWork,
+} from "../types/config";
 import { createLogger } from "../utils/logger";
 
 const logger = createLogger("Bilibili");

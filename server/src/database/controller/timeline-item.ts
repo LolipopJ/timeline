@@ -1,6 +1,6 @@
 import type { FindManyOptions, FindOptionsWhere } from "typeorm";
 
-import type { SyncService } from "../../../../interfaces/server";
+import type { SyncService } from "../../types/config";
 import TimelineItem from "../entity/timeline-item";
 import dataSource from "../index";
 

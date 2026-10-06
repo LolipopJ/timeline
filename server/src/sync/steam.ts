@@ -3,12 +3,12 @@ import { sleep } from "bun";
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
-import config from "../../../configs/server";
+import config from "../../configs/server";
+import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type {
   SyncServiceSteamGameReview,
   SyncServiceSteamRecentlyPlayedTime,
-} from "../../../interfaces/server";
-import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
+} from "../types/config";
 import { createLogger } from "../utils/logger";
 import { withRetry } from "../utils/promise";
 

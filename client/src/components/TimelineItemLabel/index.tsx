@@ -15,18 +15,17 @@ import {
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type { IconProps } from "@mdi/react/dist/IconProps";
+import type {
+  GetTimelineItemsParams,
+  TimelineItemClient,
+} from "@timeline/contracts";
+import { SyncServiceType } from "@timeline/contracts";
 import { useContext, useEffect, useRef, useState } from "react";
 import type { SWRInfiniteKeyedMutator } from "swr/infinite";
 
 import message from "@/components/Message";
 import GlobalContext from "@/contexts/GlobalContext";
 import { fetcherDELETE, fetcherPATCH } from "@/services/axios";
-
-import { SyncServiceType } from "../../../../enums";
-import type {
-  GetTimelineItemsParams,
-  TimelineItemClient,
-} from "../../../../interfaces/api";
 
 export interface TimelineItemLabelProps {
   item: TimelineItemClient;
@@ -245,7 +244,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
               {url ? (
                 <li>
                   <a
-                    href={url}
+                    href={url ?? undefined}
                     target="_blank"
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"
                   >
