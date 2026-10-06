@@ -186,10 +186,16 @@ export const serverConfig: ServerConfig = {
 bun run dev:client
 ```
 
-修复客户端代码质量问题：
+检查客户端代码质量（不自动修改文件）：
 
 ```bash
 bun run lint:client
+```
+
+自动修复可修复的客户端问题：
+
+```bash
+bun run lint:client:fix
 ```
 
 ### 服务端开发
@@ -200,10 +206,29 @@ bun run lint:client
 bun run dev:server
 ```
 
-修复服务端代码质量问题：
+检查服务端与共享 TypeScript 代码质量：
 
 ```bash
 bun run lint:server
+```
+
+自动修复可修复的服务端与共享代码问题：
+
+```bash
+bun run lint:server:fix
+```
+
+### 类型、构建与浏览器检查
+
+在仓库根目录执行完整检查；生成 Next.js 类型后，再独立检查前后端类型：
+
+```bash
+bun install --frozen-lockfile
+bun run lint:client
+bun run lint:server
+bun run typegen:client
+bun run typecheck:client
+bun run typecheck:server
 ```
 
 ## 项目部署
@@ -217,6 +242,12 @@ bun run build:client
 ```
 
 构建后的静态资源存放在 `client/out` 目录。
+
+预览编译后的客户端：
+
+```bash
+bun run start:client
+```
 
 ### 服务端部署
 

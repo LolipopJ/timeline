@@ -26,9 +26,7 @@ export default function RootLayout({
   const router = useRouter();
   const pathname = usePathname();
 
-  const [globalContext, setGlobalContext] = useState<GlobalContextValue>(
-    GLOBAL_CONTEXT_DEFAULT_VALUE,
-  );
+  const [lastVisitDate, setLastVisitDate] = useState<Date | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [login, setLogin] = useState<boolean>(false);
   const [logout, setLogout] = useState<boolean>(false);
@@ -37,37 +35,32 @@ export default function RootLayout({
     logout ? "/logout" : null,
     fetcherPOST,
   );
-  const { data: loginStatus } = useSWR<{ isLoggedIn: boolean }>(
-    "/login",
-    fetcherGET,
-  );
+  const { data: loginStatus, mutate: mutateLoginStatus } = useSWR<{
+    isLoggedIn: boolean;
+  }>("/login", fetcherGET);
 
-  useEffect(() => {
-    const lsLastVisitDate = localStorage.getItem(LS_LAST_VISIT_DATE);
-    const lastVisitDate = lsLastVisitDate ? new Date(lsLastVisitDate) : null;
-    setGlobalContext((prev) => ({ ...prev, lastVisitDate }));
-
-    localStorage.setItem(LS_LAST_VISIT_DATE, String(new Date()));
-  }, []);
-
-  useEffect(() => {
-    if (loginStatus) {
-      setGlobalContext((prev) => ({
-        ...prev,
-        isLoggedIn: loginStatus.isLoggedIn,
-      }));
-    }
-  }, [loginStatus]);
+  const globalContext: GlobalContextValue = {
+    ...GLOBAL_CONTEXT_DEFAULT_VALUE,
+    lastVisitDate,
+    isLoggedIn: loginStatus?.isLoggedIn ?? false,
+  };
 
   useEffect(() => {
     // 服务端返回登录态已过期（401）时，清除本地登录状态
     const onAuthExpired = () =>
-      setGlobalContext((prev) => ({ ...prev, isLoggedIn: false }));
+      void mutateLoginStatus({ isLoggedIn: false }, false);
     window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
-  }, []);
+  }, [mutateLoginStatus]);
 
+  // Static HTML must match the first client render; browser storage and URL
+  // initialization deliberately run once after hydration.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    const lsLastVisitDate = localStorage.getItem(LS_LAST_VISIT_DATE);
+    setLastVisitDate(lsLastVisitDate ? new Date(lsLastVisitDate) : null);
+    localStorage.setItem(LS_LAST_VISIT_DATE, String(new Date()));
+
     //#region 初始化登录、登出查询
     const url = new URL(window.location.href);
     const params = new URLSearchParams(url.search);
@@ -84,10 +77,10 @@ export default function RootLayout({
 
     setInitialized(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (logout && !isRequestingLogout) {
-      setGlobalContext((prev) => ({ ...prev, isLoggedIn: false }));
       window.location.replace(pathname);
     }
   }, [isRequestingLogout, logout, pathname]);
@@ -113,7 +106,7 @@ export default function RootLayout({
                 router.replace(pathname);
               }}
               onLogged={() => {
-                setGlobalContext((prev) => ({ ...prev, isLoggedIn: true }));
+                void mutateLoginStatus({ isLoggedIn: true }, false);
                 window.location.replace(pathname);
               }}
             />

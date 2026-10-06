@@ -43,7 +43,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
       <input
         value={value?.search || ""}
         onChange={(e) => onChange?.({ ...value, search: e.target.value })}
-        className={`h-8 w-full rounded-md bg-background-lighter pl-10`}
+        className={`h-8 w-full rounded-md bg-background-lighter pl-10 placeholder:text-[#9ca3af]`}
         {...rest}
       />
 
@@ -52,11 +52,11 @@ export default function TimelineSearch(props: TimelineSearchProps) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="absolute left-0 top-0 size-8 rounded-md bg-background-light"
+        className="absolute top-0 left-0 size-8 cursor-pointer rounded-md bg-background-light"
       >
         <Icon
           path={mdiCommentSearch}
-          className="absolute left-1.5 top-1.5 size-5"
+          className="absolute top-1.5 left-1.5 size-5"
         />
       </button>
 
@@ -67,7 +67,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
               <button
                 type="button"
                 onClick={() => handleSelect("created_at")}
-                className={`w-full whitespace-nowrap rounded-md px-3 py-2 text-left hover:bg-background-lighter ${
+                className={`w-full cursor-pointer rounded-md px-3 py-2 text-left whitespace-nowrap hover:bg-background-lighter ${
                   current === "created_at" ? "font-medium underline" : ""
                 }`}
               >
@@ -78,7 +78,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
               <button
                 type="button"
                 onClick={() => handleSelect("updated_at")}
-                className={`w-full whitespace-nowrap rounded-md px-3 py-2 text-left hover:bg-background-lighter ${
+                className={`w-full cursor-pointer rounded-md px-3 py-2 text-left whitespace-nowrap hover:bg-background-lighter ${
                   current === "updated_at" ? "font-medium underline" : ""
                 }`}
               >
@@ -92,7 +92,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
       {onClear && value?.search && (
         <span
           onClick={onClear}
-          className="absolute -right-1 top-1 flex size-6 translate-x-full cursor-pointer items-center justify-center"
+          className="absolute top-1 -right-1 flex size-6 translate-x-full cursor-pointer items-center justify-center"
         >
           <Icon path={mdiCloseThick} className="size-4 text-foreground-dark" />
         </span>

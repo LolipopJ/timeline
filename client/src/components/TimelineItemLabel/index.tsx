@@ -54,7 +54,7 @@ const LABEL_TEXT_COLOR = {
 } as Record<SyncServiceType, string>;
 
 const labelItemBaseClassName =
-  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base !leading-none";
+  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base leading-none!";
 const labelIconBaseOptions: Partial<IconProps> = {
   className: "mr-1 size-4 md:size-5",
 };
@@ -213,7 +213,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
 
   return (
     <div
-      className={`mb-3 flex select-none justify-between lg:mb-0 ${className}`}
+      className={`mb-3 flex justify-between select-none lg:mb-0 ${className}`}
       {...rest}
     >
       <div
@@ -240,14 +240,14 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           {is_secret && <sub className="ml-1 opacity-75">私密</sub>}
         </span>
         {hasMenu && menuOpen && (
-          <div className="absolute left-0 top-0 z-50 w-32 rounded-md bg-background-light text-sm font-normal shadow-md shadow-background-lighter">
+          <div className="absolute top-0 left-0 z-50 w-32 rounded-md bg-background-light text-sm font-normal shadow-md shadow-background-lighter">
             <ul className="p-1">
               {url ? (
                 <li>
                   <a
                     href={url}
                     target="_blank"
-                    className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"
                   >
                     <Icon path={mdiOpenInNew} size={0.7} />
                     打开链接
@@ -264,7 +264,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                         setMenuOpen(false);
                         handleToggleSecret();
                       }}
-                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-foreground hover:bg-background-lighter"
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"
                     >
                       <Icon
                         path={is_secret ? mdiEyeOutline : mdiEyeOffOutline}
@@ -281,7 +281,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                         setMenuOpen(false);
                         handleDelete();
                       }}
-                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-red-400 hover:bg-background-lighter"
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-red-400 hover:bg-background-lighter"
                     >
                       <Icon path={mdiTrashCanOutline} size={0.7} />
                       删除

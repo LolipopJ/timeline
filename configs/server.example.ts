@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { SyncServiceType } from "../enums";
 import type { ServerConfig } from "../interfaces/server";
 

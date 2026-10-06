@@ -48,12 +48,12 @@ export function LoginModal(props: LoginModalProps) {
 
   return (
     <div
-      className={`${open ? "block" : "hidden"} fixed inset-0 z-40 bg-neutral-950/20 backdrop-blur-sm`}
+      className={`${open ? "block" : "hidden"} fixed inset-0 z-40 bg-neutral-950/20 backdrop-blur-xs`}
     >
-      <div className="relative left-1/2 top-1/2 flex max-w-96 -translate-x-1/2 -translate-y-2/3 flex-col items-center overflow-hidden rounded-lg border-1 border-neutral-50/20 bg-background-light px-10 py-16 shadow-lg shadow-background-lighter">
+      <div className="relative top-1/2 left-1/2 flex max-w-96 -translate-x-1/2 -translate-y-2/3 flex-col items-center overflow-hidden rounded-lg border border-neutral-50/20 bg-background-light px-10 py-16 shadow-lg shadow-background-lighter">
         <a
           onClick={onClose}
-          className="absolute right-2 top-2 cursor-pointer p-2"
+          className="absolute top-2 right-2 cursor-pointer p-2"
         >
           <Icon path={mdiCloseThick} size={1} />
         </a>
@@ -81,7 +81,7 @@ export function LoginModal(props: LoginModalProps) {
               name="username"
               required
               autoComplete="username"
-              className="w-full rounded border-1 border-neutral-50/20 bg-background-lighter p-2 text-lg"
+              className="w-full rounded-sm border border-neutral-50/20 bg-background-lighter p-2 text-lg"
             />
           </div>
           <div>
@@ -97,13 +97,13 @@ export function LoginModal(props: LoginModalProps) {
               required
               type="password"
               autoComplete="current-password"
-              className="w-full rounded border-1 border-neutral-50/20 bg-background-lighter p-2 text-lg"
+              className="w-full rounded-sm border border-neutral-50/20 bg-background-lighter p-2 text-lg"
             />
           </div>
           <div>
             <button
               type="submit"
-              className={`bg-primary-dark hover:bg-primary ${loading ? "!bg-disabled" : ""} mt-2 w-full rounded py-3 tracking-widest transition`}
+              className={`bg-primary-dark hover:bg-primary ${loading ? "bg-disabled!" : ""} mt-2 w-full cursor-pointer rounded-sm py-3 tracking-widest transition disabled:cursor-default`}
               disabled={loading}
             >
               登 录

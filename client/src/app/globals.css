@@ -1,12 +1,24 @@
-@import url('https://unpkg.com/github-markdown-css@5.9.0/github-markdown-dark.css');
-@import url('https://unpkg.com/@fancyapps/ui@6.1.13/dist/fancybox/fancybox.css');
-@import url('https://unpkg.com/video.js@8.23.8/dist/video-js.min.css');
+@layer theme, base, vendor, components, utilities;
 
-@import url('../styles/animation.css');
+@import 'tailwindcss' source('../');
+@import 'github-markdown-css/github-markdown-dark.css' layer(vendor);
+@import '@fancyapps/ui/dist/fancybox/fancybox.css' layer(vendor);
+/* 将 Video.js 样式表作为未分层的样式导入，避免优先级问题 */
+@import 'video.js/dist/video-js.css'; 
+@import '../styles/animation.css' layer(components);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
+  --color-disabled: var(--disabled);
+  --color-background: var(--background);
+  --color-background-light: var(--background-light);
+  --color-background-lighter: var(--background-lighter);
+  --color-foreground: var(--foreground);
+  --color-foreground-light: var(--foreground-light);
+  --color-foreground-dark: var(--foreground-dark);
+}
 
 :root {
   --primary: #61bfad;
@@ -41,7 +53,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-700 hover:bg-zinc-600 rounded;
+    @apply bg-zinc-700 hover:bg-zinc-600 rounded-sm;
   }
 
   ::selection {
@@ -63,7 +75,15 @@
 
     .steam-game-review {
       .bb_spoiler {
-        @apply text-black bg-black px-2 hover:text-foreground-light transition-colors;
+        @apply text-black bg-black px-2 cursor-pointer hover:text-foreground-light transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+
+        &[aria-expanded='true'] {
+          @apply text-foreground-light;
+        }
+
+        a {
+          color: inherit;
+        }
       }
     }
 
@@ -117,11 +137,11 @@
       }
 
       img {
-        @apply mx-auto rounded max-h-screen-3/5;
+        @apply mx-auto rounded-sm max-h-[60vh];
       }
 
       video {
-        @apply w-full rounded;
+        @apply w-full rounded-sm;
       }
 
       figure.highlight {

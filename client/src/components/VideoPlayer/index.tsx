@@ -20,7 +20,7 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
   const { id, options, className = "", onReady } = props;
 
   const videoRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<Player>(null);
+  const playerRef = useRef<Player | null>(null);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -32,7 +32,6 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
       videoElement.dataset.setup = '{"fluid": true}';
       videoRef.current.appendChild(videoElement);
 
-      // @ts-expect-error: playerRef is writable
       const player = (playerRef.current = videojs(videoElement, options, () => {
         videojs.log(`Video player for ${id} is ready.`);
         onReady?.(player);
@@ -47,9 +46,10 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
     return () => {
       if (player && !player.isDisposed()) {
         player.dispose();
-        // @ts-expect-error: playerRef is writable
-        playerRef.current = null;
         videojs.log(`Video player for ${id} is disposed.`);
+      }
+      if (playerRef.current === player) {
+        playerRef.current = null;
       }
     };
   }, [id, playerRef]);
@@ -61,18 +61,18 @@ export const VideoPlayer = (props: VideoPlayerProps) => {
 
     if (video && player) {
       const pauseObserver = new IntersectionObserver(([entry]) => {
-        if (!entry.isIntersecting) {
+        if (!entry.isIntersecting && !player.isDisposed()) {
           player.pause();
         }
       });
       pauseObserver.observe(video);
       return () => {
-        pauseObserver.unobserve(video);
+        pauseObserver.disconnect();
       };
     }
-  }, [videoRef, playerRef]);
+  }, [id, videoRef, playerRef]);
 
-  return <div data-vjs-player ref={videoRef} className={className} />;
+  return <span data-vjs-player ref={videoRef} className={className} />;
 };
 
 export default VideoPlayer;

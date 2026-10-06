@@ -11,7 +11,9 @@ import React, {
 } from "react";
 import type Player from "video.js/dist/types/player";
 
-const VideoPlayer = dynamic(() => import("@/components/VideoPlayer"));
+const VideoPlayer = dynamic(() => import("@/components/VideoPlayer"), {
+  ssr: false,
+});
 
 export interface SlideshowItem {
   key: string;
@@ -50,7 +52,9 @@ export default function Slideshow(props: SlideshowProps) {
 
   const [index, setIndex] = useState(0);
   const indexRef = useRef(index);
-  indexRef.current = index;
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
   const [hovered, setHovered] = useState(false);
   const playersRef = useRef(new Map<string, Player>());
 
@@ -149,7 +153,7 @@ export default function Slideshow(props: SlideshowProps) {
 
   return (
     <div
-      className={`slideshow relative select-none overflow-hidden ${className}`}
+      className={`slideshow relative overflow-hidden select-none ${className}`}
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
       {...rest}
@@ -167,7 +171,7 @@ export default function Slideshow(props: SlideshowProps) {
           return (
             <div
               key={item.key}
-              className={`relative h-full flex-shrink-0 ${
+              className={`relative h-full shrink-0 ${
                 isCurrent ? "cursor-zoom-in" : "cursor-pointer blur-[1px]"
               }`}
               style={{ flexBasis: `${SLIDE_WIDTH_PERCENTAGE}%` }}
@@ -190,7 +194,7 @@ export default function Slideshow(props: SlideshowProps) {
                 <img
                   alt={item.alt}
                   src={item.src}
-                  className="pointer-events-none size-full select-none object-cover"
+                  className="pointer-events-none size-full object-cover select-none"
                   draggable={false}
                 />
               )}
@@ -223,7 +227,7 @@ export default function Slideshow(props: SlideshowProps) {
             e.stopPropagation();
             go(-1);
           }}
-          className={`absolute inset-y-0 left-0 z-10 w-[8%]`}
+          className={`absolute inset-y-0 left-0 z-10 w-[8%] cursor-pointer`}
         />
       )}
       {canGoNext && (
@@ -234,7 +238,7 @@ export default function Slideshow(props: SlideshowProps) {
             e.stopPropagation();
             go(1);
           }}
-          className="absolute inset-y-0 right-0 z-10 w-[8%]"
+          className="absolute inset-y-0 right-0 z-10 w-[8%] cursor-pointer"
         />
       )}
 
@@ -253,7 +257,7 @@ export default function Slideshow(props: SlideshowProps) {
                 e.stopPropagation();
                 goTo(i);
               }}
-              className={`pointer-events-auto size-2 rounded-full transition ${
+              className={`pointer-events-auto size-2 cursor-pointer rounded-full transition ${
                 i === index ? "bg-foreground-light" : "bg-foreground-dark"
               }`}
             />

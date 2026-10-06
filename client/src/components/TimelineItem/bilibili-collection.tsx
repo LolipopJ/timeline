@@ -1,7 +1,7 @@
 import type { TimelineComponent } from "@/interfaces/timeline";
 
 const imageIntroClassName =
-  "bg-neutral-950/60 backdrop-blur-sm absolute px-4 py-3 inset-x-0 whitespace-pre-wrap";
+  "bg-neutral-950/60 backdrop-blur-xs absolute px-4 py-3 inset-x-0 whitespace-pre-wrap";
 
 export default function TimelineItemBilibiliCollection(
   props: TimelineComponent,

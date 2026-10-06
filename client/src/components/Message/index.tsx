@@ -5,7 +5,7 @@ import {
   mdiInformationBox,
 } from "@mdi/js";
 import Icon from "@mdi/react";
-import { useCallback, useEffect, useState } from "react";
+import { createRef, useCallback, useEffect, useState } from "react";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
 import { v4 as uuid } from "uuid";
 
@@ -23,7 +23,8 @@ export interface MessageAPI {
 }
 
 interface Message {
-  key: string;
+  messageId: string;
+  nodeRef: React.RefObject<HTMLDivElement | null>;
   type: "info" | "success" | "warning" | "error";
   text: string;
 }
@@ -31,7 +32,7 @@ interface Message {
 let addMessage: (message: Message) => void;
 
 function MessageItem(props: Message & React.HTMLAttributes<HTMLDivElement>) {
-  const { key, type = "info", text, className, ...rest } = props;
+  const { messageId, nodeRef, type = "info", text, className, ...rest } = props;
 
   let borderColor: string;
   let shadowColor: string;
@@ -66,8 +67,9 @@ function MessageItem(props: Message & React.HTMLAttributes<HTMLDivElement>) {
 
   return (
     <div
-      className={`flex w-fit max-w-96 items-center rounded border-1 bg-background-lighter px-3 py-2 shadow ${borderColor} ${shadowColor} ${className}`}
-      data-message-key={key}
+      ref={nodeRef}
+      className={`flex w-fit max-w-96 items-center rounded-sm border bg-background-lighter px-3 py-2 shadow-sm ${borderColor} ${shadowColor} ${className}`}
+      data-message-key={messageId}
       {...rest}
     >
       <Icon
@@ -89,38 +91,35 @@ export function MessageContainer(props: MessageContainerProps) {
   const [messages, setMessages] = useState<Message[]>([]);
 
   const removeMessage = useCallback((message: Message) => {
-    const { key } = message;
-    setMessages((prev) => prev.filter((item) => item.key !== key));
+    const { messageId } = message;
+    setMessages((prev) => prev.filter((item) => item.messageId !== messageId));
   }, []);
 
   useEffect(() => {
     addMessage = (message) => {
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) =>
+        maxMessageNum > 0 ? [...prev, message].slice(-maxMessageNum) : [],
+      );
       setTimeout(() => {
         removeMessage(message);
       }, dismissTimeout);
     };
-  }, [dismissTimeout, removeMessage]);
-
-  useEffect(() => {
-    if (messages.length > maxMessageNum) {
-      removeMessage(messages[0]);
-    }
-  }, [maxMessageNum, messages, removeMessage]);
+  }, [dismissTimeout, maxMessageNum, removeMessage]);
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-12 z-50">
       <TransitionGroup>
         {messages.map((message) => (
           <CSSTransition
-            key={message.key}
-            addEndListener={() => {}}
+            key={message.messageId}
+            nodeRef={message.nodeRef}
             classNames="fade-y"
             timeout={150}
             unmountOnExit
           >
             <MessageItem
-              key={message.key}
+              messageId={message.messageId}
+              nodeRef={message.nodeRef}
               type={message.type}
               text={message.text}
               className={`pointer-events-auto mx-auto mb-4 ${dismissOnClick ? "cursor-pointer" : ""}`}
@@ -135,18 +134,27 @@ export function MessageContainer(props: MessageContainerProps) {
   );
 }
 
+const showMessage = (type: Message["type"], text: string) => {
+  addMessage({
+    messageId: uuid(),
+    nodeRef: createRef<HTMLDivElement>(),
+    type,
+    text,
+  });
+};
+
 const message: MessageAPI = {
   info: (text) => {
-    addMessage({ key: uuid(), type: "info", text });
+    showMessage("info", text);
   },
   success: (text) => {
-    addMessage({ key: uuid(), type: "success", text });
+    showMessage("success", text);
   },
   warning: (text) => {
-    addMessage({ key: uuid(), type: "warning", text });
+    showMessage("warning", text);
   },
   error: (text) => {
-    addMessage({ key: uuid(), type: "error", text });
+    showMessage("error", text);
   },
 };
 

@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 export interface TimelineProgressProps {
   total: number;
   current: number;
@@ -8,11 +6,7 @@ export interface TimelineProgressProps {
 
 export default function TimelineProgress(props: TimelineProgressProps) {
   const { total, current, className = "", ...rest } = props;
-  const [progress, setProgress] = useState<number>(0);
-
-  useEffect(() => {
-    setProgress(Number(((current / total) * 100).toFixed(1)));
-  }, [current, total]);
+  const progress = total > 0 ? Number(((current / total) * 100).toFixed(1)) : 0;
 
   return (
     <div className={`select-none ${className}`}>

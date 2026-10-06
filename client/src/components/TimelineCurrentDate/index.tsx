@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { createRef, useMemo } from "react";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 
 interface TimelineCurrentDateProps {
@@ -44,17 +44,21 @@ const getYearZh = (year: number) => {
 
 export function TimelineCurrentDate(props: TimelineCurrentDateProps) {
   const { date, className = "" } = props;
-  const monthNodeRef = useRef<HTMLDivElement>(null);
+  const monthNodeRefs = useMemo(
+    () => MONTH_ZH.map(() => createRef<HTMLDivElement>()),
+    [],
+  );
 
   const fullYear = date.getFullYear();
   const month = date.getMonth();
+  const monthNodeRef = monthNodeRefs[month];
 
   const yearZh = getYearZh(fullYear);
   const monthZh = MONTH_ZH[month];
   const monthColor = MONTH_COLOR[month];
 
   return (
-    <div className={`select-none whitespace-nowrap ${className}`}>
+    <div className={`whitespace-nowrap select-none ${className}`}>
       <div className="text-lg font-bold md:text-xl 2xl:text-2xl">{yearZh}</div>
       <SwitchTransition>
         <CSSTransition
