@@ -167,10 +167,10 @@ const parseSteamReviewDetailDateText = (dateText: string): Date | null => {
   const match = dateText
     .trim()
     .match(
-      /^(\d{1,2})\s+(\w+),?\s*(\d{4})?\s*@\s*(\d{1,2}):(\d{2})\s*(am|pm)$/i,
+      /^(\w{3,9})\s+(\d{1,2}),?\s*(?:(\d{4})\s*)?@\s*(\d{1,2}):(\d{2})\s*(am|pm)$/i,
     );
   if (!match) return null;
-  const [, dayStr, monthStr, yearStr, hourStr, minuteStr, ampm] = match;
+  const [, monthStr, dayStr, yearStr, hourStr, minuteStr, ampm] = match;
 
   const year = yearStr ? parseInt(yearStr, 10) : new Date().getFullYear();
   const month =
@@ -186,14 +186,15 @@ const parseSteamReviewDetailDateText = (dateText: string): Date | null => {
   if (!isPm && hour === 12) hour = 0;
   const minute = parseInt(minuteStr, 10);
 
-  const zdt = Temporal.ZonedDateTime.from({
+  const dateTimeFields = {
     year,
     month,
     day,
     hour,
     minute,
     timeZone: "America/Los_Angeles",
-  });
+  };
+  const zdt = Temporal.ZonedDateTime.from(dateTimeFields);
 
   return new Date(zdt.epochMilliseconds);
 };
@@ -207,14 +208,27 @@ const fetchSteamReviewDetail = async (reviewUrl: string) => {
     const $ = cheerio.load(res.data);
 
     const coverImageUrl = $("#rightContents img.game_capsule").attr("src");
+    if (!coverImageUrl) {
+      throw new Error(
+        `Failed to find cover image. Page structure may have changed.`,
+      );
+    }
 
     const recommendationDateHtml = $(".recommendation_date").html() || "";
     const postedMatch = recommendationDateHtml.match(
       /Posted:\s*(.+?)(?:<br|$)/i,
     );
-    const postedAt = postedMatch
-      ? parseSteamReviewDetailDateText(postedMatch[1].trim())
-      : null;
+    if (!postedMatch) {
+      throw new Error(
+        `Failed to find posted date. Page structure may have changed.`,
+      );
+    }
+    const postedAt = parseSteamReviewDetailDateText(postedMatch[1].trim());
+    if (!postedMatch || !postedAt) {
+      throw new Error(
+        `Failed to parse posted date, original posted date text: ${postedMatch[1]}`,
+      );
+    }
     const updatedMatch = recommendationDateHtml.match(
       /Updated:\s*(.+?)(?:<br|$)/i,
     );
