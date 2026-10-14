@@ -26,7 +26,7 @@ export default function TimelineItemBilibiliCollection(
             />
           </a>
           <h1
-            className={`${imageIntroClassName} top-0 font-bold sm:text-lg`}
+            className={`${imageIntroClassName} top-0 text-lg font-bold`}
             title={item.title ?? undefined}
           >
             <a
