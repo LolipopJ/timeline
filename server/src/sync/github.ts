@@ -18,12 +18,20 @@ const octokit = new Octokit({
 let githubAccountDetails: RestEndpointMethodTypes["users"]["getAuthenticated"]["response"]["data"];
 export const getGithubAccountDetails = async () => {
   if (!githubAccountDetails) {
-    const { data } = await octokit.rest.users.getAuthenticated();
-    logger.success(
-      `Auth to Github successfully! You are logged as ${data.login}.`,
-    );
+    try {
+      const { data } = await octokit.rest.users.getAuthenticated();
+      logger.success(
+        `Auth to Github successfully! You are logged as ${data.login}.`,
+      );
 
-    githubAccountDetails = data;
+      githubAccountDetails = data;
+    } catch (error) {
+      // 保留 cause，由日志层统一展开，不要在消息中重复格式化
+      throw new Error(
+        `Auth to Github failed: please check \`githubPersonalAccessToken\` in \`server/configs/server.ts\`.`,
+        { cause: error },
+      );
+    }
   }
 
   return githubAccountDetails;

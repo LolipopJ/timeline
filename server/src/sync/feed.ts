@@ -4,7 +4,7 @@ import { xml2json } from "xml-js";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type TimelineItem from "../database/entity/timeline-item";
 import type { SyncServiceFeed } from "../types/config";
-import { createLogger } from "../utils/logger";
+import { createLogger, stripQuery } from "../utils/logger";
 
 const logger = createLogger("Feed");
 
@@ -83,12 +83,28 @@ export const syncFeed = async (service: SyncServiceFeed) => {
     url,
   } = service;
   const since = from.toISOString();
+  // 私有 Feed 常把 token 放在 query 中，日志只记录不含查询串的地址
+  const logUrl = stripQuery(url);
 
-  logger.info(`Syncing feed entries from ${url} since ${since}...`);
-  const getFeedRes = await axios.get(url);
+  logger.info(`Syncing feed entries from ${logUrl} since ${since}...`);
+  let feedContent: string;
+  try {
+    const getFeedRes = await axios.get(url);
+    feedContent = getFeedRes.data;
+  } catch (error) {
+    // 保留 cause，由日志层统一展开，不要在消息中重复格式化
+    throw new Error(`Fetch feed \`${logUrl}\` failed.`, { cause: error });
+  }
 
-  const feedContent = getFeedRes.data;
-  const feedJSON = JSON.parse(xml2json(feedContent, { compact: true }));
+  let feedJSON: unknown;
+  try {
+    feedJSON = JSON.parse(xml2json(feedContent, { compact: true }));
+  } catch (error) {
+    throw new Error(
+      `Parse feed \`${logUrl}\` failed: the response is not valid XML/JSON. Check the \`syntax\` field and whether the URL returns the expected feed.`,
+      { cause: error },
+    );
+  }
   let entries: TimelineItem[] = [];
   switch (syntax) {
     case "rss":
@@ -129,10 +145,10 @@ export const syncFeed = async (service: SyncServiceFeed) => {
         )
         .filter((entry) => entry.created_at >= from);
   }
-  logger.info(`Synced ${entries.length} feed entries from ${url}.`);
+  logger.info(`Synced ${entries.length} feed entries from ${logUrl}.`);
 
   await insertOrUpdateTimelineItems(entries);
   logger.success(
-    `Insert or update ${entries.length} feed entries from ${url} successfully!`,
+    `Insert or update ${entries.length} feed entries from ${logUrl} successfully!`,
   );
 };

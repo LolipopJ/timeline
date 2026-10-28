@@ -5,7 +5,7 @@ import path from "path";
 import { SERVER_TEMPORARY_DIR, USER_AGENT_DESKTOP } from "../constants";
 import axios from "./axios";
 import { checkupDir } from "./file";
-import { createLogger } from "./logger";
+import { createLogger, formatError } from "./logger";
 
 const logger = createLogger("Bilibili");
 
@@ -25,8 +25,7 @@ const readBilibiliSessionData = () => {
     return fs.readFileSync(BILIBILI_SESSDATA_FILE_PATH).toString();
   } catch (error) {
     logger.error(
-      `Read Bilibili SESSDATA from file \`${BILIBILI_SESSDATA_FILE_PATH}\` failed.`,
-      String(error),
+      `Read Bilibili SESSDATA from file \`${BILIBILI_SESSDATA_FILE_PATH}\` failed.\n${formatError(error)}`,
     );
     return undefined;
   }
@@ -62,7 +61,7 @@ export const getBilibiliApiSignedQueryParams = async (
     );
   } catch (error) {
     throw new Error(
-      `Query Bilibili APIs failed: SESSDATA is not valid. Visit \`/set?bilibiliSessdata=\${SESSDATA}\` to update SESSDATA.\n${String(error)}`,
+      `Query Bilibili APIs failed: SESSDATA is not valid. Visit \`/set?bilibiliSessdata=\${SESSDATA}\` to update SESSDATA.\n${formatError(error)}`,
     );
   }
 

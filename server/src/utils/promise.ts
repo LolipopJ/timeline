@@ -1,6 +1,6 @@
 import { sleep } from "bun";
 
-import { createLogger } from "./logger";
+import { createLogger, formatError } from "./logger";
 
 export const createPromiseQueue = () => {
   const queue: (() => Promise<void>)[] = [];
@@ -16,7 +16,7 @@ export const createPromiseQueue = () => {
       try {
         await task?.(); // 执行任务
       } catch (error) {
-        logger.error("Queue task failed:", error);
+        logger.error(`Queue task failed:\n${formatError(error)}`);
       }
     }
 

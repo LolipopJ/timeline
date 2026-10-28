@@ -9,7 +9,7 @@ import type {
   SyncServiceSteamGameReview,
   SyncServiceSteamRecentlyPlayedTime,
 } from "../types/config";
-import { createLogger } from "../utils/logger";
+import { createLogger, formatError } from "../utils/logger";
 import { withRetry } from "../utils/promise";
 
 const logger = createLogger("Steam");
@@ -238,7 +238,9 @@ const fetchSteamReviewDetail = async (reviewUrl: string) => {
 
     return { coverImageUrl, postedAt, editedAt };
   } catch (error) {
-    logger.warn(`Failed to fetch review detail for ${reviewUrl}:`, error);
+    logger.warn(
+      `Failed to fetch review detail for ${reviewUrl}:\n${formatError(error)}`,
+    );
     return { coverImageUrl: null, postedAt: null, editedAt: null };
   }
 };
@@ -332,8 +334,7 @@ export const syncSteamGameReviews = async (
             baseDelayMs: STEAM_REQUEST_BASE_DELAY,
             onRetry: (attempt, err) =>
               logger.warn(
-                `Failed to parse Steam game review element, attempt ${attempt}:`,
-                err,
+                `Failed to parse Steam game review element, attempt ${attempt}:\n${formatError(err)}`,
               ),
           },
         );
@@ -342,7 +343,9 @@ export const syncSteamGameReviews = async (
         }
         await sleep(STEAM_REQUEST_BASE_DELAY);
       } catch (error) {
-        logger.warn("Failed to parse Steam game review element:", error);
+        logger.warn(
+          `Failed to parse Steam game review element:\n${formatError(error)}`,
+        );
       }
     }
 

@@ -10,7 +10,7 @@ import {
 import type { CookieParam } from "./axios";
 import axios, { parseSetCookieToCookie } from "./axios";
 import { checkupDir } from "./file";
-import { createLogger } from "./logger";
+import { createLogger, formatError } from "./logger";
 
 const logger = createLogger("QZone");
 
@@ -60,7 +60,9 @@ export const generateQZoneLoginQRCode = async (qqNumber: string) => {
 
     return qrsig;
   } catch (error) {
-    logger.error(`Generate QQ Zone login QR code failed:`, String(error));
+    logger.error(
+      `Generate QQ Zone login QR code failed:\n${formatError(error)}`,
+    );
     return undefined;
   }
 };
@@ -133,7 +135,9 @@ const getQZoneLoginQRCodeScanResult = async (
         // 验证成功后，响应为 302 状态码。提取响应包含的 Set-Cookies 即可
         const checkSigResponse = (error as AxiosError).response;
         if (!checkSigResponse || checkSigResponse.status !== 302)
-          throw new Error(String(error));
+          throw new Error("Check sig response is not a 302 redirect.", {
+            cause: error,
+          });
 
         const resultCookies = checkSigResponse.headers["set-cookie"]?.map(
           (item) => parseSetCookieToCookie(item),
@@ -158,8 +162,7 @@ const getQZoneLoginQRCodeScanResult = async (
     }
   } catch (error) {
     logger.error(
-      `Get QQ Zone login QR code scan result failed:`,
-      String(error),
+      `Get QQ Zone login QR code scan result failed:\n${formatError(error)}`,
     );
     return undefined;
   }
@@ -178,11 +181,12 @@ export const pollGetQZoneLoginQRCodeScanResult = (
     const cookies = await getQZoneLoginQRCodeScanResult(qqNumber, qrsig);
     if (cookies)
       clearInterval(getQZoneLoginQRCodeScanResultIntervals[qqNumber]);
-  }, 5000);
+  }, 5000).unref();
+  // `unref()` 保证登录轮询不会阻止进程退出
   clearGetQZoneLoginQRCodeScanResultTimeouts[qqNumber] = setTimeout(
     () => clearInterval(getQZoneLoginQRCodeScanResultIntervals[qqNumber]),
     1000 * 60 * 2, // 登录二维码的有效时间为 2 分钟，因此 2 分钟后结束轮询
-  );
+  ).unref();
 };
 //#endregion
 
@@ -194,8 +198,7 @@ export const getQZoneCookies = (qqNumber: string) => {
     return JSON.parse(cookiesFileContent) as CookieParam[];
   } catch (error) {
     logger.error(
-      `Read QQ Zone cookies from file \`${cookiesFilePath}\` failed.`,
-      String(error),
+      `Read QQ Zone cookies from file \`${cookiesFilePath}\` failed.\n${formatError(error)}`,
     );
     return undefined;
   }

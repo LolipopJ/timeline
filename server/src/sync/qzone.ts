@@ -17,7 +17,7 @@ import type {
 } from "../types/config";
 import axios from "../utils/axios";
 import { checkupDir } from "../utils/file";
-import { createLogger } from "../utils/logger";
+import { createLogger, formatError } from "../utils/logger";
 import { getGTk, getQZoneCookies } from "../utils/qzone";
 import { convertVideoToM3u8 } from "../utils/video";
 
@@ -295,8 +295,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
                         })
                         .catch((error) => {
                           logger.error(
-                            `Save video slice file \`${sliceFilename}\` of \`${videoFilename}\` to \`${sliceSavePath}\` failed.`,
-                            String(error),
+                            `Save video slice file \`${sliceFilename}\` of \`${videoFilename}\` to \`${sliceSavePath}\` failed.\n${formatError(error)}`,
                           );
                         });
                     },
@@ -308,8 +307,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
               })
               .catch((error) => {
                 logger.error(
-                  `Save video file \`${videoFilename}\` of QQ Zone talk to \`${videoSavePath}\` failed.`,
-                  String(error),
+                  `Save video file \`${videoFilename}\` of QQ Zone talk to \`${videoSavePath}\` failed.\n${formatError(error)}`,
                 );
               });
 

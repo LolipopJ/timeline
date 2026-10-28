@@ -28,12 +28,13 @@ export class JWT {
 
     if (!decodedCache) {
       this.verifiedTokenCache[token] = decoded;
+      // `unref()` 保证该定时器不会阻止进程退出；管理员登录一次后它会存活 24 小时
       setTimeout(
         () => {
           delete this.verifiedTokenCache[token];
         },
         1000 * 60 * 60 * 24,
-      );
+      ).unref();
     }
 
     return decoded;

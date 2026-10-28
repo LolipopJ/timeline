@@ -1,7 +1,7 @@
 import { SyncServiceType } from "@timeline/contracts";
 
 import config from "../../configs/server";
-import { createLogger } from "../utils/logger";
+import { createLogger, formatError } from "../utils/logger";
 import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
@@ -28,42 +28,45 @@ export const sync = async (forceFull = false) => {
     );
 
     const { services = [] } = config;
-    const syncTasks = services
-      .filter((service) => service.enabled !== false)
-      .map((service) => {
-        const effectiveService = forceFull
-          ? { ...service, full: true }
-          : service;
+    const enabledServices = services.filter(
+      (service) => service.enabled !== false,
+    );
+    const syncTasks = enabledServices.map((service) => {
+      const effectiveService = forceFull ? { ...service, full: true } : service;
 
-        switch (effectiveService.type) {
-          case SyncServiceType.BILIBILI_COLLECTION:
-            return syncBilibiliCollections(effectiveService);
-          case SyncServiceType.BILIBILI_WORK:
-            return syncBilibiliWorks(effectiveService);
-          case SyncServiceType.FEED:
-            return syncFeed(effectiveService);
-          case SyncServiceType.GITHUB_ISSUE_COMMENT:
-            return syncGithubIssueComments(effectiveService);
-          case SyncServiceType.QZONE_TALK:
-            return syncQQZoneTalks(effectiveService);
-          case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
-            return syncSteamRecentlyPlayedGames(effectiveService);
-          case SyncServiceType.STEAM_GAME_REVIEW:
-            return syncSteamGameReviews(effectiveService);
-          default:
-            return Promise.reject(
+      switch (effectiveService.type) {
+        case SyncServiceType.BILIBILI_COLLECTION:
+          return syncBilibiliCollections(effectiveService);
+        case SyncServiceType.BILIBILI_WORK:
+          return syncBilibiliWorks(effectiveService);
+        case SyncServiceType.FEED:
+          return syncFeed(effectiveService);
+        case SyncServiceType.GITHUB_ISSUE_COMMENT:
+          return syncGithubIssueComments(effectiveService);
+        case SyncServiceType.QZONE_TALK:
+          return syncQQZoneTalks(effectiveService);
+        case SyncServiceType.STEAM_RECENTLY_PLAYED_TIME:
+          return syncSteamRecentlyPlayedGames(effectiveService);
+        case SyncServiceType.STEAM_GAME_REVIEW:
+          return syncSteamGameReviews(effectiveService);
+        default:
+          return Promise.reject(
+            new Error(
               // @ts-expect-error: throw an error if user provide a unknown type
-              `Sync service type \`${effectiveService.type}\` is not supported.`,
-            );
-        }
-      });
+              `Sync service type \`${effectiveService.type}\` of \`${service.id}\` is not supported.`,
+            ),
+          );
+      }
+    });
 
     const results = await Promise.allSettled(syncTasks);
 
     results.forEach((result, index) => {
       if (result.status === "rejected") {
+        // 使用已过滤的服务列表，否则日志会指向与失败任务无关的服务
+        const service = enabledServices[index];
         logger.error(
-          `Sync task ${JSON.stringify(services[index])} failed:\n${result.reason}`,
+          `Sync task \`${service.id}\` (${service.type}) failed:\n${formatError(result.reason)}`,
         );
       }
     });
@@ -77,7 +80,9 @@ export const sync = async (forceFull = false) => {
       logger.success("Sync tasks fulfilled!");
     }
   } catch (error) {
-    logger.error(`An error occurred while doing sync tasks:\n${error}`);
+    logger.error(
+      `An error occurred while doing sync tasks:\n${formatError(error)}`,
+    );
   } finally {
     isSyncing = false;
   }
