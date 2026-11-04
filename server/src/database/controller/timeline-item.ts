@@ -29,12 +29,13 @@ export const getSyncTaskLastExecuteTime = async (
 export const insertOrUpdateTimelineItems = async (
   timelineItems: TimelineItem[],
 ) => {
-  return await dataSource.getRepository(TimelineItem).upsert(timelineItems, {
+  await dataSource.getRepository(TimelineItem).upsert(timelineItems, {
     conflictPaths: {
       content_id: true,
       sync_service_id: true,
     },
   });
+  return timelineItems.length;
 };
 
 export const updateTimelineItem = async (

@@ -56,7 +56,7 @@ export const serverConfig: ServerConfig = {
 
 管理员可以执行如下操作：
 
-- 同步：触发所有已启用服务的一轮同步。
+- 同步：触发所有已启用服务的一轮同步，查看当前运行和当前进程最近 10 次已结束的同步记录。成功任务会显示新增或更新的条目数。
 - 日志：最新日志排在最上方，支持按级别、模块和消息关键词筛选。
 - 访客预览：以未登录访客的视角浏览公开内容。
 - 退出登录：撤销登录 Cookie，返回公开时间线。或访问 `www.timeline.com?logout` 即可退出登录。
@@ -172,10 +172,12 @@ export const serverConfig: ServerConfig = {
 export const serverConfig: ServerConfig = {
   /** 服务端监听端口 */
   listeningPort: 4000,
-  /** 同步 Timeline 信息的 Cron 规则；这里表示每小时的 0 和 30 分钟执行一次同步操作 */
+  /** 来源默认的同步 Cron 规则，每小时的第 0 和第 30 分钟执行 */
   syncInterval: '*/30 * * * *',
 }
 ```
+
+每个 `services` 条目可设置 `syncInterval` 覆盖全局 Cron，例如 `syncInterval: '0 * * * *'` 表示该来源每小时同步一次。同一时刻到期的来源会合并成一轮，已有同步正在运行时跳过本次定时触发。启动和手动同步仍覆盖所有已启用来源。
 
 ## 项目部署
 
@@ -227,7 +229,7 @@ bun install --production --frozen-lockfile --filter '@timeline/server...'
 bun run start:server
 ```
 
-若需要在启动时对所有同步服务执行一次全量同步（忽略上次同步时间，仅受各服务 `from` 字段约束），可设置 `FULL_SYNC=true` 环境变量，全量同步完成后仍会按 `syncInterval` 正常进行增量同步：
+若需要在启动时对所有已启用的同步服务执行一次全量同步（忽略上次同步时间，仅受各服务 `from` 字段约束），可设置 `FULL_SYNC=true` 环境变量。完成后，各服务按生效的 `syncInterval` 定时执行。
 
 ```bash
 FULL_SYNC=true bun run start:server

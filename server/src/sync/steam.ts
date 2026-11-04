@@ -104,7 +104,7 @@ export const syncSteamRecentlyPlayedGames = async (
     `Synced ${recentlyPlayedGames.length} records of Steam recently played games for player ${steamId}.`,
   );
 
-  await insertOrUpdateTimelineItems(
+  const itemCount = await insertOrUpdateTimelineItems(
     recentlyPlayedGames.map((game) => ({
       sync_service_id: id,
       sync_service_type: type,
@@ -120,8 +120,9 @@ export const syncSteamRecentlyPlayedGames = async (
     })),
   );
   logger.success(
-    `Insert or update ${recentlyPlayedGames.length} records of Steam recently played games for player ${steamId} successfully!`,
+    `Insert or update ${itemCount} records of Steam recently played games for player ${steamId} successfully!`,
   );
+  return itemCount;
 };
 
 interface SteamGameReview {
@@ -357,7 +358,7 @@ export const syncSteamGameReviews = async (
   }
   logger.info(`Synced ${reviews.length} Steam game reviews of ${userId}.`);
 
-  await insertOrUpdateTimelineItems(
+  const itemCount = await insertOrUpdateTimelineItems(
     reviews.map((review) => ({
       sync_service_id: id,
       sync_service_type: type,
@@ -373,6 +374,7 @@ export const syncSteamGameReviews = async (
     })),
   );
   logger.success(
-    `Insert or update ${reviews.length} timeline items of Steam game reviews of ${userId} successfully!`,
+    `Insert or update ${itemCount} timeline items of Steam game reviews of ${userId} successfully!`,
   );
+  return itemCount;
 };

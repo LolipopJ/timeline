@@ -22,11 +22,12 @@ describe("sync coordination", () => {
       async (service) => {
         calls.push(service);
         await pending;
+        return 1;
       },
     );
     expect(coordinator.start("manual")).toEqual({ reason: "initializing" });
     coordinator.ready();
-    const accepted = coordinator.start("startup", true);
+    const accepted = coordinator.start("startup", { forceFull: true });
     expect(accepted).toHaveProperty("runId");
     expect(coordinator.start("manual")).toEqual({
       reason: "busy",
@@ -43,7 +44,7 @@ describe("sync coordination", () => {
     expect(coordinator.start("scheduled")).toEqual({ reason: "stopping" });
     finish();
     await coordinator.wait();
-    expect(coordinator.snapshot().last?.status).toBe("succeeded");
+    expect(coordinator.snapshot().history[0]?.status).toBe("succeeded");
   });
 
   test.each([0, 1, 2])(
@@ -57,13 +58,13 @@ describe("sync coordination", () => {
           if (services.findIndex((item) => item.id === service.id) < failures) {
             throw new Error("credential rejected");
           }
-          return Promise.resolve();
+          return Promise.resolve(0);
         },
       );
       coordinator.ready();
       coordinator.start("scheduled");
       await coordinator.wait();
-      const last = coordinator.snapshot().last!;
+      const [last] = coordinator.snapshot().history;
       expect(last.status).toBe(
         (["succeeded", "partial", "failed"] as const)[failures],
       );
@@ -79,21 +80,46 @@ describe("sync coordination", () => {
     },
   );
 
+  test("retains only the 10 most recent completed runs in reverse order", async () => {
+    const coordinator = createSyncCoordinator(
+      () => services,
+      async () => 0,
+    );
+    coordinator.ready();
+    const runIds: string[] = [];
+
+    for (let index = 0; index < 11; index++) {
+      const result = coordinator.start("manual");
+      if ("reason" in result) throw new Error(result.reason);
+      expect(coordinator.snapshot()).toMatchObject({
+        current: { id: result.runId },
+        history: runIds.map((id) => ({ id })),
+      });
+      await coordinator.wait();
+      runIds.unshift(result.runId);
+    }
+
+    const snapshot = coordinator.snapshot();
+    expect(snapshot.history.map(({ id }) => id)).toEqual(runIds.slice(0, 10));
+    snapshot.history.pop();
+    expect(coordinator.snapshot().history).toHaveLength(10);
+  });
+
   test("does not create a run when there are no enabled services", () => {
     const coordinator = createSyncCoordinator(
       () => [],
-      async () => {},
+      async () => 0,
     );
     coordinator.ready();
     expect(coordinator.start("manual")).toEqual({ reason: "no_services" });
-    expect(coordinator.snapshot().last).toBeNull();
+    expect(coordinator.snapshot().history).toEqual([]);
     expect(coordinator.snapshot().current).toBeNull();
   });
 
   test("unexpected coordination errors release the run and allow another", async () => {
     const coordinator = createSyncCoordinator(
       () => services,
-      async () => {},
+      async () => 0,
     );
     coordinator.ready();
     const output = spyOn(console, "log").mockImplementationOnce(() => {
@@ -102,9 +128,9 @@ describe("sync coordination", () => {
     coordinator.start("manual");
     await coordinator.wait();
     output.mockRestore();
-    expect(coordinator.snapshot().last?.status).toBe("failed");
+    expect(coordinator.snapshot().history[0]?.status).toBe("failed");
     expect(coordinator.start("manual")).toHaveProperty("runId");
     await coordinator.wait();
-    expect(coordinator.snapshot().last?.status).toBe("succeeded");
+    expect(coordinator.snapshot().history[0]?.status).toBe("succeeded");
   });
 });

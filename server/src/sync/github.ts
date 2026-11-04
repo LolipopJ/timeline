@@ -83,7 +83,7 @@ export const syncGithubIssueComments = async (
     `Synced ${comments.length} Github issue comments from ${owner}/${repo}/${issueNumber}.`,
   );
 
-  await insertOrUpdateTimelineItems(
+  const itemCount = await insertOrUpdateTimelineItems(
     comments.map((comment) => ({
       sync_service_id: id,
       sync_service_type: type,
@@ -97,6 +97,7 @@ export const syncGithubIssueComments = async (
     })),
   );
   logger.success(
-    `Insert or update ${comments.length} timeline items of Github issue comments from ${owner}/${repo}/${issueNumber} successfully!`,
+    `Insert or update ${itemCount} timeline items of Github issue comments from ${owner}/${repo}/${issueNumber} successfully!`,
   );
+  return itemCount;
 };

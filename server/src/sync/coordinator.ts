@@ -15,17 +15,19 @@ const logger = createLogger("Sync");
 
 export const createSyncCoordinator = (
   getServices: () => readonly SyncService[],
-  execute: (service: SyncService) => Promise<unknown>,
+  execute: (service: SyncService) => Promise<number>,
 ) => {
   let phase: "initializing" | "ready" | "stopping" = "initializing";
   let current: SyncRunDto | null = null;
-  let last: SyncRunDto | null = null;
+  const history: SyncRunDto[] = [];
   let inFlight: Promise<void> | null = null;
 
-  const unavailableReason = (): SyncUnavailableReason | null => {
+  const unavailableReason = (
+    services = getServices(),
+  ): SyncUnavailableReason | null => {
     if (phase !== "ready") return phase;
     if (current) return "busy";
-    if (!getServices().some((service) => service.enabled !== false))
+    if (!services.some((service) => service.enabled !== false))
       return "no_services";
     return null;
   };
@@ -43,7 +45,7 @@ export const createSyncCoordinator = (
         available: reason === null,
         reason,
         current,
-        last,
+        history,
       });
     },
     wait() {
@@ -51,16 +53,16 @@ export const createSyncCoordinator = (
     },
     start(
       trigger: SyncTrigger,
-      forceFull = false,
+      { forceFull = false, services: candidates = getServices() } = {},
     ): SyncAcceptedDto | SyncRejectedDto {
-      const reason = unavailableReason();
+      const reason = unavailableReason(candidates);
       if (reason)
         return {
           reason,
           ...(reason === "busy" && current ? { runId: current.id } : {}),
         };
 
-      const services = getServices().filter(
+      const services = candidates.filter(
         (service) => service.enabled !== false,
       );
       const run: SyncRunDto = {
@@ -87,13 +89,23 @@ export const createSyncCoordinator = (
             services.map(async (service, index) => {
               const result = run.services[index];
               try {
-                await execute(forceFull ? { ...service, full: true } : service);
-                result.status = "succeeded";
+                const itemCount = await execute(
+                  forceFull ? { ...service, full: true } : service,
+                );
+                run.services[index] = {
+                  ...result,
+                  status: "succeeded",
+                  itemCount,
+                };
               } catch (error) {
-                result.status = "failed";
-                result.error = truncateLogMessage(formatError(error));
+                const message = truncateLogMessage(formatError(error));
+                run.services[index] = {
+                  ...result,
+                  status: "failed",
+                  error: message,
+                };
                 logger.error(
-                  `Sync task ${service.id} (${service.type}) failed:\n${result.error}`,
+                  `Sync task ${service.id} (${service.type}) failed:\n${message}`,
                 );
                 throw error;
               }
@@ -116,18 +128,19 @@ export const createSyncCoordinator = (
         })
         .catch((error: unknown) => {
           run.status = "failed";
-          run.error = truncateLogMessage(formatError(error));
-          for (const result of run.services) {
-            if (result.status === "running") {
-              result.status = "failed";
-              result.error = run.error;
-            }
-          }
-          logger.error(`Sync coordinator failed:\n${run.error}`);
+          const message = truncateLogMessage(formatError(error));
+          run.error = message;
+          run.services = run.services.map((result) =>
+            result.status === "running"
+              ? { ...result, status: "failed", error: message }
+              : result,
+          );
+          logger.error(`Sync coordinator failed:\n${message}`);
         })
         .finally(() => {
           run.finishedAt = new Date().toISOString();
-          last = run;
+          history.unshift(run);
+          if (history.length > 10) history.pop();
           current = null;
           inFlight = null;
         });

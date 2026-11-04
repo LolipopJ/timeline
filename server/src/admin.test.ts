@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import { SyncServiceType } from "@timeline/contracts";
-import { afterAll, expect, mock, test } from "bun:test";
+import { afterAll, expect, mock, spyOn, test } from "bun:test";
 import schedule from "node-schedule";
 import type { FindManyOptions, FindOptionsWhere } from "typeorm";
 import { FindOperator } from "typeorm";
@@ -40,6 +40,7 @@ const coordinator = createSyncCoordinator(
   async (service) => {
     executions.push(service);
     await work;
+    return 3;
   },
 );
 const initializeDatabase = mock(async () => {});
@@ -221,7 +222,7 @@ if (adminEnabled) {
     const empty = await request("/admin/sync", "POST");
     expect(empty.status).toBe(409);
     expect(await empty.json()).toEqual({ reason: "no_services" });
-    expect(coordinator.snapshot().last).toBeNull();
+    expect(coordinator.snapshot().history).toEqual([]);
     config.services[0].enabled = true;
     work = new Promise<void>((resolve) => {
       finish = resolve;
@@ -241,13 +242,18 @@ if (adminEnabled) {
     expect(executions).toHaveLength(1);
     finish();
     await coordinator.wait();
-    expect(await (await request("/admin/sync")).json()).toHaveProperty(
-      "last.status",
-      "succeeded",
-    );
+    const status = await (await request("/admin/sync")).json();
+    expect(status).toHaveProperty("history.0.status", "succeeded");
+    expect(status).toHaveProperty("history.0.services.0.itemCount", 3);
   });
 
   test("startup full sync, scheduling and shutdown share the coordinator", async () => {
+    config.services.push({
+      id: "custom-schedule",
+      type: SyncServiceType.FEED,
+      url: "https://example.com",
+      syncInterval: "0 0 1 2 *",
+    });
     const countBeforeStartup = executions.length;
     app.listen(0);
     // Elysia's async onStart hook is not awaited by listen().
@@ -259,15 +265,51 @@ if (adminEnabled) {
       await Bun.sleep(10);
     }
     expect(initializeDatabase).toHaveBeenCalledTimes(1);
-    expect(executions.length).toBe(countBeforeStartup + 1);
-    expect(executions.at(-1)?.full).toBe(true);
-    expect(coordinator.snapshot().last?.trigger).toBe("startup");
-    const job = Object.values(schedule.scheduledJobs)[0];
-    expect(job).toBeDefined();
+    expect(
+      executions
+        .slice(countBeforeStartup)
+        .map(({ id, full }) => ({ id, full })),
+    ).toEqual([
+      { id: "feed", full: true },
+      { id: "custom-schedule", full: true },
+    ]);
+    expect(coordinator.snapshot().history[0]?.trigger).toBe("startup");
+    const jobs = Object.values(schedule.scheduledJobs);
+    expect(jobs).toHaveLength(2);
+    const defaultJob = jobs.find(
+      (job) => job.nextInvocation()?.getMonth() === 0,
+    )!;
+    const customJob = jobs.find(
+      (job) => job.nextInvocation()?.getMonth() === 1,
+    )!;
+    const customDate = customJob.nextInvocation()!;
+    Reflect.apply(customJob.invoke, customJob, [customDate]);
+    await coordinator.wait();
+    expect(
+      coordinator.snapshot().history[0]?.services.map(({ id }) => id),
+    ).toEqual(["custom-schedule"]);
+
+    // The second callback may arrive after the combined run has finished.
+    const sharedDate = defaultJob.nextInvocation()!;
+    const nextInvocation = spyOn(
+      customJob,
+      "nextInvocation",
+    ).mockReturnValueOnce(sharedDate);
+    Reflect.apply(defaultJob.invoke, defaultJob, [sharedDate]);
+    nextInvocation.mockRestore();
+    expect(
+      coordinator.snapshot().current?.services.map(({ id }) => id),
+    ).toEqual(["feed", "custom-schedule"]);
+    await coordinator.wait();
+    Reflect.apply(customJob.invoke, customJob, [sharedDate]);
+    expect(coordinator.snapshot().current).toBeNull();
+
     work = new Promise<void>((resolve) => {
       finish = resolve;
     });
-    job.invoke();
+    Reflect.apply(defaultJob.invoke, defaultJob, [
+      new Date(sharedDate.getTime() + 1000),
+    ]);
     expect(coordinator.start("manual")).toHaveProperty("reason", "busy");
     const stopped = app.stop();
     await stopped;

@@ -147,8 +147,9 @@ export const syncFeed = async (service: SyncServiceFeed) => {
   }
   logger.info(`Synced ${entries.length} feed entries from ${logUrl}.`);
 
-  await insertOrUpdateTimelineItems(entries);
+  const itemCount = await insertOrUpdateTimelineItems(entries);
   logger.success(
-    `Insert or update ${entries.length} feed entries from ${logUrl} successfully!`,
+    `Insert or update ${itemCount} feed entries from ${logUrl} successfully!`,
   );
+  return itemCount;
 };

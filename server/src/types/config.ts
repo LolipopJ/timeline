@@ -21,7 +21,7 @@ export interface ServerConfig {
    */
   allowedOrigin?: string | RegExp | true;
   /**
-   * 执行同步任务的时间计划。Cron 格式
+   * 未单独配置 `syncInterval` 的同步服务使用的默认 Cron 表达式
    * @default *\/30 * * * *
    */
   syncInterval?: string;
@@ -68,6 +68,8 @@ export interface SyncServiceBase {
   type: SyncServiceType;
   /** 是否启动定时同步功能 */
   enabled?: boolean;
+  /** 此服务的定时同步 Cron 表达式，省略时使用全局设置 */
+  syncInterval?: string;
   /** 前端展示的标签 */
   label?: string;
   /** 同步内容的最早日期 */

@@ -222,7 +222,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
   }
   logger.info(`Synced ${talks.length} QQ Zone talks for ${qqNumber}.`);
 
-  await insertOrUpdateTimelineItems(
+  const itemCount = await insertOrUpdateTimelineItems(
     talks.map((talk) => ({
       sync_service_id: id,
       sync_service_type: type,
@@ -332,6 +332,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     })),
   );
   logger.success(
-    `Insert or update ${talks.length} timeline items of QQ Zone talks for ${qqNumber} successfully!`,
+    `Insert or update ${itemCount} timeline items of QQ Zone talks for ${qqNumber} successfully!`,
   );
+  return itemCount;
 };

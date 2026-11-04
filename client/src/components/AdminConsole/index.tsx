@@ -76,7 +76,12 @@ function SyncRun({ run }: { run: SyncRunDto }) {
               {service.label || service.id} · {service.type} ·{" "}
               {STATUS[service.status]}
             </span>
-            {service.error && (
+            {service.status === "succeeded" && (
+              <p className="mt-1 text-sm text-green-400">
+                新增或更新 {service.itemCount} 条
+              </p>
+            )}
+            {service.status === "failed" && (
               <pre className="mt-1 text-sm wrap-break-word whitespace-pre-wrap text-red-300">
                 {service.error}
               </pre>
@@ -107,8 +112,7 @@ export default function AdminConsole({
     logs: null,
   });
   const active = useRef(false);
-  const observedRun = useRef<string | null>(null);
-  const refreshedRun = useRef<string | null>(null);
+  const latestCompletedRun = useRef<string | null | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [acceptedRunId, setAcceptedRunId] = useState<string | null>(null);
@@ -141,17 +145,13 @@ export default function AdminConsole({
 
   useEffect(() => {
     if (!syncKey || !data) return;
-    const completedId = data.last?.id;
-    if (
-      completedId &&
-      (completedId === observedRun.current || completedId === acceptedRunId) &&
-      refreshedRun.current !== completedId
-    ) {
-      refreshedRun.current = completedId;
+    const previous = latestCompletedRun.current;
+    const latest = data.history[0]?.id ?? null;
+    latestCompletedRun.current = latest;
+    if (previous !== undefined && latest !== null && latest !== previous) {
       onSyncCompleted();
     }
-    if (data.current) observedRun.current = data.current.id;
-  }, [syncKey, data, acceptedRunId, onSyncCompleted]);
+  }, [syncKey, data, onSyncCompleted]);
 
   const closeDialog = () => {
     dialogRef.current?.close();
@@ -172,7 +172,7 @@ export default function AdminConsole({
     try {
       const accepted: SyncAcceptedDto = await fetcherPOST("/admin/sync");
       setAcceptedRunId(accepted.runId);
-      setNotice(`同步已受理（${accepted.runId}），正在等待执行结果。`);
+      setNotice(`同步已受理（${accepted.runId}）。`);
     } catch (error) {
       if (!active.current) return;
       const reason: SyncUnavailableReason | undefined = axios.isAxiosError(
@@ -314,7 +314,7 @@ export default function AdminConsole({
         >
           <h2 className="text-base font-semibold">来源同步</h2>
           <p className="mt-1 text-sm leading-relaxed text-foreground-dark">
-            同步所有已启用来源，沿用各自的同步配置。运行记录仅保留在当前进程。
+            手动同步所有已启用来源。当前进程保留最近 10 次已结束的同步记录。
           </p>
           <div className="my-4 flex flex-wrap gap-3">
             <button
@@ -335,9 +335,10 @@ export default function AdminConsole({
           </div>
           {notice && (
             <p role="status" className="mb-4 text-primary-light">
-              {data?.last?.id === acceptedRunId
+              {data?.history.some(({ id }) => id === acceptedRunId)
                 ? "本轮同步已结束，请查看执行结果。"
                 : notice}
+              {data?.current?.id === acceptedRunId && "正在等待执行结果。"}
             </p>
           )}
           {error && (
@@ -351,8 +352,23 @@ export default function AdminConsole({
           {data?.reason && <p className="mb-4">{REASONS[data.reason]}</p>}
           <div className="space-y-4">
             {data?.current && <SyncRun run={data.current} />}
-            {data?.last && <SyncRun run={data.last} />}
-            {data && !data.current && !data.last && (
+            {data && data.history.length > 0 && (
+              <section
+                aria-labelledby="admin-sync-history-title"
+                className="space-y-4"
+              >
+                <h3
+                  id="admin-sync-history-title"
+                  className="text-sm font-semibold"
+                >
+                  同步历史
+                </h3>
+                {data.history.map((run) => (
+                  <SyncRun key={run.id} run={run} />
+                ))}
+              </section>
+            )}
+            {data && !data.current && data.history.length === 0 && (
               <p className="rounded-xl border border-foreground-dark/25 bg-background p-4 text-sm text-foreground-dark">
                 当前进程尚无同步记录。
               </p>

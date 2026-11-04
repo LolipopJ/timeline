@@ -19,6 +19,7 @@ async function backend(page: Page) {
     timelineGate: null as Promise<void> | null,
     logsGate: null as Promise<void> | null,
     run: null as SyncRunDto | null,
+    history: [] as SyncRunDto[],
     requests: [] as {
       path: string;
       method: string;
@@ -108,7 +109,10 @@ async function backend(page: Page) {
           available: state.run?.status !== "running",
           reason: state.run?.status === "running" ? "busy" : null,
           current: state.run?.status === "running" ? state.run : null,
-          last: state.run?.status === "running" ? null : state.run,
+          history: [
+            ...(state.run?.finishedAt ? [state.run] : []),
+            ...state.history,
+          ],
         },
         headers,
       });
@@ -230,14 +234,14 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
   page,
 }) => {
   const state = await backend(page);
-  state.run = {
+  state.history.push({
     id: "historical-run",
     trigger: "scheduled",
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
     status: "succeeded",
     services: [],
-  };
+  });
   const timelineReads = () =>
     state.requests.filter((request) =>
       request.path.startsWith("/timeline-items"),
@@ -263,25 +267,59 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
     panel.getByRole("tab", { name: "同步", exact: true }),
   ).toBeFocused();
   await panel.getByRole("button", { name: "开始同步" }).click();
-  await expect(panel.getByRole("status")).toContainText("已受理");
+  await expect(panel.getByRole("status")).toContainText("正在等待执行结果");
   await expect(panel.getByRole("button", { name: "开始同步" })).toBeDisabled();
   expect(timelineReads()).toBe(initialReads);
-  const before = state.requests.filter(
-    (request) => request.path === "/timeline-items",
-  ).length;
+  const itemReads = () =>
+    state.requests.filter((request) => request.path === "/timeline-items")
+      .length;
+  const before = itemReads();
+  await expect(panel.getByText(/新增或更新/)).toHaveCount(0);
   state.run!.status = "succeeded";
   state.run!.finishedAt = new Date().toISOString();
-  await expect(
-    panel.getByText("执行成功", { exact: true }).first(),
-  ).toBeVisible();
+  state.run!.services = [
+    {
+      id: "feed",
+      type: SyncServiceType.FEED,
+      status: "succeeded",
+      itemCount: 3,
+    },
+    {
+      id: "empty",
+      type: SyncServiceType.FEED,
+      status: "succeeded",
+      itemCount: 0,
+    },
+  ];
+  state.history.unshift(state.run!);
+  state.run = {
+    ...state.run!,
+    id: "newer-scheduled-run",
+    trigger: "scheduled",
+    services: [],
+  };
+  await expect(panel.getByText(/^运行 /)).toHaveText([
+    "运行 newer-scheduled-run",
+    "运行 test-run",
+    "运行 historical-run",
+  ]);
+  await expect(panel.getByText("新增或更新 3 条")).toBeVisible();
+  await expect(panel.getByText("新增或更新 0 条")).toBeVisible();
   await expect(panel.getByRole("status")).toContainText("本轮同步已结束");
-  await expect
-    .poll(
-      () =>
-        state.requests.filter((request) => request.path === "/timeline-items")
-          .length,
-    )
-    .toBe(before + 1);
+  await expect.poll(itemReads).toBe(before + 1);
+
+  const scheduled = state.run!;
+  state.run = null;
+  state.history = Array.from({ length: 10 }, (_, index) => ({
+    ...scheduled,
+    id: `scheduled-${index}`,
+  }));
+  await expect(panel.getByText("运行 scheduled-0")).toBeVisible();
+  await expect(panel.getByRole("status")).toHaveText(
+    "同步已受理（test-run）。",
+  );
+  await expect.poll(itemReads).toBe(before + 2);
+
   await page.keyboard.press("Escape");
   await expect(panel).not.toBeVisible();
   await expect(entry).toBeFocused();

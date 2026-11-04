@@ -20,6 +20,7 @@ export const serverConfig: ServerConfig = {
     //   label: "My Blog Articles",
     //   syntax: "atom",
     //   url: "https://blog.example.com/atom.xml",
+    //   syncInterval: "0 * * * *", // 可选，此来源每小时同步一次
     // },
     // {
     //   type: SyncServiceType.GITHUB_ISSUE_COMMENT,
@@ -54,7 +55,7 @@ export const serverConfig: ServerConfig = {
     ],
   },
   listeningPort: 4000,
-  syncInterval: "*/30 * * * *",
+  syncInterval: "*/30 * * * *", // 未单独配置的来源每 30 分钟同步一次
   // githubPersonalAccessToken: "ghp_yourGithubPersonalAccessToken",
 };
 

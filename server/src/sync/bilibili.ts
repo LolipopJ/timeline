@@ -128,7 +128,7 @@ export const syncBilibiliCollections = async (
     `Synced ${collections.length} Bilibili collections from ${mediaId}.`,
   );
 
-  await insertOrUpdateTimelineItems(
+  const itemCount = await insertOrUpdateTimelineItems(
     collections
       .filter((collection) => collection.attr === 0)
       .map((collection) => {
@@ -162,8 +162,9 @@ export const syncBilibiliCollections = async (
       }),
   );
   logger.success(
-    `Insert or update ${collections.length} timeline items of Bilibili collections from ${mediaId} successfully!`,
+    `Insert or update ${itemCount} timeline items of Bilibili collections from ${mediaId} successfully!`,
   );
+  return itemCount;
 };
 
 export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
@@ -217,7 +218,7 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
   }
   logger.info(`Synced ${works.length} Bilibili works of ${userId}.`);
 
-  await insertOrUpdateTimelineItems(
+  const itemCount = await insertOrUpdateTimelineItems(
     works.map((work) => ({
       sync_service_id: id,
       sync_service_type: type,
@@ -238,6 +239,7 @@ export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
     })),
   );
   logger.success(
-    `Insert or update ${works.length} timeline items of Bilibili works of ${userId} successfully!`,
+    `Insert or update ${itemCount} timeline items of Bilibili works of ${userId} successfully!`,
   );
+  return itemCount;
 };

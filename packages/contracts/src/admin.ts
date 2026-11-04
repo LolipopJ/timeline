@@ -5,13 +5,15 @@ export type SyncRunStatus = "running" | "succeeded" | "partial" | "failed";
 export type SyncUnavailableReason =
   "initializing" | "stopping" | "busy" | "no_services";
 
-export interface SyncServiceResultDto {
+export type SyncServiceResultDto = {
   id: string;
   type: SyncServiceType;
   label?: string;
-  status: "running" | "succeeded" | "failed";
-  error?: string;
-}
+} & (
+  | { status: "running" }
+  | { status: "succeeded"; itemCount: number }
+  | { status: "failed"; error: string }
+);
 
 export interface SyncRunDto {
   id: string;
@@ -27,7 +29,7 @@ export interface SyncStatusDto {
   available: boolean;
   reason: SyncUnavailableReason | null;
   current: SyncRunDto | null;
-  last: SyncRunDto | null;
+  history: SyncRunDto[];
 }
 
 export interface SyncAcceptedDto {

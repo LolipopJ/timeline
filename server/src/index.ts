@@ -487,26 +487,56 @@ export const app = new Elysia()
         logger.info(
           "`FULL_SYNC` is enabled: performing a full sync of all data before scheduling incremental sync tasks.",
         );
-        syncCoordinator.start("startup", true);
+        syncCoordinator.start("startup", { forceFull: true });
         await syncCoordinator.wait();
         if (syncCoordinator.snapshot().reason === "stopping") return;
       }
 
-      // Cron 表达式非法时 node-schedule 会返回 null，而不是抛出异常
-      const syncJob = schedule.scheduleJob(SYNC_INTERVAL, () => {
-        const result = syncCoordinator.start("scheduled");
-        if ("reason" in result)
-          logger.warn(`Scheduled sync skipped: ${result.reason}.`);
-      });
-      if (!syncJob) {
-        throw new Error(
-          `Invalid \`syncInterval\` cron expression: \`${SYNC_INTERVAL}\`.`,
-        );
+      const servicesByInterval = Map.groupBy(
+        config.services.filter((service) => service.enabled !== false),
+        (service) => service.syncInterval ?? SYNC_INTERVAL,
+      );
+      const jobs = new Map<schedule.Job, typeof config.services>();
+      let lastScheduledAt: number | undefined;
+      for (const [interval, services] of servicesByInterval) {
+        const job = schedule.scheduleJob(interval, (fireDate) => {
+          const scheduledAt = fireDate.getTime();
+          if (lastScheduledAt === scheduledAt) return;
+          lastScheduledAt = scheduledAt;
+
+          // Include other Cron jobs due at the same time in this run.
+          const dueServices = [...services];
+          for (const [otherJob, otherServices] of jobs) {
+            if (
+              otherJob !== job &&
+              otherJob.nextInvocation()?.getTime() === scheduledAt
+            ) {
+              dueServices.push(...otherServices);
+            }
+          }
+          const result = syncCoordinator.start("scheduled", {
+            services: dueServices,
+          });
+          if ("reason" in result)
+            logger.warn(`Scheduled sync skipped: ${result.reason}.`);
+        });
+        // node-schedule also accepts dates and empty strings as schedules.
+        if (
+          !job ||
+          !interval.trim() ||
+          ("isOneTimeJob" in job && job.isOneTimeJob === true)
+        ) {
+          job?.cancel();
+          throw new Error(
+            `Invalid \`syncInterval\` cron expression: \`${interval}\` for ${services.map(({ id }) => id).join(", ")}.`,
+          );
+        }
+        jobs.set(job, services);
+        logger.info(`Sync tasks are scheduled with \`${interval}\`.`);
       }
-      logger.info(`Sync tasks are scheduled with \`${SYNC_INTERVAL}\`.`);
 
       if (!IS_FULL_SYNC_ON_START) {
-        syncJob.invoke();
+        syncCoordinator.start("startup");
       }
     } catch (error) {
       // `exitWithError` 内部会终止进程，不会继续执行后续语句
