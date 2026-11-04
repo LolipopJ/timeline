@@ -127,7 +127,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     className = "",
     ...rest
   } = props;
-  const { lastVisitDate, isLoggedIn } = useContext(GlobalContext);
+  const { lastVisitDate, canManageItems } = useContext(GlobalContext);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -208,7 +208,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
   const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
 
-  const hasMenu = isLoggedIn || url;
+  const hasMenu = canManageItems || url;
 
   return (
     <div
@@ -253,7 +253,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                   </a>
                 </li>
               ) : null}
-              {isLoggedIn ? (
+              {canManageItems ? (
                 <>
                   <li>
                     <button

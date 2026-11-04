@@ -106,10 +106,9 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
 
   const cookies = getQZoneCookies(qqNumber);
   if (!cookies?.length) {
-    logger.error(
+    throw new Error(
       "Sync QQ Zone talks failed: cookies are not exist. Visit `/qzone-login`, scan QR code and confirm login to refresh cookies.",
     );
-    return;
   }
 
   const [skey, p_uin, pt4_token, p_skey] = [
@@ -119,10 +118,9 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     cookies.find((cookie) => cookie.name === "p_skey")?.value,
   ];
   if (!skey || !p_uin || !pt4_token || !p_skey) {
-    logger.error(
+    throw new Error(
       "Sync QQ Zone talks failed: cookies are not valid. Visit `/qzone-login`, scan QR code and confirm login to refresh cookies.",
     );
-    return;
   }
   const g_tk = getGTk(p_skey);
 

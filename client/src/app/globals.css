@@ -34,6 +34,10 @@
 }
 
 @layer base {
+  html:has(#admin-console[open]) {
+    overflow: hidden;
+  }
+
   html {
     font-family:
       -apple-system, BlinkMacSystemFont, 'Noto Sans', 'Segoe UI', Helvetica,

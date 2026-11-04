@@ -3,9 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">= 22.12.0",
-    "bun": ">= 1.4.2"
+    "node": ">=24.22.0",
+    "bun": ">=1.4.4"
   },
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "client",
+    "server",
+    "packages/*"
+  ],
+  "trustedDependencies": [
+    "ffmpeg-static",
+    "sharp",
+    "@tailwindcss/oxide",
+    "unrs-resolver",
+    "@parcel/watcher",
+    "esbuild"
+  ],
   "scripts": {
     "dev": "bun run --parallel --filter @timeline/client --filter @timeline/server dev",
     "dev:client": "bun run --filter @timeline/client dev",
@@ -28,32 +42,18 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
-    "@playwright/test": "1.63.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.1",
-    "@typescript-eslint/parser": "^8.71.1",
+    "@playwright/test": "1.64.1",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.5",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-prettier": "^5.5.7",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-tailwindcss": "4.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "typescript": "~6.0.3"
-  },
-  "workspaces": [
-    "client",
-    "server",
-    "packages/*"
-  ],
-  "packageManager": "bun@1.4.2",
-  "trustedDependencies": [
-    "ffmpeg-static",
-    "sharp",
-    "@tailwindcss/oxide",
-    "unrs-resolver",
-    "@parcel/watcher",
-    "esbuild"
-  ]
+  }
 }

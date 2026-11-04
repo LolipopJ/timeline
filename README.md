@@ -54,7 +54,14 @@ export const serverConfig: ServerConfig = {
 
 假设您的站点域名为 `www.timeline.com`，访问 `www.timeline.com?login` 即可唤起登录窗口，输入账号 `admin_username` 和密码 `admin_password` 即可以管理员身份登录到站点。
 
-如果想退出登录，可以访问 `www.timeline.com?logout`，或手动清除站点的 Cookies。
+管理员可以执行如下操作：
+
+- 同步：触发所有已启用服务的一轮同步。
+- 日志：最新日志排在最上方，支持按级别、模块和消息关键词筛选。
+- 访客预览：以未登录访客的视角浏览公开内容。
+- 退出登录：撤销登录 Cookie，返回公开时间线。或访问 `www.timeline.com?logout` 即可退出登录。
+
+日志仅保存在当前后端进程的内存中，最多保留最近 500 条。每条消息最多 4096 字符，超长时标记截断。服务端重启后清空运行记录和日志。
 
 ### 同步 Bilibili 收藏夹
 

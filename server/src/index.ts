@@ -14,10 +14,11 @@ import { Elysia, StatusMap } from "elysia";
 import type { Cookie, ElysiaCookie } from "elysia/cookies";
 import fs from "fs";
 import schedule from "node-schedule";
-import { ILike } from "typeorm";
 
 import config from "../configs/server";
+import { getAdminLogs, getAdminSyncStatus, requestAdminSync } from "./admin";
 import { serializeTimelineItem } from "./api/serializers";
+import { getTimelineWhere, isTimelineView } from "./api/timeline-query";
 import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import { destroyDatabase, initializeDatabase } from "./database";
 import {
@@ -27,7 +28,7 @@ import {
   softDeleteTimelineItem,
   updateTimelineItem,
 } from "./database/controller/timeline-item";
-import sync from "./sync";
+import { syncCoordinator } from "./sync";
 import { saveBilibiliSessionData } from "./utils/bilibili";
 import { checkupDir } from "./utils/file";
 import { JWT } from "./utils/jwt";
@@ -65,6 +66,9 @@ interface SensitiveRoute {
 }
 
 const SENSITIVE_ROUTES: SensitiveRoute[] = [
+  { method: "GET", pattern: /^\/admin\/sync$/ },
+  { method: "POST", pattern: /^\/admin\/sync$/ },
+  { method: "GET", pattern: /^\/admin\/logs$/ },
   { method: "GET", pattern: /^\/qzone-login$/ },
   { method: "GET", pattern: /^\/set$/ },
   { method: "PATCH", pattern: /^\/timeline-items\/[^/]+$/ },
@@ -107,23 +111,8 @@ const withTimeout = (promise: Promise<unknown>, timeoutMs: number) =>
     }),
   ]);
 
-/** 正在执行的同步任务，用于在退出时一并等待 */
-const runningSyncTasks = new Set<Promise<void>>();
-
-/**
- * 启动一次同步任务，并在结束后从在途集合中移除。
- * `sync()` 自身已有完整的 try/catch/finally 且从不抛出，这里不再重复捕获，
- * 否则同一个失败会被记录两次。
- */
-const runSync = async (full = false) => {
-  const task: Promise<void> = sync(full).finally(() => {
-    runningSyncTasks.delete(task);
-  });
-  runningSyncTasks.add(task);
-  return task;
-};
-
 const doTeardown = async (reason: string) => {
+  syncCoordinator.stop();
   logger.info(`Releasing resources (${reason})...`);
 
   try {
@@ -135,14 +124,11 @@ const doTeardown = async (reason: string) => {
     logger.error(`Cancel scheduled tasks failed:\n${formatError(error)}`);
   }
 
-  if (runningSyncTasks.size > 0) {
+  if (syncCoordinator.snapshot().current) {
     logger.info(
-      `Waiting up to ${TEARDOWN_TIMEOUT_MS}ms for ${runningSyncTasks.size} running sync task(s)...`,
+      `Waiting up to ${TEARDOWN_TIMEOUT_MS}ms for the running sync...`,
     );
-    await withTimeout(
-      Promise.allSettled([...runningSyncTasks]),
-      TEARDOWN_TIMEOUT_MS,
-    );
+    await withTimeout(syncCoordinator.wait(), TEARDOWN_TIMEOUT_MS);
   }
 
   await destroyDatabase();
@@ -181,8 +167,7 @@ const flushStdio = () =>
 
 /**
  * 关闭 HTTP 监听。
- * 由 `app` 创建完成后赋值：`onStart` 在首个 `await` 之前抛错时，
- * `app` 仍处于 TDZ，直接引用会抛 `ReferenceError` 并让进程无法退出。
+ * 在 `onStart` 的异步初始化之前绑定，启动失败时也能关闭监听。
  */
 let stopHttpServer: () => Promise<void> = async () => undefined;
 
@@ -251,6 +236,14 @@ export const app = new Elysia()
   })
   .onBeforeHandle(
     ({ path, request, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
+      if (
+        path.startsWith("/admin/") ||
+        path === "/timeline-items" ||
+        path === "/timeline-items/count" ||
+        path === "/login"
+      ) {
+        set.headers["cache-control"] = "private, no-store";
+      }
       if (IS_ADMIN_ENABLED) {
         // 服务端启用了管理员功能，在正式处理请求前校验登录态 Cookie
         let isCookieValidated = false;
@@ -288,10 +281,21 @@ export const app = new Elysia()
       }
     },
   )
+  .get("/admin/sync", getAdminSyncStatus)
+  .get("/admin/logs", ({ query, set }) => {
+    const result = getAdminLogs(query);
+    set.status = result.status;
+    return result.body;
+  })
+  .post("/admin/sync", ({ set }) => {
+    const result = requestAdminSync();
+    set.status = result.status;
+    return result.body;
+  })
   //#region 时间线接口
   .get(
     "/timeline-items",
-    async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
+    async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       const {
         page = "0",
         limit = "20",
@@ -299,30 +303,33 @@ export const app = new Elysia()
         serviceId,
         serviceType,
         search,
+        view,
       } = query as GetTimelineItemsParams;
 
+      if (!isTimelineView(view)) {
+        set.status = 400;
+        return "时间线视角参数无效";
+      }
+
       const take = Number(limit);
-      if (take > 100) return [];
-
       const skip = Number(page) * take;
+      if (
+        typeof page !== "string" ||
+        typeof limit !== "string" ||
+        !/^\d+$/.test(page) ||
+        !/^\d+$/.test(limit) ||
+        take < 1 ||
+        take > 100 ||
+        !Number.isSafeInteger(skip)
+      ) {
+        set.status = 400;
+        return "时间线分页参数无效";
+      }
 
-      const baseOptionWhere = {
-        sync_service_id: serviceId,
-        sync_service_type: serviceType as SyncServiceType,
-        is_secret: cookieToken.value ? undefined : false,
-      };
-      const where = search
-        ? [
-            {
-              ...baseOptionWhere,
-              title: ILike(`%${search}%`),
-            },
-            {
-              ...baseOptionWhere,
-              content: ILike(`%${search}%`),
-            },
-          ]
-        : baseOptionWhere;
+      const where = getTimelineWhere(
+        { serviceId, serviceType, search, view },
+        Boolean(IS_ADMIN_ENABLED && cookieToken.value),
+      );
 
       const timelineItems = await getTimelineItems({
         take,
@@ -345,26 +352,17 @@ export const app = new Elysia()
   )
   .get(
     "/timeline-items/count",
-    async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken } }) => {
-      const { serviceId, serviceType, search } =
+    async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
+      const { serviceId, serviceType, search, view } =
         query as CountTimelineItemsParams;
-      const baseOptionWhere = {
-        sync_service_id: serviceId,
-        sync_service_type: serviceType as SyncServiceType,
-        is_secret: cookieToken.value ? undefined : false,
-      };
-      const where = search
-        ? [
-            {
-              ...baseOptionWhere,
-              title: ILike(`%${search}%`),
-            },
-            {
-              ...baseOptionWhere,
-              content: ILike(`%${search}%`),
-            },
-          ]
-        : baseOptionWhere;
+      if (!isTimelineView(view)) {
+        set.status = 400;
+        return "时间线视角参数无效";
+      }
+      const where = getTimelineWhere(
+        { serviceId, serviceType, search, view },
+        Boolean(IS_ADMIN_ENABLED && cookieToken.value),
+      );
       const timelineItemsCount = await countTimelineItems({ where });
       return timelineItemsCount;
     },
@@ -466,7 +464,7 @@ export const app = new Elysia()
   })
   //#endregion
   .onStart(async ({ server }) => {
-    // 在首个 `await` 之前赋值：`app` 此时仍处于 TDZ，不能直接引用
+    // 在异步初始化之前绑定，确保启动失败时可以先停止 HTTP 接入
     stopHttpServer = async () => {
       await server?.stop();
     };
@@ -482,17 +480,23 @@ export const app = new Elysia()
       checkupDir(SERVER_STATIC_DIR);
 
       await initializeDatabase();
+      syncCoordinator.ready();
+      if (syncCoordinator.snapshot().reason === "stopping") return;
 
       if (IS_FULL_SYNC_ON_START) {
         logger.info(
           "`FULL_SYNC` is enabled: performing a full sync of all data before scheduling incremental sync tasks.",
         );
-        await runSync(true);
+        syncCoordinator.start("startup", true);
+        await syncCoordinator.wait();
+        if (syncCoordinator.snapshot().reason === "stopping") return;
       }
 
       // Cron 表达式非法时 node-schedule 会返回 null，而不是抛出异常
       const syncJob = schedule.scheduleJob(SYNC_INTERVAL, () => {
-        void runSync();
+        const result = syncCoordinator.start("scheduled");
+        if ("reason" in result)
+          logger.warn(`Scheduled sync skipped: ${result.reason}.`);
       });
       if (!syncJob) {
         throw new Error(
@@ -515,33 +519,35 @@ export const app = new Elysia()
     // Elysia 不会等待 `onStop` 返回的 promise（Bun adapter 直接调用 fn 而不 await），
     // 因此这里只做幂等的资源释放；需要"等清理完成再退出"的调用方必须自行 await `teardown`
     await teardown("normal shutdown");
-  })
-  .listen(PORT);
-
-process.on("uncaughtException", (error) => {
-  void exitWithError("Uncaught exception", error);
-});
-
-process.on("unhandledRejection", (reason) => {
-  void exitWithError("Unhandled promise rejection", reason);
-});
-
-// 容器与 Ctrl+C 触发的是信号，不会自动走 `onStop`。这里直接 await `teardown`：
-// 必须等到 `destroyDatabase()` 完成后才退出，否则正在写入的同步数据可能被截断
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    logger.info(`Received ${signal}, shutting down...`);
-    void (async () => {
-      try {
-        await stopHttpServer();
-        await teardown(signal);
-      } catch (error) {
-        logger.error(`Graceful shutdown failed:\n${formatError(error)}`);
-      } finally {
-        await flushStdio();
-        // 保留失败路径已设置的退出码，否则崩溃会被当成正常关闭
-        process.exit(process.exitCode ?? 0);
-      }
-    })();
   });
+
+if (import.meta.main) {
+  app.listen(PORT);
+  process.on("uncaughtException", (error) => {
+    void exitWithError("Uncaught exception", error);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    void exitWithError("Unhandled promise rejection", reason);
+  });
+
+  // 容器与 Ctrl+C 触发的是信号，不会自动走 `onStop`。这里直接 await `teardown`：
+  // 必须等到 `destroyDatabase()` 完成后才退出，否则正在写入的同步数据可能被截断
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      logger.info(`Received ${signal}, shutting down...`);
+      void (async () => {
+        try {
+          await stopHttpServer();
+          await teardown(signal);
+        } catch (error) {
+          logger.error(`Graceful shutdown failed:\n${formatError(error)}`);
+        } finally {
+          await flushStdio();
+          // 保留失败路径已设置的退出码，否则崩溃会被当成正常关闭
+          process.exit(process.exitCode ?? 0);
+        }
+      })();
+    });
+  }
 }

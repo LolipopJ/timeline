@@ -5,7 +5,7 @@ import "./globals.css";
 import { Fancybox } from "@fancyapps/ui";
 import type { LoginStatus } from "@timeline/contracts";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { LoginModal } from "@/components/LoginModal";
@@ -30,27 +30,56 @@ export default function RootLayout({
   const [lastVisitDate, setLastVisitDate] = useState<Date | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [login, setLogin] = useState<boolean>(false);
-  const [logout, setLogout] = useState<boolean>(false);
+  const [urlLogoutRequested, setUrlLogoutRequested] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [guestPreview, setGuestPreview] = useState(false);
+  const logoutPending = useRef(false);
+  const {
+    data: loginStatus,
+    error: loginStatusError,
+    mutate: mutateLoginStatus,
+  } = useSWR<LoginStatus>("/login", fetcherGET, {
+    onSuccess: (status) => {
+      if (!status.isLoggedIn) setGuestPreview(false);
+    },
+  });
 
-  const { isLoading: isRequestingLogout } = useSWR<string>(
-    logout ? "/logout" : null,
-    fetcherPOST,
-  );
-  const { data: loginStatus, mutate: mutateLoginStatus } = useSWR<LoginStatus>(
-    "/login",
-    fetcherGET,
-  );
+  const logout = useCallback(async () => {
+    if (logoutPending.current) return;
+    logoutPending.current = true;
+    setIsLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await fetcherPOST("/logout");
+      await mutateLoginStatus({ isLoggedIn: false }, { revalidate: false });
+      setGuestPreview(false);
+    } catch {
+      setLogoutError("退出失败，请重试。");
+    } finally {
+      logoutPending.current = false;
+      setIsLoggingOut(false);
+    }
+  }, [mutateLoginStatus]);
 
+  const isLoggedIn = loginStatus?.isLoggedIn ?? false;
   const globalContext: GlobalContextValue = {
     ...GLOBAL_CONTEXT_DEFAULT_VALUE,
     lastVisitDate,
-    isLoggedIn: loginStatus?.isLoggedIn ?? false,
+    isLoggedIn,
+    view: isLoggedIn && !guestPreview ? "admin" : "public",
+    setView: (view) => setGuestPreview(view === "public"),
+    canManageItems: isLoggedIn && !guestPreview,
+    isLoggingOut,
+    logout,
   };
 
   useEffect(() => {
     // 服务端返回登录态已过期（401）时，清除本地登录状态
-    const onAuthExpired = () =>
+    const onAuthExpired = () => {
       void mutateLoginStatus({ isLoggedIn: false }, false);
+      setGuestPreview(false);
+    };
     window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
   }, [mutateLoginStatus]);
@@ -67,7 +96,10 @@ export default function RootLayout({
     const url = new URL(window.location.href);
     const params = new URLSearchParams(url.search);
     setLogin(params.get("login") !== null);
-    setLogout(params.get("logout") !== null);
+    if (params.has("logout")) {
+      setUrlLogoutRequested(true);
+      void logout();
+    }
     //#endregion
 
     //#region 初始化 Fancybox
@@ -78,14 +110,12 @@ export default function RootLayout({
     //#endregion
 
     setInitialized(true);
-  }, []);
+  }, [logout]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
-    if (logout && !isRequestingLogout) {
-      window.location.replace(pathname);
-    }
-  }, [isRequestingLogout, logout, pathname]);
+    if (urlLogoutRequested) router.replace(pathname);
+  }, [urlLogoutRequested, router, pathname]);
 
   return (
     <html lang="zh-CN">
@@ -99,7 +129,43 @@ export default function RootLayout({
       </head>
       <body className={`${login ? "overflow-hidden" : ""}`}>
         <GlobalContext.Provider value={globalContext}>
-          <main>{!initialized || logout ? null : children}</main>
+          {logoutError && (
+            <div
+              role="alert"
+              className="fixed inset-x-4 top-24 z-30 mx-auto max-w-lg rounded-md bg-background-light p-4 shadow-lg md:top-28 lg:top-4"
+            >
+              {logoutError}
+              <button
+                type="button"
+                onClick={() => void logout()}
+                disabled={isLoggingOut}
+                className="ml-4 cursor-pointer text-primary-light disabled:opacity-50"
+              >
+                重试退出
+              </button>
+            </div>
+          )}
+          <main>
+            {initialized &&
+              (loginStatus !== undefined ? (
+                children
+              ) : loginStatusError ? (
+                <div role="alert" className="m-4">
+                  登录状态读取失败。
+                  <button
+                    type="button"
+                    onClick={() => void mutateLoginStatus()}
+                    className="ml-4 cursor-pointer text-primary-light"
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : (
+                <p role="status" className="m-4">
+                  正在确认登录状态…
+                </p>
+              ))}
+          </main>
           {login && (
             <LoginModal
               open={true}

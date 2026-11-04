@@ -1,6 +1,9 @@
 import type { SyncServiceType } from "./enums";
 
+export type TimelineView = "public" | "admin";
+
 export type GetTimelineItemsParams = {
+  view?: TimelineView;
   page?: string;
   limit?: string;
   orderBy?: "created_at" | "updated_at";
@@ -10,6 +13,7 @@ export type GetTimelineItemsParams = {
 };
 
 export interface CountTimelineItemsParams {
+  view?: TimelineView;
   serviceId?: string;
   serviceType?: SyncServiceType;
   search?: string;

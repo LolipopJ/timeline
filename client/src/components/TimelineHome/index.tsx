@@ -1,17 +1,31 @@
 "use client";
 
-import { mdiLoading, mdiSlashForwardBox } from "@mdi/js";
+import {
+  mdiArrowUp,
+  mdiCogOutline,
+  mdiLoading,
+  mdiSlashForwardBox,
+} from "@mdi/js";
 import Icon from "@mdi/react";
 import type {
   GetTimelineItemsParams,
   TimelineItemClient,
 } from "@timeline/contracts";
+import { SyncServiceType } from "@timeline/contracts";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { KeyLoader } from "swr";
-import useSWR from "swr";
+import useSWR, { SWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 
+import AdminConsole from "@/components/AdminConsole";
 import message from "@/components/Message";
 import { TimelineCurrentDate } from "@/components/TimelineCurrentDate";
 import TimelineItem from "@/components/TimelineItem";
@@ -20,48 +34,128 @@ import TimelineProgress from "@/components/TimelineProgress";
 import TimelineSearch, {
   type TimelineSearchProps,
 } from "@/components/TimelineSearch";
+import GlobalContext from "@/contexts/GlobalContext";
 import useDebounce from "@/hooks/useDebounce";
 import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 
 const PAGE_LIMIT = 20;
+const DATA_CACHE = { provider: () => new Map(), keepPreviousData: false };
+const floatingButtonClass =
+  "grid size-12 cursor-pointer place-items-center rounded-full border shadow-lg motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary border-foreground-dark/30 bg-background-light text-foreground hover:bg-background-lighter active:bg-background-lighter";
 
 export default function TimelineHome() {
   const router = useRouter();
   const pathname = usePathname();
   const urlSearchParams = useSearchParams();
+  const { isLoggedIn, view } = useContext(GlobalContext);
 
   const [searchParamsState, setSearchParamsState] =
     useState<GetTimelineItemsParams>({
       search: urlSearchParams.get("search") ?? "",
       orderBy:
-        (urlSearchParams.get("orderBy") as "created_at" | "updated_at") ??
-        "created_at",
+        urlSearchParams.get("orderBy") === "updated_at"
+          ? "updated_at"
+          : "created_at",
+      serviceId: urlSearchParams.get("serviceId") ?? undefined,
+      serviceType: Object.values(SyncServiceType).find(
+        (type) => type === urlSearchParams.get("serviceType"),
+      ),
     });
+  const debouncedSearchParams = useDebounce(searchParamsState, 500);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const params = new URLSearchParams();
+    if (debouncedSearchParams.search)
+      params.set("search", debouncedSearchParams.search);
+    if (debouncedSearchParams.serviceId)
+      params.set("serviceId", debouncedSearchParams.serviceId);
+    if (debouncedSearchParams.serviceType)
+      params.set("serviceType", debouncedSearchParams.serviceType);
+    if (
+      debouncedSearchParams.orderBy &&
+      debouncedSearchParams.orderBy !== "created_at"
+    )
+      params.set("orderBy", debouncedSearchParams.orderBy);
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+    const currentQueryString = urlSearchParams.toString();
+    const currentUrl = currentQueryString
+      ? `${pathname}?${currentQueryString}`
+      : pathname;
+    if (newUrl !== currentUrl) router.replace(newUrl, { scroll: false });
+  }, [debouncedSearchParams, pathname, router, urlSearchParams]);
+
+  return (
+    <SWRConfig
+      key={`${isLoggedIn ? "admin" : "guest"}:${view}`}
+      value={DATA_CACHE}
+    >
+      <TimelineData
+        searchParamsState={searchParamsState}
+        setSearchParamsState={setSearchParamsState}
+        debouncedSearchParams={debouncedSearchParams}
+      />
+    </SWRConfig>
+  );
+}
+
+function TimelineData({
+  searchParamsState,
+  setSearchParamsState,
+  debouncedSearchParams,
+}: {
+  searchParamsState: GetTimelineItemsParams;
+  setSearchParamsState: React.Dispatch<
+    React.SetStateAction<GetTimelineItemsParams>
+  >;
+  debouncedSearchParams: GetTimelineItemsParams;
+}) {
+  const { isLoggedIn, view, setView, canManageItems, logout, isLoggingOut } =
+    useContext(GlobalContext);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const closeAdmin = useCallback(() => setAdminOpen(false), []);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const update = () => setShowBackToTop(window.scrollY > window.innerHeight);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   const orderBy = searchParamsState.orderBy;
   const orderByRef = useRef(orderBy);
   useEffect(() => {
     orderByRef.current = orderBy;
   }, [orderBy]);
 
-  const debouncedSearchParams = useDebounce(searchParamsState, 500);
-
   const [currenDate, setCurrentDate] = useState<Date>(new Date());
   const [currentIndex, setCurrentIndex] = useState<number>(0);
 
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
-  const isFirstRender = useRef(true);
 
   const getTimelineItemsKey = useCallback<NonNullable<KeyLoader>>(
     (pageIndex, previousPageData) => {
       if (previousPageData?.length < PAGE_LIMIT) return null;
       return `/timeline-items?${getSearchParamsFromObject({
         ...debouncedSearchParams,
+        view,
         page: pageIndex,
         limit: PAGE_LIMIT,
       })}`;
     },
-    [debouncedSearchParams],
+    [debouncedSearchParams, view],
   );
   const {
     data: timelineItems = [[]],
@@ -100,41 +194,14 @@ export default function TimelineHome() {
   }, [timelineItems, orderBy]);
 
   const getTimelineItemsCountKey = useMemo(() => {
-    return `/timeline-items/count?${getSearchParamsFromObject(debouncedSearchParams)}`;
-  }, [debouncedSearchParams]);
-  const { data: timelineItemsCount = Infinity } = useSWR<number>(
-    getTimelineItemsCountKey,
-    fetcherGET,
-  );
+    return `/timeline-items/count?${getSearchParamsFromObject({ ...debouncedSearchParams, view })}`;
+  }, [debouncedSearchParams, view]);
+  const { data: timelineItemsCount = Infinity, mutate: mutateTimelineCount } =
+    useSWR<number>(getTimelineItemsCountKey, fetcherGET);
 
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    const params = new URLSearchParams();
-    if (debouncedSearchParams.search) {
-      params.set("search", debouncedSearchParams.search);
-    }
-    if (
-      debouncedSearchParams.orderBy &&
-      debouncedSearchParams.orderBy !== "created_at"
-    ) {
-      params.set("orderBy", debouncedSearchParams.orderBy);
-    }
-
-    const queryString = params.toString();
-    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-    const currentQueryString = urlSearchParams.toString();
-    const currentUrl = currentQueryString
-      ? `${pathname}?${currentQueryString}`
-      : pathname;
-
-    if (newUrl !== currentUrl) {
-      router.replace(newUrl, { scroll: false });
-    }
-  }, [debouncedSearchParams, pathname, router, urlSearchParams]);
+  const refreshTimeline = useCallback(() => {
+    void Promise.all([mutateTimelineItems(), mutateTimelineCount()]);
+  }, [mutateTimelineItems, mutateTimelineCount]);
 
   useEffect(() => {
     if (isLoadingTimelineItems) {
@@ -217,7 +284,11 @@ export default function TimelineHome() {
   };
 
   return (
-    <div className="mt-20 max-w-(--breakpoint-md) px-4 py-6 sm:px-6 sm:py-8 md:mx-auto md:mt-24 md:px-8 md:py-10 lg:mt-0">
+    <div
+      ref={timelineRef}
+      tabIndex={-1}
+      className="mt-20 max-w-(--breakpoint-md) px-4 py-6 outline-none sm:px-6 sm:py-8 md:mx-auto md:mt-24 md:px-8 md:py-10 lg:mt-0"
+    >
       <>
         <div className="lg:hidden">
           <div
@@ -249,6 +320,34 @@ export default function TimelineHome() {
           </div>
         </div>
       </>
+      {isLoggedIn && view === "public" && (
+        <section
+          aria-label="访客预览"
+          className="mb-6 rounded-lg border border-primary/50 bg-background-light p-4"
+        >
+          <h1 className="font-bold text-primary-light">访客预览</h1>
+          <p className="mt-1 text-sm text-foreground-dark">
+            当前仅显示公开内容，管理员登录仍然有效。
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setView("admin")}
+              className="min-h-11 cursor-pointer rounded-md bg-primary-dark px-4 py-2 focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              返回管理员视角
+            </button>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={isLoggingOut}
+              className="min-h-11 cursor-pointer rounded-md bg-background-lighter px-4 py-2 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+            >
+              {isLoggingOut ? "正在退出…" : "退出登录"}
+            </button>
+          </div>
+        </section>
+      )}
       <div
         className={`transition-opacity ${isLoadingTimelineItems ? "opacity-75" : "opacity-100"}`}
       >
@@ -307,6 +406,54 @@ export default function TimelineHome() {
           </button>
         )}
       </div>
+      {(showBackToTop || canManageItems) && (
+        <div className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex flex-col gap-3">
+          {showBackToTop && (
+            <button
+              type="button"
+              aria-label="回到顶部"
+              title="回到顶部"
+              className={`${floatingButtonClass}`}
+              onClick={() => {
+                timelineRef.current?.focus({ preventScroll: true });
+                const reduceMotion = window.matchMedia(
+                  "(prefers-reduced-motion: reduce)",
+                ).matches;
+                window.scrollTo({
+                  top: 0,
+                  behavior: reduceMotion ? "instant" : "smooth",
+                });
+              }}
+            >
+              <Icon path={mdiArrowUp} size={1} aria-hidden="true" />
+            </button>
+          )}
+          {canManageItems && (
+            <button
+              type="button"
+              aria-label="管理面板"
+              title="管理面板"
+              aria-haspopup="dialog"
+              aria-controls="admin-console"
+              aria-expanded={adminOpen}
+              className={`${floatingButtonClass}`}
+              onClick={(event) => {
+                event.currentTarget.focus({ preventScroll: true });
+                setAdminOpen(true);
+              }}
+            >
+              <Icon path={mdiCogOutline} size={1} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
+      {canManageItems && (
+        <AdminConsole
+          open={adminOpen}
+          onClose={closeAdmin}
+          onSyncCompleted={refreshTimeline}
+        />
+      )}
     </div>
   );
 }

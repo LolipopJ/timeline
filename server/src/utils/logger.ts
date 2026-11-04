@@ -1,3 +1,5 @@
+import { runtimeLogs } from "./runtime-logs";
+
 const LEVEL_EMOJI = {
   info: "⚪",
   success: "✅️",
@@ -9,7 +11,9 @@ type LogLevel = keyof typeof LEVEL_EMOJI;
 
 /** 直接打印 `Error` 只会输出 `Error: <message>`，统一展开为带堆栈的文本 */
 const normalizeArgs = (args: unknown[]) =>
-  args.map((arg) => (arg instanceof Error ? formatError(arg) : arg));
+  args.map((arg) =>
+    arg instanceof Error ? formatError(arg) : formatNonError(arg),
+  );
 
 const print = (
   method: "log" | "warn" | "error",
@@ -18,10 +22,10 @@ const print = (
   message: string,
   args: unknown[],
 ) => {
-  console[method](
-    `${LEVEL_EMOJI[level]} [${module}] ${message}`,
-    ...normalizeArgs(args),
-  );
+  const safeModule = redactLogText(module);
+  const text = redactLogText([message, ...normalizeArgs(args)].join(" "));
+  const record = runtimeLogs.append(level, safeModule, text);
+  console[method](`${LEVEL_EMOJI[level]} [${safeModule}] ${record.message}`);
 };
 
 export interface Logger {
@@ -69,7 +73,13 @@ const MAX_CAUSE_DEPTH = 5;
 const formatNonError = (error: unknown) => {
   if (typeof error === "string") return error;
   try {
-    return JSON.stringify(error) ?? String(error);
+    return (
+      JSON.stringify(error, (key, value: unknown) => {
+        if (isSensitiveKey(key)) return REDACTED;
+        if (value instanceof Error) return formatError(value);
+        return value;
+      }) ?? String(error)
+    );
   } catch {
     return String(error);
   }
@@ -105,7 +115,7 @@ const getHttpErrorDetails = (error: unknown) => {
  * 直接使用 `${error}` 只会得到 `Error: <message>`，会丢失定位问题所需的堆栈。
  */
 export const formatError = (error: unknown, depth = 0): string => {
-  if (!(error instanceof Error)) return formatNonError(error);
+  if (!(error instanceof Error)) return redactLogText(formatNonError(error));
 
   const parts = [error.stack ?? `${error.name}: ${error.message}`];
   const diagnostics = [
@@ -135,7 +145,7 @@ export const formatError = (error: unknown, depth = 0): string => {
     }
   }
 
-  return parts.join("\n");
+  return redactLogText(parts.join("\n"));
 };
 
 /**
@@ -150,9 +160,53 @@ const SAFE_QUERY_KEYS = new Set([
   "search",
   "serviceid",
   "servicetype",
+  "view",
 ]);
 
 const REDACTED = "***";
+
+const SENSITIVE_KEY =
+  /password|passwd|pwd|secret|token|authorization|cookie|api.?key|session|sessdata|skey|qrsig|ptsig|p_uin/i;
+const isSensitiveKey = (key: string) => SENSITIVE_KEY.test(key);
+const SENSITIVE_ASSIGNMENT =
+  /([\w.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|session(?:[_-]?id)?|sessdata|skey|qrsig|ptsig\w*|p_uin)[\w.-]*["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}&]+)/gi;
+
+const redactAssignments = (text: string) =>
+  text
+    .replace(
+      /\b((?:proxy-)?authorization)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,}]+)/gi,
+      "$1: ***",
+    )
+    .replace(
+      /\b((?:set-)?cookie)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n}]+)/gi,
+      "$1: ***",
+    )
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer ***")
+    .replace(SENSITIVE_ASSIGNMENT, "$1***");
+
+/** Treat messages, stacks and serialized arguments as untrusted text before either output. */
+export const redactLogText = (text: string): string =>
+  redactAssignments(
+    text.replace(/https?:\/\/[^\s<>"'`]+/gi, (raw) => {
+      try {
+        const url = new URL(raw);
+        if (url.username) url.username = REDACTED;
+        if (url.password) url.password = REDACTED;
+        url.hash = "";
+        url.searchParams.forEach((value, key) => {
+          url.searchParams.set(
+            key,
+            SAFE_QUERY_KEYS.has(key.toLowerCase())
+              ? redactAssignments(value)
+              : REDACTED,
+          );
+        });
+        return url.toString();
+      } catch {
+        return "[invalid URL]";
+      }
+    }),
+  );
 
 /**
  * 生成可安全写入日志的请求地址。
