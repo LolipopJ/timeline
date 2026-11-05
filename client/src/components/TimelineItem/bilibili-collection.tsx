@@ -1,7 +1,7 @@
 import type { TimelineComponent } from "@/interfaces/timeline";
 
 const imageIntroClassName =
-  "bg-black/70 text-white backdrop-blur-xs absolute px-4 py-3 inset-x-0 whitespace-pre-wrap";
+  "bg-black/70 text-foreground backdrop-blur-xs absolute px-4 py-3 inset-x-0 whitespace-pre-wrap paper:border-binding paper:bg-background-light/70";
 
 export default function TimelineItemBilibiliCollection(
   props: TimelineComponent,
@@ -26,7 +26,7 @@ export default function TimelineItemBilibiliCollection(
             />
           </a>
           <h1
-            className={`${imageIntroClassName} top-0 text-lg font-bold`}
+            className={`${imageIntroClassName} top-0 text-base font-semibold md:text-lg`}
             title={item.title ?? undefined}
           >
             <a

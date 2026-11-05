@@ -365,6 +365,12 @@ test("archive joins pages within a month and follows the sorted reading position
   );
   await expect(december.getByText("Short comment body")).toBeVisible();
   await expect(december.getByRole("img")).toBeVisible();
+  const coverTitle = december.getByRole("heading", { name: "Cover story" });
+  const coverBackground = (locator: Locator) =>
+    locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const darkCoverBackground = await coverBackground(coverTitle);
+  await expect(coverTitle).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(coverTitle).toHaveCSS("border-bottom-width", "0px");
   const article = page
     .getByRole("region", { name: "02 月", exact: true })
     .locator("article");
@@ -408,6 +414,12 @@ test("archive joins pages within a month and follows the sorted reading position
   );
   await expect(article.getByText("代码")).toHaveCSS("color", "rgb(95, 88, 76)");
   await expect(december.getByRole("img")).toHaveCSS("filter", "none");
+  await expect(coverTitle).toHaveCSS("color", "rgb(45, 41, 34)");
+  await expect(coverTitle).toHaveCSS(
+    "border-bottom-color",
+    "rgb(216, 205, 186)",
+  );
+  expect(await coverBackground(coverTitle)).not.toBe(darkCoverBackground);
   const expand = page.getByRole("button", { name: "展开全文" });
   await expand.press("Enter");
   await expect(page.locator(".timeline-item :focus")).toContainText(

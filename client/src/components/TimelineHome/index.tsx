@@ -345,7 +345,7 @@ function TimelineData({
                 >
                   <h3
                     id={`archive-${key}`}
-                    className={`${archiveTickClass} mt-5 mb-3 text-sm font-semibold text-foreground-dark tabular-nums before:h-px before:w-2 before:bg-control`}
+                    className={`${archiveTickClass} mt-5 mb-3 text-base font-semibold text-foreground-dark tabular-nums before:h-px before:w-2 before:bg-control lg:text-lg`}
                   >
                     {number} 月
                   </h3>
