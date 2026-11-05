@@ -28,7 +28,7 @@ export default function ThemeToggle() {
       aria-pressed={paper}
       title={paper ? "当前：纸张浅色" : "当前：水墨深色"}
       onClick={toggle}
-      className="flex h-11 w-full shrink-0 cursor-pointer items-center justify-start gap-2 rounded-md border-0 bg-background-light px-3 whitespace-nowrap hover:bg-background-lighter focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-11 sm:justify-center sm:border sm:border-control sm:px-0 md:w-auto md:justify-start md:px-3 lg:w-full"
+      className="theme-toggle flex h-11 w-full shrink-0 cursor-pointer items-center justify-start gap-2 rounded-md border-0 bg-background-light px-3 whitespace-nowrap hover:bg-background-lighter focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-11 sm:justify-center sm:border sm:border-control sm:px-0 md:w-auto md:justify-start md:px-3 lg:w-full"
     >
       <Icon
         path={paper ? mdiWeatherSunny : mdiWeatherNight}

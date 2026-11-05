@@ -96,6 +96,82 @@
 }
 
 @layer components {
+  /* 水墨与纸张纹理叠在按钮背景之上，图标与文字保持最上层 */
+  .theme-toggle {
+    @apply relative isolate overflow-hidden;
+
+    /* 纸张纤维与墨色颗粒共用的噪点，做单色处理避免出现彩色杂点 */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.6'/%3E%3C/svg%3E");
+  }
+
+  .theme-toggle::before,
+  .theme-toggle::after {
+    @apply pointer-events-none absolute inset-0 -z-10 transition-[opacity,transform,background-position] duration-500 ease-out motion-reduce:transition-none;
+    content: '';
+  }
+
+  /* 深色：几团淡墨向外晕开，边缘由浓转无 */
+  .theme-toggle::before {
+    background-image:
+      radial-gradient(60% 75% at 18% 28%, color-mix(in srgb, var(--primary) 30%, transparent), transparent),
+      radial-gradient(55% 70% at 84% 76%, color-mix(in srgb, var(--primary-light) 24%, transparent), transparent),
+      radial-gradient(70% 60% at 50% 118%, color-mix(in srgb, var(--foreground) 14%, transparent), transparent);
+    background-repeat: no-repeat;
+    opacity: 0.55;
+  }
+
+  .theme-toggle::after {
+    @apply opacity-40 mix-blend-soft-light;
+    background-image: var(--grain);
+    background-size: 140px 140px;
+  }
+
+  /* 悬浮时墨迹扩散、颗粒轻微游移 */
+  .theme-toggle:hover::before {
+    transform: scale(1.12);
+    opacity: 0.9;
+  }
+
+  .theme-toggle:hover::after {
+    @apply opacity-70;
+    background-position: 25% 40%;
+  }
+
+  /* 浅色：纸纹纤维、陈旧斑点与一道缓慢扫过的光 */
+  :root[data-theme='paper'] .theme-toggle::before {
+    background-image:
+      linear-gradient(105deg, transparent 25%, color-mix(in srgb, #fff 55%, transparent) 48%, transparent 68%),
+      repeating-linear-gradient(90deg, color-mix(in srgb, var(--control) 10%, transparent) 0 1px, transparent 1px 6px),
+      radial-gradient(70% 90% at 82% 12%, color-mix(in srgb, var(--warning) 16%, transparent), transparent);
+    background-repeat: no-repeat, repeat, no-repeat;
+    background-size:
+      240% 100%,
+      auto,
+      65% 100%;
+    background-position:
+      -80% 0,
+      0 0,
+      100% 0;
+    opacity: 0.8;
+  }
+
+  :root[data-theme='paper'] .theme-toggle::after {
+    @apply opacity-25 mix-blend-multiply;
+  }
+
+  :root[data-theme='paper'] .theme-toggle:hover::before {
+    transform: none;
+    background-position:
+      180% 0,
+      0 0,
+      100% 0;
+    opacity: 1;
+  }
+
+  :root[data-theme='paper'] .theme-toggle:hover::after {
+    @apply opacity-40;
+  }
+
   .fancybox__container {
     --fancybox-color: var(--foreground);
     --fancybox-backdrop-bg: color-mix(in srgb, var(--background) 96%, transparent);
