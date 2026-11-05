@@ -206,6 +206,16 @@ async function backend(page: Page) {
   return state;
 }
 
+async function showToolbarControls(page: Page) {
+  const theme = page.getByRole("button", {
+    name: "纸张浅色主题",
+    includeHidden: true,
+  });
+  await expect(theme).toBeAttached();
+  if (await theme.isHidden())
+    await page.getByRole("button", { name: "时间线菜单" }).click();
+}
+
 test("the archive date and site links fit the responsive toolbar", async ({
   page,
 }) => {
@@ -213,6 +223,9 @@ test("the archive date and site links fit the responsive toolbar", async ({
   state.loggedIn = false;
   await page.goto("/");
   const toolbar = page.getByRole("complementary", { name: "时间线工具" });
+  await expect(
+    toolbar.getByRole("button", { name: /^(访客预览|管理员模式)$/ }),
+  ).toHaveCount(0);
   const reading = toolbar.getByRole("group", { name: "当前阅读年月" });
   await expect(reading.getByText("貳〇貳陸", { exact: true })).toBeVisible();
   await expect(reading.getByText("金秋十月", { exact: true })).toBeVisible();
@@ -225,7 +238,7 @@ test("the archive date and site links fit the responsive toolbar", async ({
       href: clientConfig.email ? `mailto:${clientConfig.email}` : undefined,
     },
   ].flatMap(({ name, href }) => (href ? [{ name, href }] : []));
-  const trigger = toolbar.getByRole("button", { name: "站点链接" });
+  const trigger = toolbar.getByRole("button", { name: "时间线菜单" });
   const search = toolbar.getByRole("textbox", { name: "搜索时间线" });
   const searchWidth = () =>
     search.evaluate((el) => el.getBoundingClientRect().width);
@@ -247,25 +260,27 @@ test("the archive date and site links fit the responsive toolbar", async ({
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     320,
   );
+  await expect(trigger).toBeVisible();
+  await trigger.press("Enter");
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  for (const { name, href } of configuredLinks) {
+    const link = toolbar.getByRole("link", { name, exact: true });
+    await expect(link).toBeInViewport();
+    await expect(link).toHaveAttribute("href", href);
+  }
+  await page.keyboard.press("Tab");
+  await expect(
+    toolbar.getByRole("button", { name: "纸张浅色主题" }),
+  ).toBeFocused();
   if (configuredLinks.length) {
-    await expect(trigger).toBeVisible();
-    await trigger.press("Enter");
-    await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    for (const { name, href } of configuredLinks) {
-      const link = toolbar.getByRole("link", { name, exact: true });
-      await expect(link).toBeInViewport();
-      await expect(link).toHaveAttribute("href", href);
-    }
     await page.keyboard.press("Tab");
     await expect(
       toolbar.getByRole("link", { name: configuredLinks[0].name, exact: true }),
     ).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(trigger).toHaveAttribute("aria-expanded", "false");
-    await expect(trigger).toBeFocused();
-  } else {
-    await expect(trigger).toHaveCount(0);
   }
+  await page.keyboard.press("Escape");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
   await page.setViewportSize({ width: 390, height });
   expect(await searchWidth()).toBeGreaterThan(narrowWidth);
 });
@@ -376,6 +391,7 @@ test("archive joins pages within a month and follows the sorted reading position
     "color",
     "rgb(168, 182, 178)",
   );
+  await showToolbarControls(page);
   await page.getByRole("button", { name: "纸张浅色主题" }).click();
   await expect(article).toHaveCSS("color", "rgb(45, 41, 34)");
   await expect(title).toHaveCSS("color", "rgb(45, 41, 34)");
@@ -508,6 +524,7 @@ for (const colorScheme of ["dark", "light"] as const) {
         errors.push(message.text());
     });
     await page.goto("/?search=fixture&orderBy=updated_at");
+    await showToolbarControls(page);
     const toggle = page.getByRole("button", { name: "纸张浅色主题" });
     await expect(toggle).toHaveAttribute(
       "aria-pressed",
@@ -651,9 +668,10 @@ test("primary admin actions stay in view while reading long logs", async ({
   const panel = page.getByRole("dialog", { name: "管理面板" });
   await panel.getByRole("tab", { name: "日志" }).click();
   await panel.getByRole("listitem").last().scrollIntoViewIfNeeded();
-  for (const name of ["访客预览", "退出登录", "关闭管理面板"]) {
+  for (const name of ["退出登录", "关闭管理面板"]) {
     await expect(panel.getByRole("button", { name })).toBeInViewport();
   }
+  await expect(panel.getByText("访客预览", { exact: true })).toHaveCount(0);
   await expect(panel.getByRole("tab", { name: "同步" })).toBeInViewport();
   if (mobile) {
     await page.setViewportSize({ width: 780, height: 375 });
@@ -889,18 +907,36 @@ test("guest preview preserves login and filters while replacing cached private d
     "/?search=fixture&orderBy=updated_at&serviceId=feed&serviceType=Feed",
   );
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
-  const themeToggle = page.getByRole("button", { name: "纸张浅色主题" });
+  const themeToggle = page.getByRole("button", {
+    name: "纸张浅色主题",
+    includeHidden: true,
+  });
+  const previewToggle = page.getByRole("button", {
+    name: /^(访客预览|管理员模式)$/,
+    includeHidden: true,
+  });
+  const menuTrigger = page.getByRole("button", { name: "时间线菜单" });
   const reading = page.getByRole("group", { name: "当前阅读年月" });
   await expect(reading).toContainText("2026 年 11 月");
+  await showToolbarControls(page);
   if ((await themeToggle.getAttribute("aria-pressed")) === "false")
     await themeToggle.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
-  await page
-    .getByRole("button", { name: "管理面板", exact: true })
-    .filter({ visible: true })
-    .click();
-  await page.getByRole("button", { name: "访客预览", exact: true }).click();
-  await expect(page.getByRole("region", { name: "访客预览" })).toBeVisible();
+  await expect(previewToggle).toHaveAccessibleName("管理员模式");
+  const themeBounds = (await themeToggle.boundingBox())!;
+  const previewBounds = (await previewToggle.boundingBox())!;
+  expect(previewBounds.x).toBe(themeBounds.x);
+  expect(previewBounds.y).toBeGreaterThanOrEqual(
+    themeBounds.y + themeBounds.height,
+  );
+  await previewToggle.press("Space");
+  await expect(
+    page.viewportSize()!.width < 640 ? menuTrigger : previewToggle,
+  ).toBeFocused();
+  await showToolbarControls(page);
+  await expect(previewToggle).toHaveAccessibleName("访客预览");
+  await expect(page.getByRole("region", { name: "访客预览" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "退出登录" })).toHaveCount(0);
   await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
   await expect(reading).toContainText("2026 年 10 月");
   await expect(page.getByText("PRIVATE", { exact: true })).toHaveCount(0);
@@ -918,7 +954,13 @@ test("guest preview preserves login and filters while replacing cached private d
   await expect(
     page.getByRole("button", { name: "删除", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "返回管理员视角" }).click();
+  await showToolbarControls(page);
+  await previewToggle.click();
+  await expect(
+    page.viewportSize()!.width < 640 ? menuTrigger : previewToggle,
+  ).toBeFocused();
+  await showToolbarControls(page);
+  await expect(previewToggle).toHaveAccessibleName("管理员模式");
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
   await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
   await expect(reading).toContainText("2026 年 11 月");
@@ -942,14 +984,47 @@ test("guest preview preserves login and filters while replacing cached private d
     expect(request.serviceId).toBe("feed");
     expect(request.orderBy).toBe("updated_at");
   }
-  await page
-    .getByRole("button", { name: "管理面板", exact: true })
-    .filter({ visible: true })
-    .click();
-  await page.getByRole("button", { name: "访客预览", exact: true }).click();
+  await showToolbarControls(page);
+  await previewToggle.click();
   await page.reload();
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "访客预览" })).toHaveCount(0);
+  await expect(previewToggle).toHaveAttribute("aria-label", "管理员模式");
+  await page.setViewportSize({ width: 320, height: 844 });
+  await expect(previewToggle).toBeHidden();
+  await expect(themeToggle).toBeHidden();
+  await showToolbarControls(page);
+  await expect(previewToggle).toBeInViewport();
+  await expect(previewToggle.locator("span")).toBeVisible();
+  await expect(previewToggle).toHaveCSS("border-width", "0px");
+  await expect(themeToggle).toHaveCSS("border-width", "0px");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+  await page.keyboard.press("Escape");
+  await expect(menuTrigger).toBeFocused();
+  for (const width of [640, 767, 768, 1023]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const control of [themeToggle, previewToggle]) {
+      await expect(control).toHaveCount(1);
+      await expect(control).toBeInViewport();
+      if (width < 768) {
+        await expect(control.locator("span")).toBeHidden();
+        expect((await control.boundingBox())!.width).toBe(44);
+      } else await expect(control.locator("span")).toBeVisible();
+    }
+    await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
+    const themeBounds = (await themeToggle.boundingBox())!;
+    const previewBounds = (await previewToggle.boundingBox())!;
+    expect(previewBounds.x).toBeGreaterThanOrEqual(
+      themeBounds.x + themeBounds.width,
+    );
+    expect(previewBounds.y).toBe(themeBounds.y);
+    if (await menuTrigger.isVisible())
+      expect((await menuTrigger.boundingBox())!.y).toBe(themeBounds.y);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(width);
+  }
 });
 
 for (const transition of ["preview", "logout", "401"] as const) {
@@ -1001,11 +1076,15 @@ for (const transition of ["preview", "logout", "401"] as const) {
     );
     await panel.getByRole("button", { name: "刷新状态" }).click();
     await pendingTimeline;
-    if (transition === "preview")
-      await panel
-        .getByRole("button", { name: "访客预览", exact: true })
-        .click();
-    else if (transition === "logout")
+    const previewToggle = page.getByRole("button", {
+      name: /^(访客预览|管理员模式)$/,
+      includeHidden: true,
+    });
+    if (transition === "preview") {
+      await panel.getByRole("button", { name: "关闭管理面板" }).click();
+      await showToolbarControls(page);
+      await previewToggle.click();
+    } else if (transition === "logout")
       await panel
         .getByRole("button", { name: "退出登录", exact: true })
         .click();
@@ -1036,14 +1115,10 @@ for (const transition of ["preview", "logout", "401"] as const) {
       page.getByRole("group", { name: "当前阅读年月" }),
     ).toContainText(/\d{4} 年 \d{2} 月/);
     if (transition === "preview") {
-      await expect(
-        page.getByRole("button", { name: "返回管理员视角" }),
-      ).toBeVisible();
+      await showToolbarControls(page);
+      await expect(previewToggle).toHaveAccessibleName("访客预览");
       expect(state.loggedIn).toBe(true);
-    } else
-      await expect(
-        page.getByRole("button", { name: "返回管理员视角" }),
-      ).toHaveCount(0);
+    } else await expect(previewToggle).toHaveCount(0);
   });
 }
 
@@ -1053,16 +1128,23 @@ test("unknown acceptance is reconciled with GET and closing the panel stops poll
   const state = await backend(page);
   state.loseAcceptance = true;
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "管理面板", exact: true })
-    .filter({ visible: true })
-    .click();
+  const entry = page.getByRole("button", { name: "管理面板", exact: true });
+  await entry.click();
   const panel = page.getByRole("dialog");
   await panel.getByRole("button", { name: "开始同步" }).click();
   await expect(panel.getByRole("status")).toContainText("受理结果未知");
   await expect(panel.getByRole("button", { name: "开始同步" })).toBeDisabled();
-  await page.keyboard.press("Escape");
+  const heading = (await panel
+    .getByRole("heading", { name: "管理面板" })
+    .boundingBox())!;
+  await page.mouse.move(heading.x + 10, heading.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(1, 1);
+  await page.mouse.up();
+  await expect(panel).toBeVisible();
+  await page.mouse.click(1, 1);
   await expect(panel).not.toBeVisible();
+  await expect(entry).toBeFocused();
   const reads = state.requests.filter(
     (request) => request.path === "/admin/sync" && request.method === "GET",
   ).length;

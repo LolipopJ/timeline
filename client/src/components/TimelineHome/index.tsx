@@ -26,13 +26,12 @@ import { SWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 
 import AdminConsole from "@/components/AdminConsole";
-import ThemeToggle from "@/components/ThemeToggle";
 import TimelineCurrentDate from "@/components/TimelineCurrentDate";
 import TimelineItem from "@/components/TimelineItem";
-import TimelineOwner from "@/components/TimelineOwner";
 import TimelineSearch, {
   type TimelineSearchProps,
 } from "@/components/TimelineSearch";
+import TimelineTools from "@/components/TimelineTools";
 import GlobalContext from "@/contexts/GlobalContext";
 import useDebounce from "@/hooks/useDebounce";
 import { fetcherGET } from "@/services/axios";
@@ -81,6 +80,7 @@ export default function TimelineHome() {
   const pathname = usePathname();
   const urlSearchParams = useSearchParams();
   const { isLoggedIn, view } = useContext(GlobalContext);
+  const previewFocusRef = useRef(false);
 
   const [searchParamsState, setSearchParamsState] =
     useState<GetTimelineItemsParams>({
@@ -132,6 +132,7 @@ export default function TimelineHome() {
         searchParamsState={searchParamsState}
         setSearchParamsState={setSearchParamsState}
         debouncedSearchParams={debouncedSearchParams}
+        previewFocusRef={previewFocusRef}
       />
     </SWRConfig>
   );
@@ -141,15 +142,16 @@ function TimelineData({
   searchParamsState,
   setSearchParamsState,
   debouncedSearchParams,
+  previewFocusRef,
 }: {
   searchParamsState: GetTimelineItemsParams;
   setSearchParamsState: React.Dispatch<
     React.SetStateAction<GetTimelineItemsParams>
   >;
   debouncedSearchParams: GetTimelineItemsParams;
+  previewFocusRef: React.RefObject<boolean>;
 }) {
-  const { isLoggedIn, view, setView, canManageItems, logout, isLoggingOut } =
-    useContext(GlobalContext);
+  const { view, canManageItems } = useContext(GlobalContext);
   const [adminOpen, setAdminOpen] = useState(false);
   const closeAdmin = useCallback(() => setAdminOpen(false), []);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -315,41 +317,10 @@ function TimelineData({
         >
           <TimelineCurrentDate month={currentMonth} />
           <TimelineSearch {...timelineSearchProps} className="min-w-0 flex-1" />
-          <ThemeToggle />
-        </div>
-        <div className="lg:mt-auto">
-          <TimelineOwner />
+          <TimelineTools previewFocusRef={previewFocusRef} />
         </div>
       </aside>
       <div className="min-w-0 px-4 pt-6 pb-12 sm:px-6 lg:px-0 lg:pt-8">
-        {isLoggedIn && view === "public" && (
-          <section
-            aria-label="访客预览"
-            className="mb-6 rounded-lg border border-primary/50 bg-background-light p-4"
-          >
-            <h2 className="font-bold text-primary">访客预览</h2>
-            <p className="mt-1 text-sm text-foreground-dark">
-              当前仅显示公开内容，管理员登录仍然有效。
-            </p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setView("admin")}
-                className="min-h-11 cursor-pointer rounded-md bg-primary px-4 py-2 text-on-primary"
-              >
-                返回管理员视角
-              </button>
-              <button
-                type="button"
-                onClick={() => void logout()}
-                disabled={isLoggingOut}
-                className="min-h-11 cursor-pointer rounded-md border border-control bg-background-lighter px-4 py-2 disabled:opacity-50"
-              >
-                {isLoggingOut ? "正在退出…" : "退出登录"}
-              </button>
-            </div>
-          </section>
-        )}
         <div
           ref={archiveRef}
           className="ml-1 border-l border-binding pl-(--archive-gutter) [--archive-gutter:1.125rem] lg:ml-24 lg:[--archive-gutter:1.75rem]"

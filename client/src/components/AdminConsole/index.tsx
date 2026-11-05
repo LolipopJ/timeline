@@ -1,10 +1,4 @@
-import {
-  mdiClose,
-  mdiEyeOutline,
-  mdiLogout,
-  mdiSync,
-  mdiTextBoxOutline,
-} from "@mdi/js";
+import { mdiClose, mdiLogout, mdiSync, mdiTextBoxOutline } from "@mdi/js";
 import Icon from "@mdi/react";
 import type {
   SyncAcceptedDto,
@@ -102,10 +96,10 @@ export default function AdminConsole({
   onClose: () => void;
   onSyncCompleted: () => void;
 }) {
-  const { canManageItems, setView, logout, isLoggingOut } =
-    useContext(GlobalContext);
+  const { canManageItems, logout, isLoggingOut } = useContext(GlobalContext);
   const visible = usePageVisible();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const backdropPointerDown = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
     sync: null,
@@ -198,6 +192,26 @@ export default function AdminConsole({
       id="admin-console"
       ref={dialogRef}
       aria-labelledby="admin-console-title"
+      onPointerDown={(event) => {
+        backdropPointerDown.current =
+          event.button === 0 && event.target === event.currentTarget;
+      }}
+      onPointerUp={(event) => {
+        if (
+          !backdropPointerDown.current ||
+          event.target !== event.currentTarget
+        )
+          return;
+        const { left, right, top, bottom } =
+          event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < left ||
+          event.clientX > right ||
+          event.clientY < top ||
+          event.clientY > bottom
+        )
+          closeDialog();
+      }}
       onCancel={(event) => {
         event.preventDefault();
         closeDialog();
@@ -269,22 +283,7 @@ export default function AdminConsole({
               </button>
             ))}
           </div>
-          <div
-            role="group"
-            aria-label="会话操作"
-            className="grid grid-cols-2 gap-1"
-          >
-            <button
-              type="button"
-              className={headerActionClass}
-              onClick={() => {
-                closeDialog();
-                setView("public");
-              }}
-            >
-              <Icon path={mdiEyeOutline} size={0.75} aria-hidden="true" />
-              访客预览
-            </button>
+          <div role="group" aria-label="会话操作" className="grid">
             <button
               type="button"
               className={headerActionClass}
