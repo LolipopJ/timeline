@@ -97,6 +97,6 @@ openspec/                      规格及变更规划
 
 ## OpenSpec 与文档维护
 
-已有 OpenSpec 变更时先阅读其 proposal、design、specs 和 tasks，使用与用户请求匹配的 `.agents/skills/openspec-*` 工作流。规划中的能力不能写成当前实现；普通局部修改不自动扩展为新的规划流程。
-
-遵守 `openspec/config.yaml`：OpenSpec artifacts 使用简体中文，保留英文结构标题及 `SHALL`、`MUST` 关键词。接口、配置、运行或部署方式变化时同步更新相关文档和示例；文档只描述有效的当前行为，不保留废弃路径或虚构的门禁。
+- 已有 OpenSpec 变更时先阅读其 proposal、design、specs 和 tasks，使用与用户请求匹配的 `.agents/skills/openspec-*` 工作流。规划中的能力不能写成当前实现；普通局部修改不自动扩展为新的规划流程。
+- 遵守 `openspec/config.yaml`：OpenSpec artifacts 使用简体中文，保留英文结构标题及 `SHALL`、`MUST` 关键词。接口、配置、运行或部署方式变化时同步更新相关文档和示例；文档只描述有效的当前行为，不保留废弃路径或虚构的门禁。
+- 根目录 `README.md` 使用简体中文，依次介绍项目、给出快速开始、链接详细文档。开头用一段话说明用途和主要能力。快速开始只保留从源码启动所需的依赖、最少配置、命令和访问地址。将配置示例、来源参数、完整开发命令和部署步骤按主题维护在 `docs/`，从 README 用相对链接指向对应指南。改动时对照源码和配置核对命令、路径与功能描述。
