@@ -4,6 +4,8 @@ import {
   mdiCommentText,
   mdiEyeOffOutline,
   mdiEyeOutline,
+  mdiFilterOutline,
+  mdiLinkVariant,
   mdiOpenInNew,
   mdiRssBox,
   mdiStarShooting,
@@ -23,12 +25,19 @@ import type { SWRInfiniteKeyedMutator } from "swr/infinite";
 import message from "@/components/Message";
 import GlobalContext from "@/contexts/GlobalContext";
 import { fetcherDELETE, fetcherPATCH } from "@/services/axios";
+import {
+  getTimelineFilterUrl,
+  type TimelineFilters,
+  type TimelineFiltersChange,
+} from "@/utils/timelineFilters";
 
 export interface TimelineItemLabelProps {
   item: TimelineItemClient;
   mutateTimelineItems: SWRInfiniteKeyedMutator<TimelineItemClient[][]>;
   displayedDateTime?: GetTimelineItemsParams["orderBy"];
   className?: string;
+  filters: TimelineFilters;
+  onFiltersChange: TimelineFiltersChange;
 }
 
 const LABEL_ICON_PATH: Partial<Record<SyncServiceType, string>> = {
@@ -69,6 +78,8 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     },
     displayedDateTime = "created_at",
     mutateTimelineItems,
+    filters,
+    onFiltersChange,
     className = "",
     ...rest
   } = props;
@@ -93,6 +104,20 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   function closeMenu() {
     setMenuOpen(false);
     menuButtonRef.current?.focus({ preventScroll: true });
+  }
+
+  async function shareItem() {
+    const next = { orderBy: filters.orderBy, search: "", id };
+    const link = new URL(
+      getTimelineFilterUrl(window.location.pathname, next),
+      window.location.origin,
+    ).href;
+    try {
+      await navigator.clipboard.writeText(link);
+      message.success("分享链接已复制");
+    } catch {
+      message.error("复制失败，请检查剪贴板权限后重试");
+    }
   }
 
   const updateTimelineItemsCache = (
@@ -158,7 +183,6 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
   const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
 
-  const hasMenu = canManageItems || url;
   const sourceIconColor = LABEL_ICON_COLOR[sync_service_type];
   const source = (
     <>
@@ -207,23 +231,17 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           }
         }}
       >
-        {hasMenu ? (
-          <button
-            ref={menuButtonRef}
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-expanded={menuOpen}
-            className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-sm font-medium hover:text-primary"
-          >
-            {source}
-          </button>
-        ) : (
-          <span className="flex min-h-8 items-center gap-1.5 font-medium">
-            {source}
-          </span>
-        )}
-        {hasMenu && menuOpen && (
-          <div className="absolute top-full left-0 z-10 w-32 rounded-md border border-control bg-background-light text-sm font-normal shadow-lg">
+        <button
+          ref={menuButtonRef}
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-expanded={menuOpen}
+          className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-sm font-medium hover:text-primary"
+        >
+          {source}
+        </button>
+        {menuOpen && (
+          <div className="absolute top-full left-0 z-10 w-max rounded-md border border-control bg-background-light text-sm font-normal shadow-lg">
             <ul className="p-1">
               {url ? (
                 <li>
@@ -237,6 +255,36 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                   </a>
                 </li>
               ) : null}
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMenu();
+                    void shareItem();
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"
+                >
+                  <Icon path={mdiLinkVariant} size={0.7} aria-hidden="true" />
+                  复制分享链接
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMenu();
+                    onFiltersChange((current) => ({
+                      ...current,
+                      id: undefined,
+                      serviceId: sync_service_id,
+                    }));
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"
+                >
+                  <Icon path={mdiFilterOutline} size={0.7} aria-hidden="true" />
+                  只看当前类型
+                </button>
+              </li>
               {canManageItems ? (
                 <>
                   <li>

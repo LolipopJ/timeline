@@ -45,8 +45,9 @@ const coordinator = createSyncCoordinator(
 );
 const initializeDatabase = mock(async () => {});
 const destroyDatabase = mock(async () => {});
+const secretItemId = "6f1e6c1a-6a1f-4b0e-8f3f-2a1e3f6c9d10";
 const items: TimelineItem[] = Array.from({ length: 12 }, (_, index) => ({
-  id: `item-${index}`,
+  id: index === 1 ? secretItemId : `item-${index}`,
   content_id: String(index),
   sync_service_id: "feed",
   sync_service_type: SyncServiceType.FEED,
@@ -71,8 +72,10 @@ const selectItems = (options: FindManyOptions<TimelineItem>) => {
   const conditions = Array.isArray(options.where)
     ? options.where
     : [options.where ?? {}];
-  return items.filter((item) =>
-    conditions.some((condition) => matches(item, condition)),
+  return items.filter(
+    (item) =>
+      !item.deleted_at &&
+      conditions.some((condition) => matches(item, condition)),
   );
 };
 mock.module("../configs/server", () => ({ default: config }));
@@ -86,6 +89,9 @@ mock.module("./database/controller/timeline-item", () => ({
     ),
   countTimelineItems: async (options: FindManyOptions<TimelineItem>) =>
     selectItems(options).length,
+  getTimelineServiceIds: async (options: FindManyOptions<TimelineItem>) => [
+    ...new Set(selectItems(options).map((item) => item.sync_service_id)),
+  ],
   updateTimelineItem: async () => ({}),
   softDeleteTimelineItem: async () => ({}),
   restoreSoftDeletedTimelineItem: async () => ({}),
@@ -152,6 +158,97 @@ test("public reads filter before search, paging and counts, and admin view never
   expect(await (await request("/timeline-items/count")).json()).toBe(
     adminEnabled ? 12 : 4,
   );
+});
+
+test("ID filtering preserves visibility and intersects both keyword branches before counts", async () => {
+  for (const suffix of ["", "/count"]) {
+    const path = `/timeline-items${suffix}?id=${secretItemId}`;
+    for (const [query, loggedIn] of [
+      ["&view=admin", false],
+      ["&view=public", true],
+      ["&view=public&search=fixture", true],
+    ] as const) {
+      const response = await request(path + query, "GET", loggedIn);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(await response.json()).toEqual(suffix ? 0 : []);
+    }
+    for (const search of ["", "fixture", "searchable"]) {
+      const response = await request(`${path}&view=admin&search=${search}`);
+      const result = await response.json();
+      if (suffix) expect(result).toBe(adminEnabled ? 1 : 0);
+      else
+        expect(result).toEqual(
+          adminEnabled ? [expect.objectContaining({ id: secretItemId })] : [],
+        );
+    }
+    expect(
+      await (await request(`${path}&search=does-not-match`)).json(),
+    ).toEqual(suffix ? 0 : []);
+    expect(await (await request(`${path}&serviceId=other`)).json()).toEqual(
+      suffix ? 0 : [],
+    );
+    const missing = await request(
+      `/timeline-items${suffix}?id=00000000-0000-4000-8000-000000000000`,
+    );
+    expect(missing.status).toBe(200);
+    expect(await missing.json()).toEqual(suffix ? 0 : []);
+    for (const id of ["", "hello", `${secretItemId}x`]) {
+      const invalid = await request(`/timeline-items${suffix}?id=${id}`);
+      expect(invalid.status).toBe(400);
+      expect(invalid.headers.get("cache-control")).toBe("private, no-store");
+    }
+  }
+});
+
+test("the public service catalog exposes only IDs even without administrator access", async () => {
+  const response = await request("/timeline-services", "GET", false);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  expect(await response.json()).toEqual(["feed"]);
+});
+
+test("service catalog includes stored sources within the same visibility and soft-delete boundary", async () => {
+  const original = [
+    items[0].sync_service_id,
+    items[1].sync_service_id,
+    items[3].sync_service_id,
+  ];
+  items[0].sync_service_id = "retired-public";
+  items[1].sync_service_id = "retired-private";
+  items[3].sync_service_id = "retired-deleted";
+  items[3].deleted_at = new Date();
+  try {
+    for (const [view, loggedIn] of [
+      ["public", true],
+      ["admin", false],
+      ["admin", true],
+    ] as const) {
+      const response = await request(
+        `/timeline-services?view=${view}`,
+        "GET",
+        loggedIn,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      const ids = await response.json();
+      expect(ids).toEqual([
+        "feed",
+        "retired-public",
+        ...(adminEnabled && loggedIn && view === "admin"
+          ? ["retired-private"]
+          : []),
+      ]);
+    }
+    expect((await request("/timeline-services?view=unknown")).status).toBe(400);
+  } finally {
+    [
+      items[0].sync_service_id,
+      items[1].sync_service_id,
+      items[3].sync_service_id,
+    ] = original;
+    delete items[3].deleted_at;
+  }
 });
 
 test("existing item mutation routes retain their authentication boundary", async () => {

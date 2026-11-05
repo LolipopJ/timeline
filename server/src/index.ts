@@ -18,12 +18,17 @@ import schedule from "node-schedule";
 import config from "../configs/server";
 import { getAdminLogs, getAdminSyncStatus, requestAdminSync } from "./admin";
 import { serializeTimelineItem } from "./api/serializers";
-import { getTimelineWhere, isTimelineView } from "./api/timeline-query";
+import {
+  getTimelineWhere,
+  isTimelineItemId,
+  isTimelineView,
+} from "./api/timeline-query";
 import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import { destroyDatabase, initializeDatabase } from "./database";
 import {
   countTimelineItems,
   getTimelineItems,
+  getTimelineServiceIds,
   restoreSoftDeletedTimelineItem,
   softDeleteTimelineItem,
   updateTimelineItem,
@@ -240,6 +245,7 @@ export const app = new Elysia()
         path.startsWith("/admin/") ||
         path === "/timeline-items" ||
         path === "/timeline-items/count" ||
+        path === "/timeline-services" ||
         path === "/login"
       ) {
         set.headers["cache-control"] = "private, no-store";
@@ -294,9 +300,27 @@ export const app = new Elysia()
   })
   //#region 时间线接口
   .get(
+    "/timeline-services",
+    async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
+      const { view } = query;
+      if (!isTimelineView(view)) {
+        set.status = 400;
+        return "时间线视角参数无效";
+      }
+      const ids = await getTimelineServiceIds({
+        where: getTimelineWhere(
+          { view },
+          Boolean(IS_ADMIN_ENABLED && cookieToken.value),
+        ),
+      });
+      return [...new Set([...config.services.map(({ id }) => id), ...ids])];
+    },
+  )
+  .get(
     "/timeline-items",
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       const {
+        id,
         page = "0",
         limit = "20",
         orderBy = "created_at",
@@ -305,6 +329,11 @@ export const app = new Elysia()
         search,
         view,
       } = query as GetTimelineItemsParams;
+
+      if (!isTimelineItemId(id)) {
+        set.status = 400;
+        return "时间线 ID 参数无效";
+      }
 
       if (!isTimelineView(view)) {
         set.status = 400;
@@ -327,7 +356,7 @@ export const app = new Elysia()
       }
 
       const where = getTimelineWhere(
-        { serviceId, serviceType, search, view },
+        { id, serviceId, serviceType, search, view },
         Boolean(IS_ADMIN_ENABLED && cookieToken.value),
       );
 
@@ -353,14 +382,18 @@ export const app = new Elysia()
   .get(
     "/timeline-items/count",
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
-      const { serviceId, serviceType, search, view } =
+      const { id, serviceId, serviceType, search, view } =
         query as CountTimelineItemsParams;
+      if (!isTimelineItemId(id)) {
+        set.status = 400;
+        return "时间线 ID 参数无效";
+      }
       if (!isTimelineView(view)) {
         set.status = 400;
         return "时间线视角参数无效";
       }
       const where = getTimelineWhere(
-        { serviceId, serviceType, search, view },
+        { id, serviceId, serviceType, search, view },
         Boolean(IS_ADMIN_ENABLED && cookieToken.value),
       );
       const timelineItemsCount = await countTimelineItems({ where });

@@ -7,11 +7,7 @@ import {
   mdiSlashForwardBox,
 } from "@mdi/js";
 import Icon from "@mdi/react";
-import type {
-  GetTimelineItemsParams,
-  TimelineItemClient,
-} from "@timeline/contracts";
-import { SyncServiceType } from "@timeline/contracts";
+import type { TimelineItemClient } from "@timeline/contracts";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -22,20 +18,25 @@ import {
   useState,
 } from "react";
 import type { KeyLoader } from "swr";
-import { SWRConfig } from "swr";
+import useSWR, { SWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 
 import AdminConsole from "@/components/AdminConsole";
 import TimelineCurrentDate from "@/components/TimelineCurrentDate";
 import TimelineItem from "@/components/TimelineItem";
-import TimelineSearch, {
-  type TimelineSearchProps,
-} from "@/components/TimelineSearch";
+import TimelineSearch from "@/components/TimelineSearch";
 import TimelineTools from "@/components/TimelineTools";
 import GlobalContext from "@/contexts/GlobalContext";
-import useDebounce from "@/hooks/useDebounce";
 import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
+import {
+  areTimelineFiltersEqual,
+  getTimelineFilterUrl,
+  getTimelineRequestParams,
+  parseTimelineSearch,
+  type TimelineFilters,
+  type TimelineFiltersChange,
+} from "@/utils/timelineFilters";
 
 const PAGE_LIMIT = 20;
 const EMPTY_PAGES: TimelineItemClient[][] = [[]];
@@ -81,47 +82,94 @@ export default function TimelineHome() {
   const urlSearchParams = useSearchParams();
   const { isLoggedIn, view } = useContext(GlobalContext);
   const previewFocusRef = useRef(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const pendingFilters = useRef<
+    { key: string; value: TimelineFilters } | undefined
+  >(undefined);
 
-  const [searchParamsState, setSearchParamsState] =
-    useState<GetTimelineItemsParams>({
-      search: urlSearchParams.get("search") ?? "",
+  const {
+    data: serviceIds,
+    error: servicesError,
+    mutate: reloadServices,
+  } = useSWR<string[]>(
+    `/timeline-services?view=${isLoggedIn && view === "admin" ? "admin" : "public"}`,
+    fetcherGET,
+    {
+      revalidateOnFocus: false,
+    },
+  );
+  const filters = useMemo<TimelineFilters>(
+    () => ({
+      ...parseTimelineSearch(
+        urlSearchParams.get("search") ?? "",
+        serviceIds ?? [],
+      ),
       orderBy:
         urlSearchParams.get("orderBy") === "updated_at"
           ? "updated_at"
           : "created_at",
-      serviceId: urlSearchParams.get("serviceId") ?? undefined,
-      serviceType: Object.values(SyncServiceType).find(
-        (type) => type === urlSearchParams.get("serviceType"),
-      ),
-    });
-  const debouncedSearchParams = useDebounce(searchParamsState, 500);
-  const isFirstRender = useRef(true);
+    }),
+    [urlSearchParams, serviceIds],
+  );
+  const changeFilters = useCallback<TimelineFiltersChange>(
+    (update, mode) => {
+      const key = urlSearchParams.toString();
+      if (new URLSearchParams(window.location.search).toString() !== key)
+        return;
+      clearTimeout(searchTimer.current);
+      const current =
+        pendingFilters.current?.key === key
+          ? pendingFilters.current.value
+          : filters;
+      const next = typeof update === "function" ? update(current) : update;
+      pendingFilters.current = { key, value: next };
+      const commit = () => {
+        if (
+          new URLSearchParams(window.location.search).toString() !==
+          urlSearchParams.toString()
+        )
+          return;
+        pendingFilters.current = undefined;
+        if (!areTimelineFiltersEqual(filters, next))
+          router.replace(getTimelineFilterUrl(pathname, next), {
+            scroll: false,
+          });
+      };
+      if (mode === "draft") return;
+      if (mode === "debounce") searchTimer.current = setTimeout(commit, 500);
+      else commit();
+    },
+    [filters, pathname, router, urlSearchParams],
+  );
+  useEffect(
+    () => () => {
+      clearTimeout(searchTimer.current);
+      pendingFilters.current = undefined;
+    },
+    [urlSearchParams],
+  );
 
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    const params = new URLSearchParams();
-    if (debouncedSearchParams.search)
-      params.set("search", debouncedSearchParams.search);
-    if (debouncedSearchParams.serviceId)
-      params.set("serviceId", debouncedSearchParams.serviceId);
-    if (debouncedSearchParams.serviceType)
-      params.set("serviceType", debouncedSearchParams.serviceType);
-    if (
-      debouncedSearchParams.orderBy &&
-      debouncedSearchParams.orderBy !== "created_at"
-    )
-      params.set("orderBy", debouncedSearchParams.orderBy);
-    const queryString = params.toString();
-    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-    const currentQueryString = urlSearchParams.toString();
-    const currentUrl = currentQueryString
-      ? `${pathname}?${currentQueryString}`
-      : pathname;
-    if (newUrl !== currentUrl) router.replace(newUrl, { scroll: false });
-  }, [debouncedSearchParams, pathname, router, urlSearchParams]);
+  if (!serviceIds)
+    return (
+      <div className="my-12 text-center text-foreground-dark">
+        {servicesError ? (
+          <>
+            <p role="alert">筛选来源加载失败</p>
+            <button
+              type="button"
+              className="mt-3 cursor-pointer rounded-md border border-control px-3 py-2 hover:bg-background-lighter"
+              onClick={() => void reloadServices()}
+            >
+              重试加载
+            </button>
+          </>
+        ) : (
+          <p role="status">正在加载筛选来源</p>
+        )}
+      </div>
+    );
 
   return (
     <SWRConfig
@@ -129,9 +177,10 @@ export default function TimelineHome() {
       value={DATA_CACHE}
     >
       <TimelineData
-        searchParamsState={searchParamsState}
-        setSearchParamsState={setSearchParamsState}
-        debouncedSearchParams={debouncedSearchParams}
+        filters={filters}
+        serviceIds={serviceIds}
+        onFiltersChange={changeFilters}
+        searchKey={urlSearchParams.toString()}
         previewFocusRef={previewFocusRef}
       />
     </SWRConfig>
@@ -139,16 +188,16 @@ export default function TimelineHome() {
 }
 
 function TimelineData({
-  searchParamsState,
-  setSearchParamsState,
-  debouncedSearchParams,
+  filters,
+  serviceIds,
+  onFiltersChange,
+  searchKey,
   previewFocusRef,
 }: {
-  searchParamsState: GetTimelineItemsParams;
-  setSearchParamsState: React.Dispatch<
-    React.SetStateAction<GetTimelineItemsParams>
-  >;
-  debouncedSearchParams: GetTimelineItemsParams;
+  filters: TimelineFilters;
+  serviceIds: string[];
+  onFiltersChange: TimelineFiltersChange;
+  searchKey: string;
   previewFocusRef: React.RefObject<boolean>;
 }) {
   const { view, canManageItems } = useContext(GlobalContext);
@@ -171,20 +220,24 @@ function TimelineData({
     };
   }, []);
 
-  const orderBy = debouncedSearchParams.orderBy ?? "created_at";
+  const queryParams = useMemo(
+    () => getTimelineRequestParams(filters),
+    [filters],
+  );
+  const orderBy = filters.orderBy;
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
 
   const getTimelineItemsKey = useCallback<NonNullable<KeyLoader>>(
     (pageIndex, previousPageData) => {
       if (previousPageData?.length < PAGE_LIMIT) return null;
       return `/timeline-items?${getSearchParamsFromObject({
-        ...debouncedSearchParams,
+        ...queryParams,
         view,
         page: pageIndex,
         limit: PAGE_LIMIT,
       })}`;
     },
-    [debouncedSearchParams, view],
+    [queryParams, view],
   );
   const {
     data: timelineItems = EMPTY_PAGES,
@@ -221,7 +274,7 @@ function TimelineData({
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
-  }, [debouncedSearchParams]);
+  }, [queryParams]);
 
   useEffect(() => {
     if (isFullyLoaded || isValidatingTimelineItems || queryTimelineItemsError)
@@ -295,12 +348,6 @@ function TimelineData({
     };
   }, [years]);
 
-  const timelineSearchProps: TimelineSearchProps = {
-    value: searchParamsState,
-    onChange: setSearchParamsState,
-    onClear: () => setSearchParamsState((prev) => ({ ...prev, search: "" })),
-  };
-
   return (
     <div
       ref={timelineRef}
@@ -316,7 +363,13 @@ function TimelineData({
           className="flex min-w-0 flex-1 items-center gap-2 self-stretch sm:gap-3 lg:flex-none lg:flex-col lg:items-stretch lg:gap-5"
         >
           <TimelineCurrentDate month={currentMonth} />
-          <TimelineSearch {...timelineSearchProps} className="min-w-0 flex-1" />
+          <TimelineSearch
+            searchKey={searchKey}
+            value={filters}
+            serviceIds={serviceIds}
+            onChange={onFiltersChange}
+            className="min-w-0 flex-1"
+          />
           <TimelineTools previewFocusRef={previewFocusRef} />
         </div>
       </aside>
@@ -356,6 +409,8 @@ function TimelineData({
                       item={item}
                       displayedDateTime={orderBy}
                       mutateTimelineItems={mutateTimelineItems}
+                      filters={filters}
+                      onFiltersChange={onFiltersChange}
                       data-month-start={index === 0 ? key : undefined}
                     />
                   ))}

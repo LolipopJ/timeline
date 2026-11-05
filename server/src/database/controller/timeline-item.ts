@@ -68,6 +68,19 @@ export const countTimelineItems = async (
   return await dataSource.getRepository(TimelineItem).count(options);
 };
 
+export const getTimelineServiceIds = async (
+  options: FindManyOptions<TimelineItem>,
+) => {
+  const sources = await dataSource
+    .getRepository(TimelineItem)
+    .createQueryBuilder("item")
+    .select("item.sync_service_id", "id")
+    .distinct(true)
+    .setFindOptions(options)
+    .getRawMany<{ id: string }>();
+  return sources.map(({ id }) => id);
+};
+
 export const softDeleteTimelineItem = async (id: string) => {
   return await dataSource.getRepository(TimelineItem).softDelete({ id });
 };

@@ -31,6 +31,18 @@ export interface ServerConfig {
    */
   githubPersonalAccessToken?: string;
   /**
+   * 预留：PSN 奖杯同步首次授权的 NPSSO，仅保留在服务端配置中。
+   * 当前尚未接入授权或同步，填写不会触发请求。
+   * @link https://psn-api.achievements.app/authentication/authenticating-manually
+   */
+  psnNpsso?: string;
+  /**
+   * 预留：Xbox 可刷新 TokenStore 文件的绝对路径，由 xal-node 登录生成。
+   * 当前尚未读取会话文件或启用同步。
+   * @link https://unknownskl.github.io/xal-node/docs/cli
+   */
+  xboxTokenStorePath?: string;
+  /**
    * 访问 Steam API 的令牌。同步包含 Steam 相关的服务时需要提供
    * @link https://steamcommunity.com/dev/apikey
    */

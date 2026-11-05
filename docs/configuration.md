@@ -60,6 +60,18 @@ Steam 近期游戏时长来源需要在服务端配置顶层填写 `steamWebAPIK
 
 QQ 空间来源需要扫码授权。以管理员身份登录客户端后，在同一浏览器访问服务端的 `/qzone-login?qqNumber=<QQ号>`，扫码并确认登录。完成后可手动触发同步，也可等待下一次定时同步。QQ 空间视频切片使用 `ffmpeg-static`。
 
+## 游戏奖杯凭据预填
+
+游戏奖杯同步尚未实现，目前只在配置类型中预留授权参数。可先在本地 `server/configs/server.ts` 的配置对象顶层填写下列字段；`server/src/types/config.ts` 只定义类型，不填写真实令牌。现阶段填写 PSN、Xbox 参数不会执行登录、读取会话文件或启用同步，`services` 中也尚无对应来源可添加。
+
+| 字段                 | 需要填写的内容                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `psnNpsso`           | PSN 首次授权的 NPSSO，按 [psn-api 授权指南](https://psn-api.achievements.app/authentication/authenticating-manually) 在已登录的浏览器中获取。                                  |
+| `xboxTokenStorePath` | 通过 [xal-node 的 Microsoft 登录流程](https://unknownskl.github.io/xal-node/docs/cli) 生成的 TokenStore 文件绝对路径。该文件保存可刷新的会话，不能用短期 XSTS 字符串代替路径。 |
+| `steamWebAPIKey`     | 已有的 [Steam Web API Key](https://steamcommunity.com/dev/apikey)，正式接入 Steam 成就同步时复用。                                                                             |
+
+Xbox 路径可按示例填写为 `C:/path/to/timeline/server/.temporary/xbox.tokens.json`，将示例目录换成实际绝对路径；其他系统使用对应的绝对路径。授权工具目前未随仓库安装，文件生成步骤以其上游指南为准。令牌与会话文件只保留在服务端或本地运行数据中，不写入示例、客户端或 Git 提交。
+
 ## 同步频率
 
 全局 `syncInterval` 默认为 `*/30 * * * *`，即每小时的第 0 和第 30 分钟。单个来源可用同名字段覆盖，例如 `0 * * * *` 表示每小时整点同步。

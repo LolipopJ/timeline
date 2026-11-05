@@ -16,6 +16,8 @@ async function backend(page: Page) {
   const state = {
     loggedIn: true,
     failLogout: false,
+    failServices: false,
+    serviceIds: ["feed", "github"],
     expireLogs: false,
     expireSync: false,
     loseAcceptance: false,
@@ -35,6 +37,7 @@ async function backend(page: Page) {
       page: string | null;
       search: string | null;
       serviceId: string | null;
+      id: string | null;
       orderBy: string | null;
     }[],
   };
@@ -48,6 +51,7 @@ async function backend(page: Page) {
         "/logout",
         "/timeline-items",
         "/timeline-items/count",
+        "/timeline-services",
         "/admin/sync",
         "/admin/logs",
       ].includes(path) &&
@@ -61,6 +65,7 @@ async function backend(page: Page) {
       page: url.searchParams.get("page"),
       search: url.searchParams.get("search"),
       serviceId: url.searchParams.get("serviceId"),
+      id: url.searchParams.get("id"),
       orderBy: url.searchParams.get("orderBy"),
     });
     const headers = {
@@ -72,6 +77,25 @@ async function backend(page: Page) {
     };
     if (request.method() === "OPTIONS")
       return route.fulfill({ status: 204, headers });
+    if (path === "/timeline-services")
+      return state.failServices
+        ? route.fulfill({ status: 503, body: "unavailable", headers })
+        : route.fulfill({
+            json: [
+              ...new Set([
+                ...state.serviceIds,
+                ...(state.archiveItems ?? [])
+                  .filter(
+                    (item) =>
+                      (state.loggedIn &&
+                        url.searchParams.get("view") !== "public") ||
+                      !item.is_secret,
+                  )
+                  .map((item) => item.sync_service_id),
+              ]),
+            ],
+            headers,
+          });
     if (request.method() === "PATCH" && path.startsWith("/timeline-items/"))
       return route.fulfill({ json: {}, headers });
     if (path === "/login") {
@@ -151,7 +175,7 @@ async function backend(page: Page) {
       return route.fulfill({ json: { records }, headers });
     }
     const isAdmin = state.loggedIn && url.searchParams.get("view") !== "public";
-    if (path.endsWith("/count"))
+    if (path.endsWith("/count") && !state.archiveItems)
       return route.fulfill({
         json: state.multiPage ? (isAdmin ? 45 : 25) : isAdmin ? 2 : 1,
         headers,
@@ -183,6 +207,10 @@ async function backend(page: Page) {
           .filter(
             (item) =>
               (isAdmin || !item.is_secret) &&
+              (!url.searchParams.has("id") ||
+                item.id === url.searchParams.get("id")) &&
+              (!url.searchParams.has("serviceId") ||
+                item.sync_service_id === url.searchParams.get("serviceId")) &&
               item.title?.includes(url.searchParams.get("search") ?? ""),
           )
           .sort((a, b) => {
@@ -195,6 +223,8 @@ async function backend(page: Page) {
       : isAdmin
         ? [...privateItems, ...publicItems]
         : publicItems;
+    if (path.endsWith("/count"))
+      return route.fulfill({ json: allItems.length, headers });
     const pageIndex = Number(url.searchParams.get("page") ?? 0);
     if (pageIndex === state.failTimelinePage)
       return route.fulfill({ status: 500, body: "failed", headers });
@@ -215,6 +245,556 @@ async function showToolbarControls(page: Page) {
   if (await theme.isHidden())
     await page.getByRole("button", { name: "时间线菜单" }).click();
 }
+
+const searchFixture = (): TimelineItemClient[] => [
+  {
+    id: "6f1e6c1a-6a1f-4b0e-8f3f-2a1e3f6c9d10",
+    content_id: "travel",
+    sync_service_id: "feed",
+    sync_service_type: SyncServiceType.FEED,
+    title: "旅行文章",
+    content: "<p>旅行内容</p>",
+    created_at: "2025-01-01T00:00:00Z",
+    updated_at: "2026-11-01T00:00:00Z",
+    is_secret: false,
+  },
+  {
+    id: "6f1e6c1a-6a1f-4b0e-8f3f-2a1e3f6c9d11",
+    content_id: "reading",
+    sync_service_id: "github",
+    sync_service_type: SyncServiceType.FEED,
+    title: "读书评论",
+    created_at: "2026-02-01T00:00:00Z",
+    updated_at: "2025-12-01T00:00:00Z",
+    is_secret: false,
+  },
+  {
+    id: "6f1e6c1a-6a1f-4b0e-8f3f-2a1e3f6c9d12",
+    content_id: "secret",
+    sync_service_id: "feed",
+    sync_service_type: SyncServiceType.FEED,
+    title: "私密旅行",
+    created_at: "2024-03-01T00:00:00Z",
+    updated_at: "2025-04-01T00:00:00Z",
+    is_secret: true,
+  },
+];
+
+test("structured timeline filters restore URL history and cancel pending keywords", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = searchFixture();
+  state.loggedIn = false;
+  await page.goto("/?search=旅行%20type:feed&orderBy=updated_at&ignored=yes");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await expect(input).toHaveValue("旅行");
+  await expect(
+    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "2026", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(input).toHaveValue("旅行");
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await page.evaluate(() =>
+    window.history.pushState(null, "", "/?search=读书&orderBy=created_at"),
+  );
+  await expect(input).toHaveValue("读书");
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await input.fill("尚未提交");
+  await page.goBack();
+  await expect(input).toHaveValue("旅行");
+  await page.waitForTimeout(650);
+  expect(new URL(page.url()).searchParams.get("search")).toBe("旅行 type:feed");
+  await page.goForward();
+  await expect(input).toHaveValue("读书");
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "搜索排序" }).click();
+  await page.getByRole("button", { name: "按更新时间排序" }).click();
+  await expect(page).toHaveURL(/orderBy=updated_at/);
+  await expect(
+    page.getByRole("heading", { name: "2025", exact: true }),
+  ).toBeVisible();
+});
+
+test("structured conditions are removable, exclusive, and invalid syntax stays searchable", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = searchFixture();
+  state.loggedIn = false;
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  const id = state.archiveItems[0].id;
+  await input.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }),
+    );
+  }, `id:${id}`);
+  await expect(
+    page.getByRole("button", { name: `移除 id:${id}`, exact: true }),
+  ).toBeVisible();
+  await expect(input).toHaveValue("");
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "当前阅读年月" })).toContainText(
+    "2025 年 01 月",
+  );
+  await page.screenshot({
+    path: test.info().outputPath("timeline-search-id.png"),
+  });
+  await input.fill("读书 type:github");
+  await input.press("Enter");
+  await expect(
+    page.getByRole("button", { name: `移除 id:${id}`, exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "移除 type:github", exact: true }),
+  ).toBeVisible();
+  await expect(input).toHaveValue("读书");
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "移除 type:github", exact: true })
+    .click();
+  await expect(page).toHaveURL(/search=%E8%AF%BB%E4%B9%A6$/);
+  const historyLength = await page.evaluate(() => window.history.length);
+  await input.fill("id:hello type:unknown");
+  await expect
+    .poll(
+      () =>
+        state.requests.filter((r) => r.path === "/timeline-items").at(-1)
+          ?.search,
+    )
+    .toBe("id:hello type:unknown");
+  expect(
+    state.requests.filter((r) => r.path === "/timeline-items").at(-1)?.id,
+  ).toBeNull();
+  expect(
+    state.requests.filter((r) => r.path === "/timeline-items").at(-1)
+      ?.serviceId,
+  ).toBeNull();
+  expect(await page.evaluate(() => window.history.length)).toBe(historyLength);
+  await expect(input).toHaveValue("id:hello type:unknown");
+  await expect(
+    page.getByRole("status").filter({ hasText: "没有找到相关内容" }),
+  ).toBeVisible();
+  await input.fill(`id:${id}`);
+  await input.press("Enter");
+  await page
+    .getByRole("button", { name: `移除 id:${id}`, exact: true })
+    .click();
+  await expect(input).toHaveValue("");
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    page.viewportSize()!.width,
+  );
+});
+
+test("source menus share single items and filter types without changing state on clipboard failure", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = searchFixture();
+  state.loggedIn = false;
+  let copied = "";
+  await page.exposeFunction("captureTimelineLink", (value: string) => {
+    copied = value;
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (value: string) =>
+          Reflect.get(window, "captureTimelineLink")(value),
+      },
+    });
+  });
+  await page.goto("/");
+  const id = state.archiveItems[0].id;
+  await page
+    .locator(`[id="${id}"]`)
+    .getByRole("button", { name: "feed", exact: true })
+    .click();
+  await page.getByRole("button", { name: "只看当前类型", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "feed", exact: true }).click();
+  const beforeCopy = page.url();
+  await page.getByRole("button", { name: "复制分享链接", exact: true }).click();
+  await expect.poll(() => copied).not.toBe("");
+  await expect(page.getByText("分享链接已复制", { exact: true })).toBeVisible();
+  await page.waitForTimeout(650);
+  expect(new URL(copied).searchParams.get("search")).toBe(`id:${id}`);
+  await expect(page).toHaveURL(beforeCopy);
+  await expect(
+    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+  ).toBeVisible();
+  await page.goto(copied);
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `移除 id:${id}`, exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: `移除 id:${id}`, exact: true })
+    .click();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  const before = page.url();
+  await page.evaluate(() =>
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      value: async () => {
+        throw new Error("denied");
+      },
+    }),
+  );
+  await page
+    .locator(`[id="${id}"]`)
+    .getByRole("button", { name: "feed", exact: true })
+    .click();
+  await page.getByRole("button", { name: "复制分享链接", exact: true }).click();
+  await expect(
+    page.getByText("复制失败，请检查剪贴板权限后重试", { exact: true }),
+  ).toBeVisible();
+  expect(page.url()).toBe(before);
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+});
+
+test("source IDs with spaces and apostrophes restore and filter every matching item", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  const source = "Lolipop's Thoughts";
+  state.serviceIds.push("Lolipop's", source);
+  state.archiveItems = searchFixture().map((item, index) => ({
+    ...item,
+    sync_service_id: index < 2 ? source : "other",
+    is_secret: false,
+    title: index < 2 ? item.title : "其它来源",
+  }));
+  await page.goto("/?search=type%3ALolipop%27s+Thoughts");
+  const tag = page.getByRole("button", {
+    name: `移除 type:${source}`,
+    exact: true,
+  });
+  await expect(tag).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "搜索时间线" })).toHaveValue(
+    "",
+  );
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await expect(page.getByText("其它来源", { exact: true })).toHaveCount(0);
+  expect(
+    state.requests
+      .filter((request) => request.path === "/timeline-items")
+      .at(-1)?.serviceId,
+  ).toBe(source);
+  expect(
+    state.requests
+      .filter((request) => request.path === "/timeline-items")
+      .at(-1)?.search,
+  ).toBeNull();
+  await tag.click();
+  await expect(page.getByText("其它来源", { exact: true })).toBeVisible();
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await input.pressSequentially(`type:${source}`);
+  await input.press("Enter");
+  await expect(tag).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await tag.click();
+  await expect(page.getByText("其它来源", { exact: true })).toBeVisible();
+  await page
+    .locator(`[id="${state.archiveItems[0].id}"]`)
+    .getByRole("button", { name: source, exact: true })
+    .click();
+  await page.getByRole("button", { name: "只看当前类型", exact: true }).click();
+  await expect(tag).toBeVisible();
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await expect(page.getByText("其它来源", { exact: true })).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("search")).toBe(`type:${source}`);
+  await page.reload();
+  await expect(tag).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+});
+
+test("source menu puts link opening before sharing and type filtering", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  await page.goto("/");
+  const source = page.getByRole("button", { name: "feed", exact: true });
+  await source.click();
+  await expect(source.locator("..").locator("ul > li")).toHaveText([
+    "打开链接",
+    "复制分享链接",
+    "只看当前类型",
+  ]);
+});
+
+test("service catalog failure gates structured requests and can be retried", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = searchFixture();
+  state.loggedIn = false;
+  state.failServices = true;
+  await page.goto("/?search=type:feed");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "筛选来源加载失败" }),
+  ).toBeVisible();
+  expect(
+    state.requests.filter((request) => request.path === "/timeline-items"),
+  ).toHaveLength(0);
+  state.failServices = false;
+  await page.getByRole("button", { name: "重试加载", exact: true }).click();
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+  ).toBeVisible();
+  expect(
+    state.requests
+      .filter((request) => request.path === "/timeline-items")
+      .at(-1)?.serviceId,
+  ).toBe("feed");
+});
+
+test("private ID links stay empty for visitors and preview, and restore for administrators", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = searchFixture();
+  state.loggedIn = false;
+  const id = state.archiveItems[2].id;
+  await page.goto(`/?search=id:${id}`);
+  await expect(
+    page.getByRole("status").filter({ hasText: "没有找到相关内容" }),
+  ).toBeVisible();
+  state.loggedIn = true;
+  await page.reload();
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "feed", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "复制分享链接", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await showToolbarControls(page);
+  const preview = page.getByRole("button", {
+    name: /^(访客预览|管理员模式)$/,
+    includeHidden: true,
+  });
+  await preview.click();
+  await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("status").filter({ hasText: "没有找到相关内容" }),
+  ).toBeVisible();
+  await showToolbarControls(page);
+  await preview.click();
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  await page.goto("/?search=id:00000000-0000-4000-8000-000000000000");
+  await expect(
+    page.getByRole("status").filter({ hasText: "没有找到相关内容" }),
+  ).toBeVisible();
+});
+
+test("typed conditions preserve service prefixes and unknown suffixes until confirmation", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.serviceIds.push("feedExtra");
+  state.archiveItems = searchFixture();
+  state.archiveItems[1].sync_service_id = "feedExtra";
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await input.pressSequentially("type:feedExtra", { delay: 25 });
+  await input.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "移除 type:feedExtra", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "移除 type:feedExtra", exact: true })
+    .click();
+  await expect(page).toHaveURL("/");
+  await expect(
+    page.getByRole("button", { name: "移除 type:feedExtra", exact: true }),
+  ).toHaveCount(0);
+  await input.pressSequentially("type:feedUnknown", { delay: 25 });
+  await input.press("Enter");
+  await expect
+    .poll(
+      () =>
+        state.requests.filter((r) => r.path === "/timeline-items").at(-1)
+          ?.search,
+    )
+    .toBe("type:feedUnknown");
+  expect(
+    state.requests.filter((r) => r.path === "/timeline-items").at(-1)
+      ?.serviceId,
+  ).toBeNull();
+  await expect(input).toHaveValue("type:feedUnknown");
+});
+
+test("keyword spaces survive the debounced URL update", async ({ page }) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await input.pressSequentially("hello ");
+  await page.waitForTimeout(700);
+  await expect(input).toHaveValue("hello ");
+  await input.pressSequentially("world");
+  await input.press("Enter");
+  await expect(input).toHaveValue("hello world");
+  await expect(page).toHaveURL(/search=hello\+world$/);
+});
+
+test("source filtering includes the keyword draft before its debounce expires", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.archiveItems = searchFixture()
+    .slice(0, 2)
+    .map((item, index) => ({
+      ...item,
+      sync_service_id: "feed",
+      title: index ? "new" : "old",
+    }));
+  await page.goto("/?search=old");
+  await expect(page.getByText("old", { exact: true })).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await input.fill("new");
+  await page.getByRole("button", { name: "feed", exact: true }).click();
+  await page.getByRole("button", { name: "只看当前类型", exact: true }).click();
+  await page.clock.fastForward(700);
+  await page.clock.resume();
+  await expect(input).toHaveValue("new");
+  await expect(page.getByText("new", { exact: true })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("search")).toBe("new type:feed");
+});
+
+test("late clipboard completion cannot cancel a newer URL's keyword submission", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.archiveItems = searchFixture().map((item, index) => ({
+    ...item,
+    is_secret: false,
+    title: ["old", "new", "later"][index],
+  }));
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: () =>
+          new Promise<void>((resolve) =>
+            Reflect.set(window, "finishTimelineCopy", resolve),
+          ),
+      },
+    }),
+  );
+  await page.goto("/?search=old");
+  await page.getByRole("button", { name: "feed", exact: true }).click();
+  await page.getByRole("button", { name: "复制分享链接", exact: true }).click();
+  await page.evaluate(() => window.history.pushState(null, "", "/?search=new"));
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await expect(input).toHaveValue("new");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await input.fill("later");
+  await page.evaluate(() => Reflect.get(window, "finishTimelineCopy")());
+  await page.clock.fastForward(700);
+  await page.clock.resume();
+  await expect
+    .poll(
+      () =>
+        state.requests.filter((r) => r.path === "/timeline-items").at(-1)
+          ?.search,
+    )
+    .toBe("later");
+  await expect(page.getByText("later", { exact: true })).toBeVisible();
+});
+
+test("IME composition stays in the input until its condition is confirmed", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.serviceIds.push("日志");
+  state.archiveItems = searchFixture();
+  state.archiveItems[0].sync_service_id = "日志";
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await input.evaluate((element) => {
+    element.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true }),
+    );
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(element, "type:日志");
+    element.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        inputType: "insertCompositionText",
+        data: "日志",
+        isComposing: true,
+      }),
+    );
+  });
+  await page.clock.fastForward(700);
+  expect(new URL(page.url()).search).toBe("");
+  await expect(input).toHaveValue("type:日志");
+  await page.clock.resume();
+  await input.evaluate((element) =>
+    element.dispatchEvent(
+      new CompositionEvent("compositionend", { bubbles: true, data: "日志" }),
+    ),
+  );
+  await input.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "移除 type:日志", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+});
+
+test("stored source links still work after their configuration is removed", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.archiveItems = searchFixture();
+  state.archiveItems[0].sync_service_id = "retired-feed";
+  await page.goto("/?search=type:retired-feed");
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "移除 type:retired-feed", exact: true }),
+  ).toBeVisible();
+  expect(
+    state.requests.filter((r) => r.path === "/timeline-items").at(-1)
+      ?.serviceId,
+  ).toBe("retired-feed");
+});
 
 test("the archive date and site links fit the responsive toolbar", async ({
   page,
@@ -622,7 +1202,16 @@ test("timeline disclosures preserve keyboard focus", async ({ page }) => {
   await expect(sort).toBeFocused();
   await expect(updated).toBeHidden();
   await sort.press("Enter");
-  await updated.press("Enter");
+  await Promise.all([
+    page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/timeline-items" &&
+        url.searchParams.get("orderBy") === "updated_at"
+      );
+    }),
+    updated.press("Enter"),
+  ]);
   await expect(sort).toBeFocused();
   await expect(updated).toBeHidden();
 
@@ -915,9 +1504,7 @@ test("guest preview preserves login and filters while replacing cached private d
   page,
 }) => {
   const state = await backend(page);
-  await page.goto(
-    "/?search=fixture&orderBy=updated_at&serviceId=feed&serviceType=Feed",
-  );
+  await page.goto("/?search=fixture%20type:feed&orderBy=updated_at");
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
   const themeToggle = page.getByRole("button", {
     name: "纸张浅色主题",

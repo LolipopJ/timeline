@@ -57,6 +57,10 @@ export const serverConfig: ServerConfig = {
   listeningPort: 4000,
   syncInterval: "*/30 * * * *", // 未单独配置的来源每 30 分钟同步一次
   // githubPersonalAccessToken: "ghp_yourGithubPersonalAccessToken",
+  // PSN、Xbox 仅预留凭据，填写后尚不会启用奖杯同步。
+  // psnNpsso: "your_psn_npsso",
+  // xboxTokenStorePath: "C:/path/to/timeline/server/.temporary/xbox.tokens.json",
+  // steamWebAPIKey: "your_steam_web_api_key",
 };
 
 export default serverConfig;

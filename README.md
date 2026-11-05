@@ -25,3 +25,4 @@ bun run dev
 - [配置指南](docs/configuration.md)
 - [开发指南](docs/development.md)
 - [部署指南](docs/deployment.md)
+- [搜索与分享指南](docs/search.md)

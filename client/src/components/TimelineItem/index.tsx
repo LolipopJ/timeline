@@ -19,8 +19,15 @@ export interface TimelineItemProps
     Omit<TimelineItemLabelProps, "className"> {}
 
 function TimelineItem(props: TimelineItemProps) {
-  const { item, displayedDateTime, mutateTimelineItems, className, ...rest } =
-    props;
+  const {
+    item,
+    displayedDateTime,
+    mutateTimelineItems,
+    filters,
+    onFiltersChange,
+    className,
+    ...rest
+  } = props;
   const { sync_service_type } = item;
 
   let element = <></>;
@@ -83,6 +90,8 @@ function TimelineItem(props: TimelineItemProps) {
         item={item}
         displayedDateTime={displayedDateTime}
         mutateTimelineItems={mutateTimelineItems}
+        filters={filters}
+        onFiltersChange={onFiltersChange}
       />
       {element}
     </div>
