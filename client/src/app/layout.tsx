@@ -16,6 +16,7 @@ import GlobalContext, {
   type GlobalContextValue,
 } from "@/contexts/GlobalContext";
 import { AUTH_EXPIRED_EVENT, fetcherGET, fetcherPOST } from "@/services/axios";
+import { THEME_INIT_SCRIPT } from "@/utils/theme";
 
 import config from "../../configs/client";
 
@@ -88,9 +89,13 @@ export default function RootLayout({
   // initialization deliberately run once after hydration.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const lsLastVisitDate = localStorage.getItem(LS_LAST_VISIT_DATE);
-    setLastVisitDate(lsLastVisitDate ? new Date(lsLastVisitDate) : null);
-    localStorage.setItem(LS_LAST_VISIT_DATE, String(new Date()));
+    try {
+      const lsLastVisitDate = localStorage.getItem(LS_LAST_VISIT_DATE);
+      setLastVisitDate(lsLastVisitDate ? new Date(lsLastVisitDate) : null);
+      localStorage.setItem(LS_LAST_VISIT_DATE, String(new Date()));
+    } catch {
+      // Reading the timeline does not require browser storage.
+    }
 
     //#region 初始化登录、登出查询
     const url = new URL(window.location.href);
@@ -118,8 +123,9 @@ export default function RootLayout({
   }, [urlLogoutRequested, router, pathname]);
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <title>{String(config.metadata?.title ?? "Timeline")}</title>
         {config.metadata &&
           Object.entries(config.metadata).map((entry) => (
@@ -132,7 +138,7 @@ export default function RootLayout({
           {logoutError && (
             <div
               role="alert"
-              className="fixed inset-x-4 top-24 z-30 mx-auto max-w-lg rounded-md bg-background-light p-4 shadow-lg md:top-28 lg:top-4"
+              className="fixed inset-x-4 top-24 z-30 mx-auto max-w-lg rounded-md border border-danger bg-background-light p-4 text-danger shadow-lg md:top-28 lg:top-4"
             >
               {logoutError}
               <button
@@ -150,7 +156,7 @@ export default function RootLayout({
               (loginStatus !== undefined ? (
                 children
               ) : loginStatusError ? (
-                <div role="alert" className="m-4">
+                <div role="alert" className="m-4 text-danger">
                   登录状态读取失败。
                   <button
                     type="button"

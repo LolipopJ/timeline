@@ -1,7 +1,5 @@
 import {
   mdiBookmarkMultiple,
-  mdiClockTimeFour,
-  mdiClockTimeSeven,
   mdiCommentProcessing,
   mdiCommentText,
   mdiEyeOffOutline,
@@ -14,7 +12,6 @@ import {
   mdiVideoVintage,
 } from "@mdi/js";
 import Icon from "@mdi/react";
-import type { IconProps } from "@mdi/react/dist/IconProps";
 import type {
   GetTimelineItemsParams,
   TimelineItemClient,
@@ -34,81 +31,29 @@ export interface TimelineItemLabelProps {
   className?: string;
 }
 
-const LABEL_ICON_PATH = {
+const LABEL_ICON_PATH: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.BILIBILI_COLLECTION]: mdiBookmarkMultiple,
   [SyncServiceType.BILIBILI_WORK]: mdiVideoVintage,
   [SyncServiceType.FEED]: mdiRssBox,
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
   [SyncServiceType.QZONE_TALK]: mdiStarShooting,
   [SyncServiceType.STEAM_GAME_REVIEW]: mdiSteam,
-} as Record<SyncServiceType, string>;
+};
 
-const LABEL_TEXT_COLOR = {
+const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.BILIBILI_COLLECTION]: "#fb7299",
   [SyncServiceType.BILIBILI_WORK]: "#fb7299",
   [SyncServiceType.FEED]: "#818cf8",
-  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "#fafaf9",
+  [SyncServiceType.GITHUB_ISSUE_COMMENT]: "oklch(55.4% 0.046 257.417)",
   [SyncServiceType.QZONE_TALK]: "#cc8f14",
   [SyncServiceType.STEAM_GAME_REVIEW]: "#95a1ae",
-} as Record<SyncServiceType, string>;
-
-const labelItemBaseClassName =
-  "flex flex-row items-center text-sm lg:absolute lg:-right-4 lg:translate-x-full md:text-base leading-none!";
-const labelIconBaseOptions: Partial<IconProps> = {
-  className: "mr-1 size-4 md:size-5",
 };
 
-const getDisplayedDateTime = (date: Date): string => {
-  const inputDate = new Date(date);
-  const hours = inputDate.getHours();
-  const minutes = inputDate.getMinutes();
-  const timeString = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+const twoDigits = (value: number) => String(value).padStart(2, "0");
 
-  // 归一化到当天零点，避免时分秒干扰日期比较
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  inputDate.setHours(0, 0, 0, 0);
-
-  const dayDiff = Math.floor(
-    (today.getTime() - inputDate.getTime()) / 86400000,
-  );
-
-  // 1. 两天以内特殊显示
-  if (dayDiff >= 0 && dayDiff <= 2) {
-    const labels = ["今天", "昨天", "前天"];
-    return `${labels[dayDiff]} ${timeString}`;
-  }
-
-  // 获取本周一（周一为一周起始）
-  const getMonday = (d: Date): Date => {
-    const result = new Date(d);
-    const day = result.getDay(); // 0=周日, 1=周一, ..., 6=周六
-    const diff = day === 0 ? -6 : 1 - day;
-    result.setDate(result.getDate() + diff);
-    return result;
-  };
-
-  const thisMonday = getMonday(today);
-  const weekDays = ["日", "一", "二", "三", "四", "五", "六"];
-
-  // 2. 本周（本周一 ~ 今天）
-  if (inputDate >= thisMonday && inputDate <= today) {
-    return `周${weekDays[inputDate.getDay()]} ${timeString}`;
-  }
-
-  // 3. 上周（上周一 ~ 上周日）
-  const lastMonday = new Date(thisMonday);
-  lastMonday.setDate(lastMonday.getDate() - 7);
-  if (inputDate >= lastMonday && inputDate < thisMonday) {
-    return `上周${weekDays[inputDate.getDay()]} ${timeString}`;
-  }
-
-  // 4. 更早的日期
-  const months = inputDate.getMonth() + 1;
-  const days = inputDate.getDate();
-  const dateString = `${String(months).padStart(2, "0")}/${String(days).padStart(2, "0")}`;
-  return `${dateString}, ${timeString}`;
-};
+function formatDateTime(date: Date) {
+  return `${twoDigits(date.getMonth() + 1)}/${twoDigits(date.getDate())} ${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`;
+}
 
 export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
@@ -132,17 +77,23 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (!menuOpen) return;
     function onDocClick(e: MouseEvent) {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target as Node)) {
+      if (e.target instanceof Node && !menuRef.current?.contains(e.target)) {
         setMenuOpen(false);
       }
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
-  }, []);
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    menuButtonRef.current?.focus({ preventScroll: true });
+  }
 
   const updateTimelineItemsCache = (
     updater: (data: TimelineItemClient[]) => TimelineItemClient[],
@@ -201,45 +152,78 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const updatedAtString = updatedAt.toLocaleString();
   const hasUpdated = updatedAt.getTime() !== createdAt.getTime();
 
-  const displayedDateTimeString = getDisplayedDateTime(
-    displayedDateTime === "updated_at" ? updatedAt : createdAt,
-  );
+  const displayedDate =
+    displayedDateTime === "updated_at" ? updatedAt : createdAt;
 
   const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
   const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
 
   const hasMenu = canManageItems || url;
+  const sourceIconColor = LABEL_ICON_COLOR[sync_service_type];
+  const source = (
+    <>
+      <Icon
+        path={LABEL_ICON_PATH[sync_service_type] ?? mdiCommentProcessing}
+        className="size-4 shrink-0"
+        style={
+          sourceIconColor
+            ? {
+                color: `color-mix(in srgb, ${sourceIconColor} 60%, var(--foreground))`,
+              }
+            : undefined
+        }
+        aria-hidden="true"
+      />
+      <span className="wrap-anywhere">{label || sync_service_id}</span>
+    </>
+  );
 
   return (
     <div
-      className={`mb-3 flex justify-between select-none lg:mb-0 ${className}`}
+      className={`flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pb-2 text-sm ${className}`}
       {...rest}
     >
-      <div
-        ref={hasMenu ? menuRef : undefined}
-        onClick={() => hasMenu && setMenuOpen((v) => !v)}
-        aria-haspopup={hasMenu ? "menu" : undefined}
-        aria-expanded={hasMenu ? menuOpen : undefined}
-        className={`${labelItemBaseClassName} relative z-10 font-bold text-primary lg:top-2 ${hasMenu ? "cursor-pointer" : ""}`}
-        style={{ color: LABEL_TEXT_COLOR[sync_service_type] }}
+      <time
+        className="font-mono text-xs whitespace-nowrap text-foreground-dark tabular-nums lg:absolute lg:top-4 lg:right-[calc(100%+var(--archive-gutter)+0.75rem)] lg:-translate-y-1/2"
+        dateTime={displayedDateTime === "updated_at" ? updated_at : created_at}
+        title={
+          `创建于：${createdAtString}` +
+          (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
+        }
       >
-        <Icon
-          path={LABEL_ICON_PATH[sync_service_type] ?? mdiCommentProcessing}
-          {...labelIconBaseOptions}
-        />
-        <span>
-          {label || sync_service_id}
-          {(isNewlyCreated || isNewlyUpdated) && (
-            <sup className="ml-1 opacity-75">
-              <i>
-                {isNewlyCreated ? "new" : isNewlyUpdated ? "updated" : null}
-              </i>
-            </sup>
-          )}
-          {is_secret && <sub className="ml-1 opacity-75">私密</sub>}
-        </span>
+        {formatDateTime(displayedDate)}
+      </time>
+      <div
+        ref={menuRef}
+        className="relative max-w-full min-w-0"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget))
+            setMenuOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (menuOpen && event.key === "Escape") {
+            event.stopPropagation();
+            closeMenu();
+          }
+        }}
+      >
+        {hasMenu ? (
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-sm font-medium hover:text-primary"
+          >
+            {source}
+          </button>
+        ) : (
+          <span className="flex min-h-8 items-center gap-1.5 font-medium">
+            {source}
+          </span>
+        )}
         {hasMenu && menuOpen && (
-          <div className="absolute top-0 left-0 z-50 w-32 rounded-md bg-background-light text-sm font-normal shadow-md shadow-background-lighter">
+          <div className="absolute top-full left-0 z-10 w-32 rounded-md border border-control bg-background-light text-sm font-normal shadow-lg">
             <ul className="p-1">
               {url ? (
                 <li>
@@ -258,9 +242,8 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                   <li>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpen(false);
+                      onClick={() => {
+                        closeMenu();
                         handleToggleSecret();
                       }}
                       className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"
@@ -275,12 +258,11 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                   <li>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpen(false);
+                      onClick={() => {
+                        closeMenu();
                         handleDelete();
                       }}
-                      className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-red-400 hover:bg-background-lighter"
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-danger hover:bg-background-lighter"
                     >
                       <Icon path={mdiTrashCanOutline} size={0.7} />
                       删除
@@ -292,20 +274,16 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           </div>
         )}
       </div>
-      <div className={`${labelItemBaseClassName} lg:top-10 2xl:top-11`}>
-        <Icon
-          path={hasUpdated ? mdiClockTimeSeven : mdiClockTimeFour}
-          {...labelIconBaseOptions}
-        />
-        <span
-          title={
-            `创建于：${createdAtString}` +
-            (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
-          }
-        >
-          {displayedDateTimeString}
+      {is_secret && (
+        <span className="rounded-sm bg-background-lighter px-1.5 text-xs text-warning">
+          私密
         </span>
-      </div>
+      )}
+      {(isNewlyCreated || isNewlyUpdated) && (
+        <span className="rounded-sm bg-background-lighter px-1.5 text-xs text-primary">
+          {isNewlyCreated ? "新增" : "已更新"}
+        </span>
+      )}
     </div>
   );
 }

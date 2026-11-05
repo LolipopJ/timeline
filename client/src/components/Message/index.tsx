@@ -40,29 +40,29 @@ function MessageItem(props: Message & React.HTMLAttributes<HTMLDivElement>) {
   let iconColor: string;
   switch (type) {
     case "error":
-      borderColor = "border-red-400/30";
-      shadowColor = "shadow-red-400/30";
+      borderColor = "border-danger/30";
+      shadowColor = "shadow-danger/30";
       iconPath = mdiCloseBox;
-      iconColor = "text-red-400";
+      iconColor = "text-danger";
       break;
     case "success":
-      borderColor = "border-green-400/30";
-      shadowColor = "shadow-green-400/30";
+      borderColor = "border-primary/30";
+      shadowColor = "shadow-primary/30";
       iconPath = mdiCheckboxMarked;
-      iconColor = "text-green-400";
+      iconColor = "text-primary";
       break;
     case "warning":
-      borderColor = "border-orange-400/30";
-      shadowColor = "shadow-orange-400/30";
+      borderColor = "border-warning/30";
+      shadowColor = "shadow-warning/30";
       iconPath = mdiAlertBox;
-      iconColor = "text-orange-400";
+      iconColor = "text-warning";
       break;
     case "info":
     default:
-      borderColor = "border-blue-400/30";
-      shadowColor = "shadow-blue-400/30";
+      borderColor = "border-primary/30";
+      shadowColor = "shadow-primary/30";
       iconPath = mdiInformationBox;
-      iconColor = "text-blue-400";
+      iconColor = "text-primary";
   }
 
   return (

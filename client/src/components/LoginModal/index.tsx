@@ -48,9 +48,9 @@ export function LoginModal(props: LoginModalProps) {
 
   return (
     <div
-      className={`${open ? "block" : "hidden"} fixed inset-0 z-40 bg-neutral-950/20 backdrop-blur-xs`}
+      className={`${open ? "block" : "hidden"} fixed inset-0 z-40 bg-black/60 backdrop-blur-xs`}
     >
-      <div className="relative top-1/2 left-1/2 flex max-w-96 -translate-x-1/2 -translate-y-2/3 flex-col items-center overflow-hidden rounded-lg border border-neutral-50/20 bg-background-light px-10 py-16 shadow-lg shadow-background-lighter">
+      <div className="relative top-1/2 left-1/2 flex w-[calc(100%-2rem)] max-w-96 -translate-x-1/2 -translate-y-2/3 flex-col items-center overflow-hidden rounded-lg border border-control bg-background-light px-10 py-16 shadow-lg shadow-background-lighter">
         <a
           onClick={onClose}
           className="absolute top-2 right-2 cursor-pointer p-2"
@@ -81,7 +81,7 @@ export function LoginModal(props: LoginModalProps) {
               name="username"
               required
               autoComplete="username"
-              className="w-full rounded-sm border border-neutral-50/20 bg-background-lighter p-2 text-lg"
+              className="w-full rounded-sm border border-control bg-background-lighter p-2 text-lg"
             />
           </div>
           <div>
@@ -97,13 +97,13 @@ export function LoginModal(props: LoginModalProps) {
               required
               type="password"
               autoComplete="current-password"
-              className="w-full rounded-sm border border-neutral-50/20 bg-background-lighter p-2 text-lg"
+              className="w-full rounded-sm border border-control bg-background-lighter p-2 text-lg"
             />
           </div>
           <div>
             <button
               type="submit"
-              className={`bg-primary-dark hover:bg-primary ${loading ? "bg-disabled!" : ""} mt-2 w-full cursor-pointer rounded-sm py-3 tracking-widest transition disabled:cursor-default`}
+              className="mt-2 w-full cursor-pointer rounded-sm bg-primary py-3 tracking-widest text-on-primary transition hover:bg-primary-light disabled:cursor-default disabled:opacity-70"
               disabled={loading}
             >
               登 录

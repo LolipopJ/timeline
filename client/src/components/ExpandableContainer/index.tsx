@@ -44,6 +44,7 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
   }, [expandable, expandableHeightThresholdRatio, expanded]);
 
   const onExpand = () => {
+    containerRef.current?.focus({ preventScroll: true });
     setMaxHeight(undefined);
     setExpanded(true);
   };
@@ -51,22 +52,25 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
   return (
     <div
       ref={containerRef}
+      tabIndex={-1}
       className={`${className} relative overflow-hidden`}
       style={{ ...style, maxHeight }}
       {...rest}
     >
       {children}
       {showExpandButton && (
-        <div
-          className="absolute inset-x-0 bottom-0 flex cursor-pointer items-center justify-center py-2.5 transition-colors hover:text-foreground-light"
-          style={{
-            background:
-              "linear-gradient(rgb(10 10 10 / 0.3), rgb(10 10 10 / 0.9))",
-          }}
+        <button
+          type="button"
+          aria-label="展开全文"
+          className="absolute inset-x-0 bottom-0 flex w-full cursor-pointer items-center justify-center bg-linear-to-b from-background-light/70 to-background-light py-2.5 text-foreground hover:text-primary focus-visible:-outline-offset-2"
           onClick={onExpand}
         >
-          <Icon path={mdiArrowDownThick} className="size-5" />
-        </div>
+          <Icon
+            path={mdiArrowDownThick}
+            className="size-5"
+            aria-hidden="true"
+          />
+        </button>
       )}
     </div>
   );

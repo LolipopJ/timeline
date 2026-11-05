@@ -1,47 +1,73 @@
 @layer theme, base, vendor, components, utilities;
 
 @import 'tailwindcss' source('../');
-@import 'github-markdown-css/github-markdown-dark.css' layer(vendor);
+@import 'github-markdown-css/github-markdown.css' layer(vendor);
 @import '@fancyapps/ui/dist/fancybox/fancybox.css' layer(vendor);
 /* 将 Video.js 样式表作为未分层的样式导入，避免优先级问题 */
 @import 'video.js/dist/video-js.css';
 @import '../styles/animation.css' layer(components);
 
+@custom-variant paper (&:where([data-theme='paper'] *));
+
 @theme inline {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Noto Sans', 'Segoe UI', Helvetica,
+    Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --color-primary: var(--primary);
   --color-primary-light: var(--primary-light);
-  --color-primary-dark: var(--primary-dark);
-  --color-disabled: var(--disabled);
+  --color-on-primary: var(--on-primary);
+  --color-binding: var(--binding);
+  --color-control: var(--control);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
   --color-background: var(--background);
   --color-background-light: var(--background-light);
   --color-background-lighter: var(--background-lighter);
   --color-foreground: var(--foreground);
-  --color-foreground-light: var(--foreground-light);
   --color-foreground-dark: var(--foreground-dark);
 }
 
 :root {
-  --primary: #61bfad;
-  --primary-light: #80cbbd;
-  --primary-dark: #438579;
-  --disabled: #3f3f46; /** Zinc 700 */
-  --background: #0a0a0a; /** Neutral 950 */
-  --background-light: #171717; /** Neutral 900 */
-  --background-lighter: #262626; /** Neutral 800 */
-  --foreground: #e6edf3;
-  --foreground-light: #fff;
-  --foreground-dark: #a1a5aa;
+  @apply scheme-dark;
+
+  --background: #0b0d0e;
+  --background-light: #14181a;
+  --background-lighter: #1e2527;
+  --foreground: #e7ecea;
+  --foreground-dark: #a8b6b2;
+  --binding: #34413f;
+  --control: #667a75;
+  --primary: #73cdb9;
+  --primary-light: #94dbcb;
+  --on-primary: #102622;
+  --danger: #f09b98;
+  --warning: #e9bc73;
+}
+
+:root[data-theme='paper'] {
+  @apply scheme-light;
+
+  --background: #f5efe2;
+  --background-light: #fff9ef;
+  --background-lighter: #eee5d5;
+  --foreground: #2d2922;
+  --foreground-dark: #5f584c;
+  --binding: #d8cdba;
+  --control: #817461;
+  --primary: #285e52;
+  --primary-light: #1c4b41;
+  --on-primary: #fff9ef;
+  --danger: #9a3532;
+  --warning: #765018;
 }
 
 @layer base {
   html:has(#admin-console[open]) {
-    overflow: hidden;
+    @apply overflow-hidden;
   }
 
   html {
-    font-family:
-      -apple-system, BlinkMacSystemFont, 'Noto Sans', 'Segoe UI', Helvetica,
-      Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    @apply scroll-pt-20 font-sans lg:scroll-pt-8;
   }
 
   body {
@@ -53,40 +79,120 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-zinc-900;
+    @apply bg-background;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-700 hover:bg-zinc-600 rounded-sm;
+    @apply bg-control hover:bg-foreground-dark rounded-sm;
   }
 
   ::selection {
-    @apply text-foreground-light bg-primary-dark;
+    @apply text-on-primary bg-primary;
+  }
+
+  :where(a, button, input, select, textarea, summary):focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
   }
 }
 
 @layer components {
+  .fancybox__container {
+    --fancybox-color: var(--foreground);
+    --fancybox-backdrop-bg: color-mix(in srgb, var(--background) 96%, transparent);
+    --f-toolbar-color: var(--foreground);
+    --f-toolbar-text-shadow: none;
+    --f-html-color: var(--foreground);
+    --f-html-bg: var(--background-light);
+    --f-caption-color: var(--foreground);
+    --f-button-color: var(--foreground);
+    --f-button-bg: var(--background-light);
+    --f-button-border: 1px solid var(--control);
+    --f-button-hover-color: var(--foreground);
+    --f-button-hover-bg: var(--background-lighter);
+    --f-button-outline-width: 2px;
+    --f-button-outline-color: var(--primary);
+    --f-arrow-color: var(--foreground);
+    --f-arrow-bg: var(--background-light);
+    --f-arrow-hover-color: var(--foreground);
+    --f-arrow-hover-bg: var(--background-lighter);
+    --f-close-button-color: var(--foreground);
+    --f-close-button-bg: var(--background-light);
+    --f-close-button-hover-color: var(--foreground);
+    --f-close-button-hover-bg: var(--background-lighter);
+    --f-close-button-active-bg: var(--background-lighter);
+  }
+
+  .markdown-body {
+    @apply wrap-anywhere [color-scheme:inherit];
+
+    --fgColor-default: var(--foreground);
+    --fgColor-muted: var(--foreground-dark);
+    --fgColor-accent: var(--primary);
+    --fgColor-success: var(--primary);
+    --fgColor-done: var(--primary);
+    --fgColor-attention: var(--warning);
+    --fgColor-danger: var(--danger);
+    --bgColor-default: var(--background-light);
+    --bgColor-muted: var(--background-lighter);
+    --bgColor-neutral-muted: var(--background-lighter);
+    --bgColor-attention-muted: color-mix(in srgb, var(--warning) 18%, var(--background-light));
+    --borderColor-default: var(--control);
+    --borderColor-muted: var(--binding);
+    --borderColor-neutral-muted: var(--binding);
+    --borderColor-accent-emphasis: var(--primary);
+    --borderColor-success-emphasis: var(--primary);
+    --borderColor-done-emphasis: var(--primary);
+    --borderColor-attention-emphasis: var(--warning);
+    --borderColor-danger-emphasis: var(--danger);
+    --focus-outlineColor: var(--primary);
+    /* Highlighted HTML supplied by feeds must also follow the page theme. */
+    --color-prettylights-syntax-comment: var(--foreground-dark);
+    --color-prettylights-syntax-constant: var(--primary);
+    --color-prettylights-syntax-constant-other-reference-link: var(--primary);
+    --color-prettylights-syntax-entity: var(--primary);
+    --color-prettylights-syntax-entity-tag: var(--primary);
+    --color-prettylights-syntax-storage-modifier-import: var(--foreground);
+    --color-prettylights-syntax-keyword: var(--danger);
+    --color-prettylights-syntax-string: var(--primary);
+    --color-prettylights-syntax-string-regexp: var(--primary);
+    --color-prettylights-syntax-variable: var(--warning);
+    --color-prettylights-syntax-brackethighlighter-angle: var(--foreground-dark);
+    --color-prettylights-syntax-brackethighlighter-unmatched: var(--danger);
+    --color-prettylights-syntax-invalid-illegal-text: var(--danger);
+    --color-prettylights-syntax-invalid-illegal-bg: var(--background);
+    --color-prettylights-syntax-carriage-return-text: var(--danger);
+    --color-prettylights-syntax-carriage-return-bg: var(--background);
+    --color-prettylights-syntax-markup-list: var(--warning);
+    --color-prettylights-syntax-markup-heading: var(--primary);
+    --color-prettylights-syntax-markup-italic: var(--foreground);
+    --color-prettylights-syntax-markup-bold: var(--foreground);
+    --color-prettylights-syntax-markup-deleted-text: var(--danger);
+    --color-prettylights-syntax-markup-deleted-bg: var(--background);
+    --color-prettylights-syntax-markup-inserted-text: var(--primary);
+    --color-prettylights-syntax-markup-inserted-bg: var(--background);
+    --color-prettylights-syntax-markup-changed-text: var(--warning);
+    --color-prettylights-syntax-markup-changed-bg: var(--background);
+    --color-prettylights-syntax-markup-ignored-text: var(--foreground-dark);
+    --color-prettylights-syntax-markup-ignored-bg: var(--background);
+    --color-prettylights-syntax-meta-diff-range: var(--primary);
+    --color-prettylights-syntax-sublimelinter-gutter-mark: var(--foreground-dark);
+  }
+
   .timeline-item {
     img {
       @apply bg-background-lighter;
     }
 
-    .bilibili-collection {
-      img {
-        @apply w-full;
-      }
-    }
-
     .steam-game-review {
       .bb_spoiler {
-        @apply text-black bg-black px-2 cursor-pointer hover:text-foreground-light transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+        @apply cursor-pointer bg-foreground px-2 text-foreground transition-colors hover:text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
 
         &[aria-expanded='true'] {
-          @apply text-foreground-light;
+          @apply text-background;
         }
 
         a {
-          color: inherit;
+          @apply text-inherit;
         }
       }
     }
@@ -137,7 +243,7 @@
 
       ol,
       ul {
-        list-style: auto;
+        @apply [list-style:auto];
       }
 
       img {
@@ -181,7 +287,7 @@
 
       .csv-data {
         .blob-num {
-          @apply bg-primary-light;
+          @apply bg-background-lighter;
         }
 
         th {
@@ -201,13 +307,11 @@
         }
 
         h1 > a::before {
-          content: '「';
-          @apply absolute -top-1 -left-6 text-2xl leading-none font-bold text-current opacity-90;
+          @apply absolute -top-1 -left-6 text-2xl leading-none font-bold text-current opacity-90 content-['「'];
         }
 
         h1 > a::after {
-          content: '」';
-          @apply absolute -bottom-1 -right-6 text-2xl leading-none font-bold text-current opacity-90;
+          @apply absolute -bottom-1 -right-6 text-2xl leading-none font-bold text-current opacity-90 content-['」'];
         }
       }
     }

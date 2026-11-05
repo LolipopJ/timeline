@@ -38,13 +38,13 @@ const TRIGGER = { manual: "手动", scheduled: "定时", startup: "启动" };
 const TABS = ["sync", "logs"] as const;
 type Tab = (typeof TABS)[number];
 const buttonClass =
-  "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50";
+  "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-control px-3 py-2 text-sm font-medium whitespace-nowrap motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50";
 const headerActionClass = `${buttonClass} hover:bg-background-lighter active:bg-background`;
 
 function SyncRun({ run }: { run: SyncRunDto }) {
   return (
     <section
-      className="rounded-xl border border-foreground-dark/25 bg-background p-4"
+      className="rounded-xl border border-binding bg-background p-4"
       aria-label="同步运行详情"
     >
       <p className="flex flex-wrap items-center gap-2 text-sm text-foreground-dark">
@@ -65,7 +65,7 @@ function SyncRun({ run }: { run: SyncRunDto }) {
         </p>
       )}
       {run.error && (
-        <pre className="mt-2 text-sm wrap-break-word whitespace-pre-wrap text-red-300">
+        <pre className="mt-2 text-sm wrap-break-word whitespace-pre-wrap text-danger">
           {run.error}
         </pre>
       )}
@@ -77,12 +77,12 @@ function SyncRun({ run }: { run: SyncRunDto }) {
               {STATUS[service.status]}
             </span>
             {service.status === "succeeded" && (
-              <p className="mt-1 text-sm text-green-400">
+              <p className="mt-1 text-sm text-primary">
                 新增或更新 {service.itemCount} 条
               </p>
             )}
             {service.status === "failed" && (
-              <pre className="mt-1 text-sm wrap-break-word whitespace-pre-wrap text-red-300">
+              <pre className="mt-1 text-sm wrap-break-word whitespace-pre-wrap text-danger">
                 {service.error}
               </pre>
             )}
@@ -202,9 +202,9 @@ export default function AdminConsole({
         event.preventDefault();
         closeDialog();
       }}
-      className="fixed inset-x-3 top-[max(.75rem,env(safe-area-inset-top))] bottom-[max(.75rem,env(safe-area-inset-bottom))] m-0 size-auto max-h-none max-w-none flex-col overflow-hidden rounded-2xl border border-foreground-dark/30 bg-background-light text-foreground shadow-2xl backdrop:bg-black/60 open:flex lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[min(100%,46rem)] lg:rounded-none lg:border-y-0 lg:border-r-0"
+      className="fixed inset-x-3 top-[max(.75rem,env(safe-area-inset-top))] bottom-[max(.75rem,env(safe-area-inset-bottom))] m-0 size-auto max-h-none max-w-none flex-col overflow-hidden rounded-2xl border border-control bg-background-light text-foreground shadow-2xl backdrop:bg-black/60 open:flex lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[min(100%,46rem)] lg:rounded-none lg:border-y-0 lg:border-r-0"
     >
-      <header className="shrink-0 space-y-3 border-b border-foreground-dark/25 px-4 py-3 sm:px-6 sm:py-4">
+      <header className="shrink-0 space-y-3 border-b border-binding px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex items-center justify-between gap-4">
           <h1
             id="admin-console-title"
@@ -319,7 +319,7 @@ export default function AdminConsole({
           <div className="my-4 flex flex-wrap gap-3">
             <button
               type="button"
-              className={`${buttonClass} bg-primary text-background hover:bg-primary-light active:bg-primary-dark disabled:hover:bg-primary`}
+              className={`${buttonClass} bg-primary text-on-primary hover:bg-primary-light active:bg-primary disabled:hover:bg-primary`}
               disabled={submitting || !data?.available || Boolean(error)}
               onClick={() => void startSync()}
             >
@@ -342,7 +342,7 @@ export default function AdminConsole({
             </p>
           )}
           {error && (
-            <p role="alert" className="mb-4 text-red-300">
+            <p role="alert" className="mb-4 text-danger">
               同步状态读取失败，请重试刷新。
             </p>
           )}
@@ -369,7 +369,7 @@ export default function AdminConsole({
               </section>
             )}
             {data && !data.current && data.history.length === 0 && (
-              <p className="rounded-xl border border-foreground-dark/25 bg-background p-4 text-sm text-foreground-dark">
+              <p className="rounded-xl border border-binding bg-background p-4 text-sm text-foreground-dark">
                 当前进程尚无同步记录。
               </p>
             )}

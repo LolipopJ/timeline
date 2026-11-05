@@ -258,7 +258,7 @@ export default function Slideshow(props: SlideshowProps) {
                 goTo(i);
               }}
               className={`pointer-events-auto size-2 cursor-pointer rounded-full transition ${
-                i === index ? "bg-foreground-light" : "bg-foreground-dark"
+                i === index ? "bg-primary" : "bg-foreground-dark"
               }`}
             />
           ))}

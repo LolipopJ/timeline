@@ -16,7 +16,7 @@ export default function TimelineItemFeed(props: TimelineComponent) {
         <h1 className="text-lg">
           <a
             href={item.url ?? undefined}
-            className="rounded-sm bg-[linear-gradient(var(--primary-dark),var(--primary-dark)),linear-gradient(var(--primary-dark),var(--primary-dark))] bg-size-[0%_100%,100%_0%] bg-bottom-left bg-no-repeat text-foreground transition-all duration-300 ease-out hover:bg-size-[100%_100%,100%_0%] hover:no-underline motion-reduce:transition-none"
+            className="rounded-sm bg-linear-to-r from-primary/35 to-primary/35 bg-size-[0%_100%] bg-bottom-left bg-no-repeat text-white no-underline transition-[background-size] duration-300 ease-out hover:bg-size-[100%_100%] focus-visible:bg-size-[100%_100%] motion-reduce:transition-none paper:text-foreground"
             target="_blank"
           >
             {item.title}

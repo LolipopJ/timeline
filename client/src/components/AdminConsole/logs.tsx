@@ -14,7 +14,7 @@ const LEVEL_LABELS: Record<RuntimeLogLevel, string> = {
   error: "错误",
 };
 const inputClass =
-  "mt-1 min-h-11 w-full rounded-lg border border-foreground-dark/30 bg-background px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary";
+  "mt-1 min-h-11 w-full rounded-lg border border-control bg-background px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary";
 
 export default function AdminLogs({ active }: { active: boolean }) {
   const [level, setLevel] = useState<RuntimeLogLevel | undefined>();
@@ -99,7 +99,7 @@ export default function AdminLogs({ active }: { active: boolean }) {
           type="button"
           disabled={isValidating || !active}
           onClick={() => void mutate()}
-          className="min-h-11 cursor-pointer rounded-lg bg-background-lighter px-3 py-2 text-sm font-medium hover:bg-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50"
+          className="min-h-11 cursor-pointer rounded-lg border border-control bg-background-lighter px-3 py-2 text-sm font-medium hover:bg-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50"
         >
           刷新日志
         </button>
@@ -108,7 +108,7 @@ export default function AdminLogs({ active }: { active: boolean }) {
         </span>
       </div>
       {error && (
-        <p role="alert" className="mb-3 text-red-300">
+        <p role="alert" className="mb-3 text-danger">
           日志读取失败，请重试刷新。
         </p>
       )}
@@ -116,7 +116,7 @@ export default function AdminLogs({ active }: { active: boolean }) {
         <p className="text-sm text-foreground-dark">正在读取日志…</p>
       )}
       {data?.records.length === 0 && (
-        <p className="rounded-xl border border-foreground-dark/25 bg-background p-4 text-sm text-foreground-dark">
+        <p className="rounded-xl border border-binding bg-background p-4 text-sm text-foreground-dark">
           无匹配日志。
         </p>
       )}
@@ -124,7 +124,7 @@ export default function AdminLogs({ active }: { active: boolean }) {
         {data?.records.map((record) => (
           <li
             key={record.id}
-            className="rounded-xl border border-foreground-dark/25 bg-background p-3 sm:p-4"
+            className="rounded-xl border border-binding bg-background p-3 sm:p-4"
           >
             <p className="text-xs wrap-break-word text-foreground-dark">
               #{record.id} · {new Date(record.timestamp).toLocaleString()} ·{" "}

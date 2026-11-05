@@ -26,7 +26,7 @@ function TimelineItem(props: TimelineItemProps) {
   let element = <></>;
   const expandableContainerProps: ExpandableContainerProps = {
     expandableHeightThresholdRatio: 0.8,
-    className: "rounded-lg",
+    className: "isolate rounded-lg",
   };
 
   switch (sync_service_type) {
@@ -76,7 +76,7 @@ function TimelineItem(props: TimelineItemProps) {
 
   return (
     <div
-      className={`timeline-item relative flex flex-col ${className}`}
+      className={`timeline-item relative min-w-0 pb-6 before:absolute before:top-4 before:-left-(--archive-gutter) before:size-1.5 before:-translate-1/2 before:rounded-full before:border before:border-control before:bg-background ${className ?? ""}`}
       {...rest}
     >
       <TimelineItemLabel

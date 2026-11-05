@@ -1,7 +1,13 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
-import type { SyncRunDto } from "@timeline/contracts";
+import type { SyncRunDto, TimelineItemClient } from "@timeline/contracts";
 import { SyncServiceType } from "@timeline/contracts";
+
+import clientConfig from "../configs/client";
+
+test.use({ timezoneId: "UTC" });
+const COVER_URL =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='640' height='360' fill='tomato'/%3E%3C/svg%3E";
 
 async function backend(page: Page) {
   page.on("pageerror", (error) =>
@@ -13,7 +19,9 @@ async function backend(page: Page) {
     expireLogs: false,
     expireSync: false,
     loseAcceptance: false,
+    failTimelinePage: null as number | null,
     multiPage: false,
+    archiveItems: null as TimelineItemClient[] | null,
     logCount: 1,
     loginGate: null as Promise<void> | null,
     timelineGate: null as Promise<void> | null,
@@ -148,7 +156,6 @@ async function backend(page: Page) {
         json: state.multiPage ? (isAdmin ? 45 : 25) : isAdmin ? 2 : 1,
         headers,
       });
-    const timestamp = new Date().toISOString();
     const item = (id: string, secret: boolean) => ({
       id,
       content_id: id,
@@ -158,8 +165,8 @@ async function backend(page: Page) {
       content: `<p>${id} body</p>`,
       is_secret: secret,
       url: "https://example.com/item",
-      created_at: timestamp,
-      updated_at: timestamp,
+      created_at: secret ? "2026-11-03T01:00:00Z" : "2026-10-03T01:00:00Z",
+      updated_at: secret ? "2026-11-03T01:00:00Z" : "2026-10-03T01:00:00Z",
     });
     const publicItems = state.multiPage
       ? Array.from({ length: 25 }, (_, index) =>
@@ -171,8 +178,26 @@ async function backend(page: Page) {
           item(index ? `PRIVATE-${index}` : "PRIVATE", true),
         )
       : [item("PRIVATE", true)];
-    const allItems = isAdmin ? [...privateItems, ...publicItems] : publicItems;
+    const allItems = state.archiveItems
+      ? state.archiveItems
+          .filter(
+            (item) =>
+              (isAdmin || !item.is_secret) &&
+              item.title?.includes(url.searchParams.get("search") ?? ""),
+          )
+          .sort((a, b) => {
+            const field =
+              url.searchParams.get("orderBy") === "updated_at"
+                ? "updated_at"
+                : "created_at";
+            return b[field].localeCompare(a[field]);
+          })
+      : isAdmin
+        ? [...privateItems, ...publicItems]
+        : publicItems;
     const pageIndex = Number(url.searchParams.get("page") ?? 0);
+    if (pageIndex === state.failTimelinePage)
+      return route.fulfill({ status: 500, body: "failed", headers });
     const limit = Number(url.searchParams.get("limit") ?? 20);
     const items = allItems.slice(pageIndex * limit, (pageIndex + 1) * limit);
     if (isAdmin) await state.timelineGate;
@@ -180,6 +205,437 @@ async function backend(page: Page) {
   });
   return state;
 }
+
+test("the archive date and site links fit the responsive toolbar", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  await page.goto("/");
+  const toolbar = page.getByRole("complementary", { name: "时间线工具" });
+  const reading = toolbar.getByRole("group", { name: "当前阅读年月" });
+  await expect(reading.getByText("貳〇貳陸", { exact: true })).toBeVisible();
+  await expect(reading.getByText("金秋十月", { exact: true })).toBeVisible();
+
+  const configuredLinks = [
+    { name: "个人主页", href: clientConfig.homepage },
+    { name: "GitHub", href: clientConfig.github },
+    {
+      name: "电子邮件",
+      href: clientConfig.email ? `mailto:${clientConfig.email}` : undefined,
+    },
+  ].flatMap(({ name, href }) => (href ? [{ name, href }] : []));
+  const trigger = toolbar.getByRole("button", { name: "站点链接" });
+  const search = toolbar.getByRole("textbox", { name: "搜索时间线" });
+  const searchWidth = () =>
+    search.evaluate((el) => el.getBoundingClientRect().width);
+  const { width, height } = page.viewportSize()!;
+  if (width >= 1024) {
+    await expect(trigger).toBeHidden();
+    for (const { name } of configuredLinks) {
+      const link = toolbar.getByRole("link", { name, exact: true });
+      await expect(link).toBeInViewport();
+      expect(
+        await link.evaluate((el) => el.getBoundingClientRect().top),
+      ).toBeGreaterThan(height - 100);
+    }
+  }
+
+  await page.setViewportSize({ width: 320, height });
+  const narrowWidth = await searchWidth();
+  expect(narrowWidth).toBeGreaterThan(96);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+  if (configuredLinks.length) {
+    await expect(trigger).toBeVisible();
+    await trigger.press("Enter");
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    for (const { name, href } of configuredLinks) {
+      const link = toolbar.getByRole("link", { name, exact: true });
+      await expect(link).toBeInViewport();
+      await expect(link).toHaveAttribute("href", href);
+    }
+    await page.keyboard.press("Tab");
+    await expect(
+      toolbar.getByRole("link", { name: configuredLinks[0].name, exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await expect(trigger).toBeFocused();
+  } else {
+    await expect(trigger).toHaveCount(0);
+  }
+  await page.setViewportSize({ width: 390, height });
+  expect(await searchWidth()).toBeGreaterThan(narrowWidth);
+});
+
+test("archive joins pages within a month and follows the sorted reading position", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  const item = (title: string, created_at: string): TimelineItemClient => ({
+    id: title,
+    content_id: title,
+    sync_service_id: "feed",
+    sync_service_type: SyncServiceType.FEED,
+    title,
+    content:
+      '[链接](https://example.com)\n\n> 引用\n\n<pre><code><span class="pl-c">代码</span></code></pre>',
+    created_at,
+    updated_at: created_at,
+  });
+  const latest = {
+    ...item("Latest article", "2026-02-10T12:30:00Z"),
+    url: "https://example.com/technical-blog",
+  };
+  state.archiveItems = [
+    {
+      ...latest,
+      content: `${latest.content}\n\n<img src="${COVER_URL}" alt="归档图片">\n\n${"长文段落。\n\n".repeat(30)}`,
+    },
+    {
+      ...item("Cover story", "2025-12-27T11:45:00Z"),
+      sync_service_id: "video",
+      sync_service_type: SyncServiceType.BILIBILI_COLLECTION,
+      attachments: [
+        {
+          filename: "cover.svg",
+          url: COVER_URL,
+        },
+      ],
+      content: null,
+    },
+    {
+      ...item("Short comment", "2025-12-26T11:45:00Z"),
+      sync_service_id: "github",
+      sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+      content: "Short comment body",
+    },
+    ...Array.from({ length: 21 }, (_, index) => ({
+      ...item(
+        `Archive ${index}`,
+        `2025-12-${String(25 - index).padStart(2, "0")}T11:45:00Z`,
+      ),
+      ...(index === 20 && { updated_at: "2026-03-14T09:15:00Z" }),
+    })),
+    {
+      ...item("Final short comment", "2025-11-28T11:45:00Z"),
+      sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+      content: "Final short comment body",
+    },
+  ];
+  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
+  await page.goto("/");
+  const year = (name: string) =>
+    page.getByRole("heading", { name, exact: true });
+  const reading = page.getByRole("group", { name: "当前阅读年月" });
+  await expect(year("2026")).toBeVisible();
+  await expect(year("2025")).toBeVisible();
+  await expect(reading).toContainText("2026 年 02 月");
+  const color = (locator: Locator) =>
+    locator.evaluate((element) => getComputedStyle(element).color);
+  const februaryLabel = reading.getByText("融冬二月", { exact: true });
+  const darkMonthColor = await color(februaryLabel);
+  const december = page.getByRole("region", { name: "12 月", exact: true });
+  const decemberTick = december.getByRole("heading", {
+    name: "12 月",
+    exact: true,
+  });
+  const tickRotation = (locator: Locator) =>
+    locator.evaluate((element) => getComputedStyle(element, "::before").rotate);
+  expect(await tickRotation(year("2025"))).not.toBe(
+    await tickRotation(decemberTick),
+  );
+  await expect(december.getByText("Short comment body")).toBeVisible();
+  await expect(december.getByRole("img")).toBeVisible();
+  const article = page
+    .getByRole("region", { name: "02 月", exact: true })
+    .locator("article");
+  await expect(article).toHaveCSS("color", "rgb(231, 236, 234)");
+  const title = article.getByRole("link", { name: "Latest article" });
+  await expect(title).toHaveCSS("color", "rgb(255, 255, 255)");
+  const hoverSupported = await page.evaluate(
+    () => matchMedia("(hover: hover)").matches,
+  );
+  if (hoverSupported) {
+    await title.hover();
+    await expect(title).toHaveCSS("background-size", "100% 100%");
+    await expect(title).toHaveCSS("text-decoration-line", "none");
+  }
+  await expect(article.locator("blockquote")).toHaveCSS(
+    "color",
+    "rgb(168, 182, 178)",
+  );
+  await expect(article.locator("pre")).toHaveCSS(
+    "background-color",
+    "rgb(30, 37, 39)",
+  );
+  await expect(article.getByText("代码")).toHaveCSS(
+    "color",
+    "rgb(168, 182, 178)",
+  );
+  await page.getByRole("button", { name: "纸张浅色主题" }).click();
+  await expect(article).toHaveCSS("color", "rgb(45, 41, 34)");
+  await expect(title).toHaveCSS("color", "rgb(45, 41, 34)");
+  const paperMonthColor = await color(februaryLabel);
+  expect(paperMonthColor).not.toBe(darkMonthColor);
+  const inactiveTickColor = await color(decemberTick);
+  await expect(article.locator("blockquote")).toHaveCSS(
+    "color",
+    "rgb(95, 88, 76)",
+  );
+  await expect(article.locator("pre")).toHaveCSS(
+    "background-color",
+    "rgb(238, 229, 213)",
+  );
+  await expect(article.getByText("代码")).toHaveCSS("color", "rgb(95, 88, 76)");
+  await expect(december.getByRole("img")).toHaveCSS("filter", "none");
+  const expand = page.getByRole("button", { name: "展开全文" });
+  await expand.press("Enter");
+  await expect(page.locator(".timeline-item :focus")).toContainText(
+    "Latest article",
+  );
+  await article.getByRole("link", { name: "归档图片" }).click();
+  const lightbox = page.locator(".fancybox__container");
+  const close = lightbox.getByRole("button", { name: "Close", exact: true });
+  await expect(close).toHaveCSS("color", "rgb(45, 41, 34)");
+  await expect(close).toHaveCSS("background-color", "rgb(255, 249, 239)");
+  await expect(lightbox.getByRole("img", { name: "归档图片" })).toHaveCSS(
+    "filter",
+    "none",
+  );
+  await page.keyboard.press("Escape");
+  await expect(lightbox).toBeHidden();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await reading.evaluate((element) => {
+    element.addEventListener("transitionrun", (event) => {
+      if (!(event instanceof TransitionEvent)) return;
+      const transition = `${event.target instanceof Node ? event.target.textContent : ""}:${event.propertyName}`;
+      element.dataset.monthTransitions = `${element.dataset.monthTransitions ?? ""} ${transition}`;
+    });
+  });
+  await december.locator(".timeline-item").first().scrollIntoViewIfNeeded();
+  await december
+    .locator(".timeline-item")
+    .first()
+    .evaluate((entry) => {
+      window.scrollBy(0, entry.getBoundingClientRect().top - 10);
+    });
+  await expect(reading).toContainText("2025 年 12 月");
+  for (const label of ["融冬二月", "歲末十二"]) {
+    for (const property of ["opacity", "translate"]) {
+      await expect(reading).toHaveAttribute(
+        "data-month-transitions",
+        new RegExp(`${label}:${property}`),
+        { timeout: 2_000 },
+      );
+    }
+  }
+  expect(await color(reading.getByText("歲末十二", { exact: true }))).not.toBe(
+    paperMonthColor,
+  );
+  await expect(decemberTick).toHaveCSS("color", inactiveTickColor);
+  const more = page.getByRole("button", { name: "加载更多" });
+  await more.scrollIntoViewIfNeeded();
+  await expect(december.getByText("Archive 20", { exact: true })).toBeVisible();
+  await expect(december).toHaveCount(1);
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  );
+  await expect(reading).toContainText("2025 年 11 月");
+  await expect(
+    page.getByRole("heading", { name: "11 月", exact: true }),
+  ).not.toHaveAttribute("aria-current", "true");
+
+  await page.getByRole("button", { name: "搜索排序" }).click();
+  await page.getByRole("button", { name: "按更新时间排序" }).click();
+  const march = page.getByRole("region", { name: "03 月", exact: true });
+  const updated = march.locator("time");
+  await expect(updated).toHaveText("03/14 09:15");
+  await expect(updated).toHaveAttribute("datetime", "2026-03-14T09:15:00Z");
+  await expect(march.getByText("Archive 20", { exact: true })).toBeVisible();
+  await page.getByRole("textbox").fill("no matches");
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await expect(reading).toBeEmpty();
+  await expect(year("2026")).toHaveCount(0);
+});
+
+for (const colorScheme of ["dark", "light"] as const) {
+  test(`static first paint uses ${colorScheme} and restores saved themes`, async ({
+    page,
+  }) => {
+    const state = await backend(page);
+    state.loggedIn = false;
+    state.multiPage = true;
+    await page.emulateMedia({ colorScheme });
+    const nextScripts = "**/_next/static/**/*.js";
+    await page.route(nextScripts, (route) => route.abort());
+    const root = page.locator("html");
+    const theme = colorScheme === "dark" ? "dark" : "paper";
+    const other = colorScheme === "dark" ? "paper" : "dark";
+    const saved = () =>
+      page.evaluate(() => localStorage.getItem("timeline-theme"));
+    await page.goto("/");
+    await expect(root).toHaveAttribute("data-theme", theme);
+    await expect(page.locator("body")).toHaveCSS(
+      "background-color",
+      theme === "paper" ? "rgb(245, 239, 226)" : "rgb(11, 13, 14)",
+    );
+    expect(await saved()).toBe(theme);
+    await expect(
+      page.getByRole("button", { name: "纸张浅色主题" }),
+    ).toHaveCount(0);
+
+    await page.evaluate(() =>
+      localStorage.setItem("timeline-theme", "invalid"),
+    );
+    await page.unroute(nextScripts);
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (
+        message.type() === "error" &&
+        /hydrat|server.rendered HTML/i.test(message.text())
+      )
+        errors.push(message.text());
+    });
+    await page.goto("/?search=fixture&orderBy=updated_at");
+    const toggle = page.getByRole("button", { name: "纸张浅色主题" });
+    await expect(toggle).toHaveAttribute(
+      "aria-pressed",
+      String(theme === "paper"),
+    );
+    await expect(page.getByText("PUBLIC", { exact: true })).toBeVisible();
+    expect(await saved()).toBe(theme);
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight + 100));
+    const position = await page.evaluate(() => window.scrollY);
+    expect(position).toBeGreaterThan(0);
+    await toggle.evaluate((button) => button.focus({ preventScroll: true }));
+    await page.keyboard.press("Space");
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveAttribute(
+      "aria-pressed",
+      String(other === "paper"),
+    );
+    await expect(root).toHaveAttribute("data-theme", other);
+    expect(await saved()).toBe(other);
+    expect(await page.evaluate(() => window.scrollY)).toBe(position);
+    await expect(page.getByRole("textbox")).toHaveValue("fixture");
+    expect(new URL(page.url()).searchParams.get("orderBy")).toBe("updated_at");
+
+    await page.emulateMedia({
+      colorScheme: colorScheme === "dark" ? "light" : "dark",
+    });
+    await expect(root).toHaveAttribute("data-theme", other);
+    await page.keyboard.press("Enter");
+    await expect(root).toHaveAttribute("data-theme", theme);
+    expect(await saved()).toBe(theme);
+    expect(errors).toEqual([]);
+    await page.route(nextScripts, (route) => route.abort());
+    await page.reload();
+    await expect(root).toHaveAttribute("data-theme", theme);
+    expect(await saved()).toBe(theme);
+  });
+}
+
+test("timeline requests can be retried without replacing loaded entries", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.multiPage = true;
+  state.failTimelinePage = 0;
+  await page.goto("/");
+  const retry = page.getByRole("button", { name: "重试加载" });
+  const failure = page.getByRole("alert").filter({ hasText: "时间线加载失败" });
+  await expect(failure).toBeVisible();
+  await expect(page.getByText("没有找到相关内容", { exact: true })).toHaveCount(
+    0,
+  );
+  state.failTimelinePage = null;
+  await retry.click();
+  await expect(page.getByText("PUBLIC", { exact: true })).toBeVisible();
+
+  state.failTimelinePage = 1;
+  await page.getByRole("button", { name: "加载更多" }).scrollIntoViewIfNeeded();
+  await expect(failure).toBeVisible();
+  await expect(page.getByText("PUBLIC", { exact: true })).toBeVisible();
+  state.failTimelinePage = null;
+  await retry.click();
+  await expect(page.getByText("PUBLIC-24", { exact: true })).toBeVisible();
+  await expect(failure).toBeHidden();
+});
+
+test("timeline disclosures preserve keyboard focus", async ({ page }) => {
+  await backend(page);
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  const sort = page.getByRole("button", { name: "搜索排序" });
+  const updated = page.getByRole("button", { name: "按更新时间排序" });
+  const source = page
+    .getByRole("button", { name: "feed", exact: true })
+    .first();
+  await input.fill("fixture");
+  await page.getByRole("button", { name: "清空搜索" }).press("Enter");
+  await expect(input).toHaveValue("");
+  await expect(input).toBeFocused();
+
+  await sort.press("Enter");
+  await updated.press("Escape");
+  await expect(sort).toBeFocused();
+  await expect(updated).toBeHidden();
+  await sort.press("Enter");
+  await updated.press("Enter");
+  await expect(sort).toBeFocused();
+  await expect(updated).toBeHidden();
+
+  await source.press("Enter");
+  const link = page.getByRole("link", { name: "打开链接", exact: true });
+  await link.press("Escape");
+  await expect(source).toBeFocused();
+  await expect(link).toBeHidden();
+  await source.press("Enter");
+  await input.press("Escape");
+  await expect(input).toBeFocused();
+  await expect(link).toBeHidden();
+});
+
+test("album navigation does not cover source actions", async ({ page }) => {
+  const state = await backend(page);
+  state.archiveItems = [
+    {
+      id: "album",
+      content_id: "album",
+      sync_service_id: "album",
+      sync_service_type: SyncServiceType.QZONE_TALK,
+      label: "相册",
+      title: "Album",
+      content: "",
+      url: "https://example.com/album",
+      created_at: "2026-10-03T01:00:00Z",
+      updated_at: "2026-10-03T01:00:00Z",
+      attachments: ["one.svg", "two.svg"].map((filename) => ({
+        filename,
+        url: COVER_URL,
+      })),
+    },
+  ];
+  await page.goto("/");
+  await page.getByRole("button", { name: "下一张" }).click();
+  await expect(page.getByRole("button", { name: "上一张" })).toBeVisible();
+  await page.getByRole("button", { name: "相册", exact: true }).click();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "设为私密" }).click();
+  await expect(page.getByText("私密", { exact: true })).toBeVisible();
+});
 
 test("primary admin actions stay in view while reading long logs", async ({
   page,
@@ -225,6 +681,12 @@ test("visitors can return to the top of a long timeline", async ({ page }) => {
   await expect(backToTop).toBeHidden();
   await page.evaluate(() => window.scrollTo(0, window.innerHeight + 100));
   await expect(backToTop).toBeInViewport();
+  const siteLinks = page.getByRole("list", { name: "站点链接" });
+  if (await siteLinks.isVisible()) {
+    const button = (await backToTop.boundingBox())!;
+    const links = (await siteLinks.boundingBox())!;
+    expect(button.y + button.height).toBeCloseTo(links.y + links.height);
+  }
   await backToTop.click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(backToTop).toBeHidden();
@@ -427,12 +889,20 @@ test("guest preview preserves login and filters while replacing cached private d
     "/?search=fixture&orderBy=updated_at&serviceId=feed&serviceType=Feed",
   );
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
+  const themeToggle = page.getByRole("button", { name: "纸张浅色主题" });
+  const reading = page.getByRole("group", { name: "当前阅读年月" });
+  await expect(reading).toContainText("2026 年 11 月");
+  if ((await themeToggle.getAttribute("aria-pressed")) === "false")
+    await themeToggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
   await page
     .getByRole("button", { name: "管理面板", exact: true })
     .filter({ visible: true })
     .click();
   await page.getByRole("button", { name: "访客预览", exact: true }).click();
   await expect(page.getByRole("region", { name: "访客预览" })).toBeVisible();
+  await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(reading).toContainText("2026 年 10 月");
   await expect(page.getByText("PRIVATE", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("textbox").filter({ visible: true })).toHaveValue(
@@ -442,7 +912,7 @@ test("guest preview preserves login and filters while replacing cached private d
   expect(
     state.requests.filter((request) => request.path === "/logout"),
   ).toHaveLength(0);
-  await page.locator(".timeline-item [aria-haspopup='menu']").first().click();
+  await page.getByRole("button", { name: "feed", exact: true }).first().click();
   await expect(page.getByRole("link", { name: "打开链接" })).toBeVisible();
   await expect(page.getByRole("button", { name: "设为私密" })).toHaveCount(0);
   await expect(
@@ -450,6 +920,8 @@ test("guest preview preserves login and filters while replacing cached private d
   ).toHaveCount(0);
   await page.getByRole("button", { name: "返回管理员视角" }).click();
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
+  await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(reading).toContainText("2026 年 11 月");
   await expect(page.getByRole("textbox").filter({ visible: true })).toHaveValue(
     "fixture",
   );
@@ -561,8 +1033,8 @@ for (const transition of ["preview", "logout", "401"] as const) {
     await expect(page.getByText(/LOG-MARKER/)).toHaveCount(0);
     await expect(page.getByText("PUBLIC", { exact: true })).toBeVisible();
     await expect(
-      page.getByRole("progressbar", { includeHidden: true }),
-    ).toHaveAttribute("aria-valuenow", "4");
+      page.getByRole("group", { name: "当前阅读年月" }),
+    ).toContainText(/\d{4} 年 \d{2} 月/);
     if (transition === "preview") {
       await expect(
         page.getByRole("button", { name: "返回管理员视角" }),
@@ -687,11 +1159,11 @@ test("existing private item controls still update the current admin cache", asyn
   const item = page
     .locator(".timeline-item")
     .filter({ has: page.getByText("PRIVATE", { exact: true }) });
-  await item.locator("[aria-haspopup='menu']").click();
+  await item.getByRole("button", { name: "feed", exact: true }).click();
   page.once("dialog", (dialog) => void dialog.accept());
   await item.getByRole("button", { name: "设为公开", exact: true }).click();
   await expect(item.getByText("私密", { exact: true })).toHaveCount(0);
-  await item.locator("[aria-haspopup='menu']").click();
+  await item.getByRole("button", { name: "feed", exact: true }).click();
   await expect(
     item.getByRole("button", { name: "设为私密", exact: true }),
   ).toBeVisible();

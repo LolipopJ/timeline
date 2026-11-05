@@ -1,7 +1,7 @@
 import type { TimelineComponent } from "@/interfaces/timeline";
 
 const imageIntroClassName =
-  "bg-neutral-950/60 backdrop-blur-xs absolute px-4 py-3 inset-x-0 whitespace-pre-wrap";
+  "bg-black/70 text-white backdrop-blur-xs absolute px-4 py-3 inset-x-0 whitespace-pre-wrap";
 
 export default function TimelineItemBilibiliCollection(
   props: TimelineComponent,
@@ -10,7 +10,7 @@ export default function TimelineItemBilibiliCollection(
   const cover = item.attachments?.[0];
 
   return (
-    <div className={`bilibili-collection ${className}`} {...rest}>
+    <div className={className} {...rest}>
       {cover && (
         <div className="relative aspect-video bg-background-light">
           <a
@@ -32,7 +32,7 @@ export default function TimelineItemBilibiliCollection(
             <a
               href={item.url ?? undefined}
               target="_blank"
-              className="line-clamp-1 transition hover:text-primary"
+              className="line-clamp-1 hover:underline"
             >
               {item.title}
             </a>
