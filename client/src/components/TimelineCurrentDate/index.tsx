@@ -1,4 +1,5 @@
-import { createRef, useState } from "react";
+import type { ComponentProps } from "react";
+import { useRef, useState } from "react";
 import { CSSTransition, TransitionGroup } from "react-transition-group";
 
 const YEAR_DIGITS = [
@@ -28,6 +29,32 @@ const MONTHS = [
   ["歲末十二", "text-yellow-50 paper:text-yellow-900"],
 ];
 
+function DateFlipText({
+  className,
+  children,
+  ...transition
+}: Pick<
+  ComponentProps<typeof CSSTransition<HTMLSpanElement>>,
+  "in" | "onExited"
+> & {
+  className: string;
+  children: string;
+}) {
+  const nodeRef = useRef<HTMLSpanElement>(null);
+  return (
+    <CSSTransition
+      {...transition}
+      nodeRef={nodeRef}
+      classNames="fade-y"
+      timeout={150}
+    >
+      <span ref={nodeRef} className={`col-start-1 row-start-1 ${className}`}>
+        {children}
+      </span>
+    </CSSTransition>
+  );
+}
+
 export default function TimelineCurrentDate({
   month,
   isLoading,
@@ -38,13 +65,12 @@ export default function TimelineCurrentDate({
   const [displayedMonth, setDisplayedMonth] = useState(month);
   if (!isLoading && displayedMonth !== month) setDisplayedMonth(month);
 
-  const [monthRefs] = useState(() =>
-    MONTHS.map(() => createRef<HTMLSpanElement>()),
-  );
   const [year, number] = (displayedMonth ?? "").split("-");
-  const index = Number(number) - 1;
-  const details = MONTHS[index];
-  const monthRef = monthRefs[index];
+  const details = MONTHS[Number(number) - 1];
+  const yearLabel = Array.from(
+    year,
+    (digit) => YEAR_DIGITS[Number(digit)],
+  ).join("");
 
   return (
     <div
@@ -57,30 +83,29 @@ export default function TimelineCurrentDate({
           <span className="sr-only">
             {year} 年 {number} 月
           </span>
-          <span
-            aria-hidden="true"
-            className="block text-sm font-bold text-foreground lg:text-2xl"
-          >
-            {Array.from(year, (digit) => YEAR_DIGITS[Number(digit)]).join("")}
-          </span>
           <TransitionGroup
             component="span"
             aria-hidden="true"
             className="grid overflow-clip"
           >
-            <CSSTransition
-              key={number}
-              nodeRef={monthRef}
-              classNames="fade-y"
-              timeout={300}
+            <DateFlipText
+              key={year}
+              className="text-sm font-bold text-foreground lg:text-2xl"
             >
-              <span
-                ref={monthRef}
-                className={`col-start-1 row-start-1 text-xl font-black motion-reduce:transition-none lg:text-4xl motion-reduce:[&.fade-y-exit]:hidden ${details[1]}`}
-              >
-                {details[0]}
-              </span>
-            </CSSTransition>
+              {yearLabel}
+            </DateFlipText>
+          </TransitionGroup>
+          <TransitionGroup
+            component="span"
+            aria-hidden="true"
+            className="grid overflow-clip"
+          >
+            <DateFlipText
+              key={displayedMonth}
+              className={`text-xl font-black lg:text-4xl ${details[1]}`}
+            >
+              {details[0]}
+            </DateFlipText>
           </TransitionGroup>
         </time>
       )}

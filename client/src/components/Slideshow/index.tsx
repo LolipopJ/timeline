@@ -1,6 +1,8 @@
 "use client";
 
 import { Fancybox } from "@fancyapps/ui";
+import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
+import Icon from "@mdi/react";
 import dynamic from "next/dynamic";
 import React, {
   useCallback,
@@ -55,7 +57,10 @@ export default function Slideshow(props: SlideshowProps) {
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
-  const [hovered, setHovered] = useState(false);
+  const swipeStart = useRef<{ x: number; y: number; pointerId: number } | null>(
+    null,
+  );
+  const swiped = useRef(false);
   const playersRef = useRef(new Map<string, Player>());
 
   // fancybox 仅展示图片，不接入视频类型
@@ -147,120 +152,151 @@ export default function Slideshow(props: SlideshowProps) {
     });
   }, [index]);
 
+  function startSwipe(event: React.PointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary) return;
+    swiped.current = false;
+    if (
+      event.pointerType !== "touch" ||
+      (event.target instanceof Element &&
+        event.target.closest(".vjs-control-bar"))
+    )
+      return;
+
+    swipeStart.current = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: event.pointerId,
+    };
+  }
+
+  function finishSwipe(event: React.PointerEvent<HTMLDivElement>) {
+    const start = swipeStart.current;
+    if (start?.pointerId !== event.pointerId) return;
+    swipeStart.current = null;
+
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+      swiped.current = true;
+      go(dx < 0 ? 1 : -1);
+    }
+  }
+
   if (count === 0) return null;
 
   const translate = EDGE_PEEK_PERCENTAGE - index * SLIDE_STEP_PERCENTAGE;
 
   return (
-    <div
-      className={`slideshow relative overflow-hidden select-none ${className}`}
-      onMouseOver={() => setHovered(true)}
-      onMouseOut={() => setHovered(false)}
-      {...rest}
-    >
-      <div
-        className="flex h-full items-center transition-transform duration-300 ease-out"
-        style={{
-          transform: `translateX(${translate}%)`,
-          gap: `${GAP_PERCENTAGE}%`,
-        }}
-      >
-        {items.map((item, i) => {
-          const isCurrent = i === index;
+    <div className={`slideshow select-none ${className}`} {...rest}>
+      <div className="relative overflow-hidden rounded-sm">
+        <div
+          className="flex h-full touch-pan-y touch-pinch-zoom items-center motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
+          onPointerDown={startSwipe}
+          onPointerUp={finishSwipe}
+          onPointerCancel={() => {
+            swipeStart.current = null;
+          }}
+          onClickCapture={(event) => {
+            if (swiped.current && event.detail > 0) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
+          style={{
+            transform: `translateX(${translate}%)`,
+            gap: `${GAP_PERCENTAGE}%`,
+          }}
+        >
+          {items.map((item, i) => {
+            const isCurrent = i === index;
 
-          return (
-            <div
-              key={item.key}
-              className={`relative h-full shrink-0 ${
-                isCurrent ? "cursor-zoom-in" : "cursor-pointer blur-[1px]"
-              }`}
-              style={{ flexBasis: `${SLIDE_WIDTH_PERCENTAGE}%` }}
-              onClick={(e) => {
-                // 如果点击的是 video.js 的控制栏或视频元素本身，不触发 Fancybox
-                const target = e.target as HTMLElement;
-                if (target.closest(".video-js") || target.tagName === "VIDEO") {
-                  return;
-                }
+            return (
+              <div
+                key={item.key}
+                className={`relative h-full shrink-0 ${isCurrent ? "" : "cursor-pointer blur-[1px]"}`}
+                style={{ flexBasis: `${SLIDE_WIDTH_PERCENTAGE}%` }}
+                onClick={() => {
+                  if (!isCurrent && item.type === "video") goTo(i);
+                }}
+              >
+                {item.type === "image" ? (
+                  <button
+                    type="button"
+                    tabIndex={isCurrent ? 0 : -1}
+                    aria-label={`查看第 ${i + 1} 张图片`}
+                    onClick={() => (isCurrent ? openFancybox(i) : goTo(i))}
+                    className={`block size-full focus-visible:-outline-offset-2 ${isCurrent ? "cursor-zoom-in" : "cursor-pointer"}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={item.alt ?? ""}
+                      src={item.src}
+                      className="pointer-events-none size-full object-cover"
+                      draggable={false}
+                    />
+                  </button>
+                ) : (
+                  <VideoPlayer
+                    id={item.key}
+                    options={{
+                      sources: [{ src: item.src, type: item.fileType }],
+                      controls: true,
+                      poster: item.alt,
+                      preload: "none",
+                    }}
+                    className={`size-full ${isCurrent ? "" : "pointer-events-none"}`}
+                    onReady={(player) => {
+                      playersRef.current.set(item.key, player);
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-                if (isCurrent) {
-                  if (item.type === "image") openFancybox(i);
-                } else {
-                  goTo(i);
-                }
-              }}
-            >
-              {item.type === "image" && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt={item.alt}
-                  src={item.src}
-                  className="pointer-events-none size-full object-cover select-none"
-                  draggable={false}
-                />
-              )}
-              {item.type === "video" && (
-                <VideoPlayer
-                  id={item.key}
-                  options={{
-                    sources: [{ src: item.src, type: item.fileType }],
-                    controls: true,
-                    poster: item.alt,
-                    preload: "none",
-                  }}
-                  // 阻止 video.js 内部点击事件冒泡到外层 div，避免误触发导航
-                  className={`size-full ${isCurrent ? "" : "pointer-events-none"}`}
-                  onReady={(player) => {
-                    playersRef.current.set(item.key, player);
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
+        {canGoPrev && (
+          <button
+            type="button"
+            aria-label="上一张"
+            onClick={() => go(-1)}
+            className="absolute inset-y-0 left-0 z-10 grid w-[8%] cursor-pointer place-items-center bg-linear-to-r from-black/65 to-transparent text-white focus-visible:-outline-offset-2"
+          >
+            <Icon path={mdiChevronLeft} className="size-5" aria-hidden="true" />
+          </button>
+        )}
+        {canGoNext && (
+          <button
+            type="button"
+            aria-label="下一张"
+            onClick={() => go(1)}
+            className="absolute inset-y-0 right-0 z-10 grid w-[8%] cursor-pointer place-items-center bg-linear-to-l from-black/65 to-transparent text-white focus-visible:-outline-offset-2"
+          >
+            <Icon
+              path={mdiChevronRight}
+              className="size-5"
+              aria-hidden="true"
+            />
+          </button>
+        )}
       </div>
 
-      {canGoPrev && (
-        <button
-          type="button"
-          aria-label="上一张"
-          onClick={(e) => {
-            e.stopPropagation();
-            go(-1);
-          }}
-          className={`absolute inset-y-0 left-0 z-10 w-[8%] cursor-pointer`}
-        />
-      )}
-      {canGoNext && (
-        <button
-          type="button"
-          aria-label="下一张"
-          onClick={(e) => {
-            e.stopPropagation();
-            go(1);
-          }}
-          className="absolute inset-y-0 right-0 z-10 w-[8%] cursor-pointer"
-        />
-      )}
-
       {count > 1 && (
-        <div
-          className={`pointer-events-none absolute inset-x-0 bottom-1 z-10 flex justify-center gap-1.5 transition-opacity duration-300 ${
-            hovered ? "opacity-100" : "opacity-0"
-          }`}
-        >
+        <div className="flex flex-wrap justify-center gap-0.5 pt-1">
           {items.map((item, i) => (
             <button
               key={item.key}
               type="button"
               aria-label={`跳转到第 ${i + 1} 张`}
-              onClick={(e) => {
-                e.stopPropagation();
-                goTo(i);
-              }}
-              className={`pointer-events-auto size-2 cursor-pointer rounded-full transition ${
-                i === index ? "bg-primary" : "bg-foreground-dark"
-              }`}
-            />
+              aria-current={i === index ? "true" : undefined}
+              onClick={() => goTo(i)}
+              className="grid size-8 cursor-pointer place-items-center rounded-full hover:bg-background-lighter"
+            >
+              <span
+                aria-hidden="true"
+                className={`size-2 rounded-full ${i === index ? "bg-primary" : "bg-control"}`}
+              />
+            </button>
           ))}
         </div>
       )}

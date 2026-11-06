@@ -40,6 +40,8 @@ export default function TimelineSearch(props: TimelineSearchProps) {
   }
   const draftSearch = draft.key === searchKey ? draft.text : value.search;
   const [open, setOpen] = useState<"sort" | "labels" | null>(null);
+  const sortOpen = open === "sort";
+  const labelsOpen = open === "labels" && serviceLabels.length > 0;
   const labelsId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -177,9 +179,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
             }
           }}
           aria-label="搜索时间线"
-          aria-controls={
-            open === "labels" && serviceLabels.length ? labelsId : undefined
-          }
+          aria-controls={labelsOpen ? labelsId : undefined}
           placeholder="搜索"
           className="h-11 w-full rounded-md border border-control bg-background-lighter pr-8 pl-10 text-sm placeholder:text-foreground-dark"
           {...rest}
@@ -188,42 +188,45 @@ export default function TimelineSearch(props: TimelineSearchProps) {
         <button
           ref={sortRef}
           type="button"
-          onClick={() => setOpen(open === "sort" ? null : "sort")}
+          onClick={() => setOpen(sortOpen ? null : "sort")}
           aria-label="搜索排序"
-          aria-expanded={open === "sort"}
+          aria-expanded={sortOpen}
           className="absolute inset-y-px left-px grid w-9 cursor-pointer place-items-center rounded-l-md border-r border-control bg-background-light hover:bg-background-lighter"
         >
           <Icon path={mdiCommentSearch} className="size-5" aria-hidden="true" />
         </button>
 
-        {open === "sort" && (
-          <div className="absolute inset-e-0 z-50 mt-2 w-max rounded-md border border-control bg-background-light shadow-lg lg:inset-s-0">
-            <ul className="p-1">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => handleSelect("created_at")}
-                  className={`w-full cursor-pointer rounded-md px-3 py-2 text-left whitespace-nowrap hover:bg-background-lighter ${
-                    current === "created_at" ? "font-medium underline" : ""
-                  }`}
-                >
-                  按创建时间排序
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => handleSelect("updated_at")}
-                  className={`w-full cursor-pointer rounded-md px-3 py-2 text-left whitespace-nowrap hover:bg-background-lighter ${
-                    current === "updated_at" ? "font-medium underline" : ""
-                  }`}
-                >
-                  按更新时间排序
-                </button>
-              </li>
-            </ul>
-          </div>
-        )}
+        <div
+          data-open={sortOpen}
+          inert={!sortOpen}
+          aria-hidden={!sortOpen}
+          className={`absolute inset-e-0 z-50 mt-2 w-max rounded-md border border-control bg-background-light shadow-lg motion-safe:archive-disclosure lg:inset-s-0 ${sortOpen ? "" : "hidden"}`}
+        >
+          <ul className="p-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => handleSelect("created_at")}
+                className={`w-full cursor-pointer rounded-md px-3 py-2 text-left whitespace-nowrap hover:bg-background-lighter ${
+                  current === "created_at" ? "font-medium underline" : ""
+                }`}
+              >
+                按创建时间排序
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={() => handleSelect("updated_at")}
+                className={`w-full cursor-pointer rounded-md px-3 py-2 text-left whitespace-nowrap hover:bg-background-lighter ${
+                  current === "updated_at" ? "font-medium underline" : ""
+                }`}
+              >
+                按更新时间排序
+              </button>
+            </li>
+          </ul>
+        </div>
 
         {draftSearch && (
           <button
@@ -244,11 +247,14 @@ export default function TimelineSearch(props: TimelineSearchProps) {
             />
           </button>
         )}
-        {open === "labels" && serviceLabels.length > 0 && (
+        {serviceLabels.length > 0 && (
           <ul
             id={labelsId}
             aria-label="按类型筛选"
-            className="absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md border border-control bg-background-light p-1 text-sm shadow-lg"
+            data-open={labelsOpen}
+            inert={!labelsOpen}
+            aria-hidden={!labelsOpen}
+            className={`absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md border border-control bg-background-light p-1 text-sm shadow-lg motion-safe:archive-disclosure ${labelsOpen ? "" : "hidden"}`}
           >
             {serviceLabels.map((label) => (
               <li key={label}>

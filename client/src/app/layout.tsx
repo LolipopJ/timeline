@@ -10,6 +10,10 @@ import useSWR from "swr";
 
 import { LoginModal } from "@/components/LoginModal";
 import { MessageContainer } from "@/components/Message";
+import TimelineArchive, {
+  TimelineArchiveError,
+  TimelineArchiveLoading,
+} from "@/components/TimelineArchive";
 import config from "@/config";
 import { LS_LAST_VISIT_DATE } from "@/constants";
 import GlobalContext, {
@@ -18,6 +22,12 @@ import GlobalContext, {
 } from "@/contexts/GlobalContext";
 import { AUTH_EXPIRED_EVENT, fetcherGET, fetcherPOST } from "@/services/axios";
 import { THEME_INIT_SCRIPT } from "@/utils/theme";
+
+function loginReturnUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("login");
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 
 export default function RootLayout({
   children,
@@ -132,7 +142,7 @@ export default function RootLayout({
           ))}
         <meta name="referrer" content="no-referrer" />
       </head>
-      <body className={`${login ? "overflow-hidden" : ""}`}>
+      <body>
         <GlobalContext.Provider value={globalContext}>
           {logoutError && (
             <div
@@ -151,39 +161,33 @@ export default function RootLayout({
             </div>
           )}
           <main>
-            {initialized &&
-              (loginStatus !== undefined ? (
-                children
-              ) : loginStatusError ? (
-                <div role="alert" className="m-4 text-danger">
-                  登录状态读取失败。
-                  <button
-                    type="button"
-                    onClick={() => void mutateLoginStatus()}
-                    className="ml-4 cursor-pointer text-primary-light"
-                  >
-                    重试
-                  </button>
-                </div>
-              ) : (
-                <p role="status" className="m-4">
-                  正在确认登录状态…
-                </p>
-              ))}
+            {initialized && loginStatus !== undefined ? (
+              children
+            ) : (
+              <TimelineArchive>
+                {loginStatusError ? (
+                  <TimelineArchiveError
+                    error="登录状态读取失败。"
+                    onRetry={() => void mutateLoginStatus()}
+                    retryLabel="重试"
+                  />
+                ) : (
+                  <TimelineArchiveLoading label="正在确认登录状态…" />
+                )}
+              </TimelineArchive>
+            )}
           </main>
-          {login && (
-            <LoginModal
-              open={true}
-              onClose={() => {
-                setLogin(false);
-                router.replace(pathname);
-              }}
-              onLogged={() => {
-                void mutateLoginStatus({ isLoggedIn: true }, false);
-                window.location.replace(pathname);
-              }}
-            />
-          )}
+          <LoginModal
+            open={login}
+            onClose={() => {
+              setLogin(false);
+              router.replace(loginReturnUrl(), { scroll: false });
+            }}
+            onLogged={() => {
+              void mutateLoginStatus({ isLoggedIn: true }, false);
+              window.location.replace(loginReturnUrl());
+            }}
+          />
           <MessageContainer />
         </GlobalContext.Provider>
       </body>

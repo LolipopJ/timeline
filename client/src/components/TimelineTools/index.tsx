@@ -82,7 +82,8 @@ export default function TimelineTools({
       </button>
       <div
         id={menuId}
-        className={`${open ? "flex" : "hidden"} absolute top-full right-0 z-30 mt-2 min-w-40 flex-col gap-1 rounded-md border border-control bg-background-light p-1 shadow-lg sm:static sm:mt-0 sm:flex sm:min-w-0 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none lg:contents`}
+        data-open={open}
+        className={`${open ? "flex" : "hidden"} absolute top-full right-0 z-30 mt-2 min-w-40 flex-col gap-1 rounded-md border border-control bg-background-light p-1 shadow-lg motion-safe:max-sm:archive-disclosure sm:static sm:mt-0 sm:flex sm:min-w-0 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none`}
       >
         <div className="flex flex-col gap-1 sm:flex-row sm:gap-2 lg:flex-col">
           <ThemeToggle />
@@ -91,7 +92,8 @@ export default function TimelineTools({
         {links.length > 0 && (
           <ul
             aria-label="站点链接"
-            className={`${open ? "flex" : "hidden"} flex-col border-t border-binding pt-1 sm:absolute sm:top-full sm:right-0 sm:z-30 sm:mt-2 sm:min-w-36 sm:rounded-md sm:border sm:border-control sm:bg-background-light sm:p-1 sm:shadow-lg lg:absolute lg:top-auto lg:right-auto lg:bottom-0 lg:left-0 lg:mt-0 lg:flex lg:w-full lg:min-w-0 lg:flex-row lg:gap-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none`}
+            data-open={open}
+            className={`${open ? "flex" : "hidden"} flex-col border-t border-binding pt-1 sm:absolute sm:top-full sm:right-0 sm:z-30 sm:mt-2 sm:min-w-36 sm:rounded-md sm:border sm:border-control sm:bg-background-light sm:p-1 sm:shadow-lg motion-safe:sm:max-lg:archive-disclosure lg:absolute lg:top-auto lg:right-auto lg:bottom-0 lg:left-0 lg:mt-0 lg:flex lg:w-full lg:min-w-0 lg:flex-row lg:gap-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none`}
           >
             {links.map(({ label, href, icon }) => (
               <li key={label}>

@@ -61,8 +61,48 @@
   --warning: #765018;
 }
 
+@utility archive-disclosure {
+  @apply transition-discrete duration-150 ease-out;
+  transition-property: display, opacity, translate;
+
+  @starting-style {
+    @apply translate-y-1 opacity-0;
+  }
+
+  &[data-open='false'] {
+    @apply pointer-events-none translate-y-1 opacity-0;
+    interactivity: inert;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme-transition]::view-transition {
+    pointer-events: none;
+  }
+
+  html[data-theme-transition]::view-transition-group(root),
+  html[data-theme-transition]::view-transition-old(root),
+  html[data-theme-transition]::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  html[data-theme-transition]::view-transition-new(root) {
+    animation: theme-reveal 420ms ease-out;
+  }
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--theme-origin));
+  }
+  to {
+    clip-path: circle(var(--theme-radius) at var(--theme-origin));
+  }
+}
+
 @layer base {
-  html:has(#admin-console[open]) {
+  html:has(#admin-console[open], #login-modal[open]) {
     @apply overflow-hidden;
   }
 
@@ -255,6 +295,20 @@
   }
 
   .timeline-item {
+    &::before {
+      @apply border-control bg-background motion-safe:transition-[background-color,border-color,scale] motion-safe:duration-150;
+    }
+
+    &:focus-within::before {
+      @apply scale-125 border-primary bg-primary;
+    }
+
+    @media (hover: hover) {
+      &:hover::before {
+        @apply scale-125 border-primary bg-primary;
+      }
+    }
+
     img {
       @apply bg-background-lighter;
     }

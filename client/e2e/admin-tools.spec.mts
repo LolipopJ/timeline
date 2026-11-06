@@ -30,6 +30,7 @@ async function backend(page: Page) {
     archiveItems: null as TimelineItemClient[] | null,
     logCount: 1,
     loginGate: null as Promise<void> | null,
+    servicesGate: null as Promise<void> | null,
     timelineGate: null as Promise<void> | null,
     logsGate: null as Promise<void> | null,
     run: null as SyncRunDto | null,
@@ -76,12 +77,13 @@ async function backend(page: Page) {
       "access-control-allow-origin": "http://127.0.0.1:3100",
       "access-control-allow-credentials": "true",
       "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
+      "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
       "cache-control": "private, no-store",
     };
     if (request.method() === "OPTIONS")
       return route.fulfill({ status: 204, headers });
-    if (path === "/timeline-services")
+    if (path === "/timeline-services") {
+      await state.servicesGate;
       return state.failServices
         ? route.fulfill({ status: 503, body: "unavailable", headers })
         : route.fulfill({
@@ -100,7 +102,11 @@ async function backend(page: Page) {
             ],
             headers,
           });
-    if (request.method() === "PATCH" && path.startsWith("/timeline-items/"))
+    }
+    if (
+      ["PATCH", "DELETE"].includes(request.method()) &&
+      path.startsWith("/timeline-items/")
+    )
       return route.fulfill({ json: {}, headers });
     if (path === "/login") {
       if (request.method() === "POST") {
@@ -258,14 +264,31 @@ async function backend(page: Page) {
   return state;
 }
 
+async function recordDialogMotion(page: Page) {
+  await page.addInitScript(() => {
+    document.addEventListener("transitionrun", (event) => {
+      const dialog = event.target;
+      if (dialog instanceof HTMLDialogElement) {
+        const property = `${event.propertyName}${event.pseudoElement}`;
+        dialog.dataset.motion = `${dialog.dataset.motion ?? ""} ${property}`;
+      }
+    });
+  });
+}
+
 async function showToolbarControls(page: Page) {
   const theme = page.getByRole("button", {
     name: "纸张浅色主题",
     includeHidden: true,
   });
   await expect(theme).toBeAttached();
-  if (await theme.isHidden())
-    await page.getByRole("button", { name: "时间线菜单" }).click();
+  const trigger = page.getByRole("button", { name: "时间线菜单" });
+  if (
+    page.viewportSize()!.width < 640 &&
+    (await trigger.getAttribute("aria-expanded")) === "false"
+  )
+    await trigger.click();
+  await expect(theme).toBeVisible();
 }
 
 test("achievement cards and Steam portrait covers fit both themes and viewports", async ({
@@ -821,6 +844,44 @@ test("source menu puts link opening before sharing and type filtering", async ({
   ]);
 });
 
+test("the archive frame persists through all three initial loading stages", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const login = Promise.withResolvers<void>();
+  const services = Promise.withResolvers<void>();
+  const entries = Promise.withResolvers<void>();
+  state.loginGate = login.promise;
+  state.servicesGate = services.promise;
+  state.timelineGate = entries.promise;
+
+  await page.goto("/");
+  const toolbar = page.getByRole("complementary", { name: "时间线工具" });
+  const archive = page.locator("[data-timeline-archive]");
+  const status = archive.getByRole("status");
+  const frame = () =>
+    archive.evaluate((element) => {
+      const { x, y, width } = element.getBoundingClientRect();
+      return { x, y, width };
+    });
+
+  await expect(toolbar).toBeVisible();
+  await expect(archive).toHaveCSS("border-left-width", "1px");
+  await expect(status).toHaveText("正在确认登录状态…");
+  await expect(archive.locator("[aria-hidden=true]")).toBeVisible();
+  const initialFrame = await frame();
+
+  login.resolve();
+  await expect(status).toHaveText("正在加载筛选来源");
+  expect(await frame()).toEqual(initialFrame);
+  services.resolve();
+  await expect(status).toHaveText("正在加载时间线");
+  expect(await frame()).toEqual(initialFrame);
+  entries.resolve();
+  await expect(archive.getByText("PRIVATE", { exact: true })).toBeVisible();
+  expect(await frame()).toEqual(initialFrame);
+});
+
 test("service catalog failure gates structured requests and can be retried", async ({
   page,
 }) => {
@@ -830,8 +891,8 @@ test("service catalog failure gates structured requests and can be retried", asy
   state.failServices = true;
   await page.goto("/?search=type:feed");
   await expect(
-    page.getByRole("alert").filter({ hasText: "筛选来源加载失败" }),
-  ).toBeVisible();
+    page.locator("[data-timeline-archive]").getByRole("alert"),
+  ).toHaveText("筛选来源加载失败");
   expect(
     state.requests.filter((request) => request.path === "/timeline-items"),
   ).toHaveLength(0);
@@ -1161,22 +1222,24 @@ test("archive joins pages within a month and follows the sorted reading position
     ...item("Latest article", "2026-02-10T12:30:00Z"),
     url: "https://example.com/technical-blog",
   };
+  const coverName = "【Cover story】";
   state.archiveItems = [
     {
       ...latest,
       content: `${latest.content}\n\n<img src="${COVER_URL}" alt="归档图片">\n\n${"长文段落。\n\n".repeat(30)}`,
     },
     {
-      ...item("Cover story", "2025-12-27T11:45:00Z"),
+      ...item(coverName, "2025-12-27T11:45:00Z"),
       sync_service_id: "video",
-      sync_service_type: SyncServiceType.BILIBILI_COLLECTION,
+      sync_service_type: SyncServiceType.BILIBILI_WORK,
+      url: "https://example.com/cover",
       attachments: [
         {
           filename: "cover.svg",
           url: COVER_URL,
         },
       ],
-      content: null,
+      content: "封面简介",
     },
     {
       ...item("Short comment", "2025-12-26T11:45:00Z"),
@@ -1220,27 +1283,71 @@ test("archive joins pages within a month and follows the sorted reading position
     await tickRotation(decemberTick),
   );
   await expect(december.getByText("Short comment body")).toBeVisible();
-  await expect(december.getByRole("img")).toBeVisible();
-  const coverTitle = december.getByRole("heading", { name: "Cover story" });
-  const coverBackground = (locator: Locator) =>
-    locator.evaluate((element) => getComputedStyle(element).backgroundColor);
-  const darkCoverBackground = await coverBackground(coverTitle);
+  const cover = december.getByRole("img");
+  await expect(cover).toBeVisible();
+  const coverLink = december.getByRole("link", {
+    name: coverName,
+    exact: true,
+  });
+  await expect(coverLink).toHaveAttribute("href", "https://example.com/cover");
+  await expect(coverLink.getByText("封面简介")).toBeVisible();
+  const coverTitle = coverLink.getByRole("heading", { name: coverName });
+  expect
+    .soft(
+      await coverTitle.evaluate(
+        (element) => getComputedStyle(element).marginInlineStart,
+      ),
+    )
+    .toBe("-8px");
+  const overlay = coverTitle.locator("..");
+  const gradient = () =>
+    overlay.evaluate((element) => getComputedStyle(element).backgroundImage);
+  const darkGradient = await gradient();
+  expect(darkGradient).toContain("linear-gradient");
+  const imageBounds = (await cover.boundingBox())!;
+  expect((await coverTitle.boundingBox())!.y).toBeGreaterThan(
+    imageBounds.y + imageBounds.height / 2,
+  );
   await expect(coverTitle).toHaveCSS("color", "rgb(231, 236, 234)");
-  await expect(coverTitle).toHaveCSS("border-bottom-width", "0px");
   const article = page
     .getByRole("region", { name: "02 月", exact: true })
     .locator("article");
   await expect(article).toHaveCSS("color", "rgb(231, 236, 234)");
   const title = article.getByRole("link", { name: "Latest article" });
   await expect(title).toHaveCSS("color", "rgb(255, 255, 255)");
+  const entry = page.locator(".timeline-item").filter({
+    has: page.getByRole("link", { name: "Latest article" }),
+  });
+  const timestamp = entry.locator("time");
+  const tick = () =>
+    entry.evaluate((element) => {
+      const style = getComputedStyle(element, "::before");
+      return { color: style.backgroundColor, scale: style.scale };
+    });
+  const highlightedTick = { color: "rgb(115, 205, 185)", scale: "1.25" };
+  const idleTick = { color: "rgb(11, 13, 14)", scale: "none" };
+  const isDesktop = page.viewportSize()!.width >= 1024;
   const hoverSupported = await page.evaluate(
     () => matchMedia("(hover: hover)").matches,
   );
+  await expect.poll(tick).toEqual(idleTick);
+  if (isDesktop)
+    await expect(timestamp).toHaveCSS("color", "rgb(168, 182, 178)");
   if (hoverSupported) {
     await title.hover();
     await expect(title).toHaveCSS("background-size", "100% 100%");
     await expect(title).toHaveCSS("text-decoration-line", "none");
+    await expect.poll(tick).toEqual(highlightedTick);
+    if (isDesktop)
+      await expect(timestamp).toHaveCSS("color", "rgb(231, 236, 234)");
+    await page.mouse.move(0, 0);
+    await expect.poll(tick).toEqual(idleTick);
   }
+  await title.focus();
+  await expect(title).toBeFocused();
+  await expect.poll(tick).toEqual(highlightedTick);
+  if (isDesktop)
+    await expect(timestamp).toHaveCSS("color", "rgb(231, 236, 234)");
   await expect(article.locator("blockquote")).toHaveCSS(
     "color",
     "rgb(168, 182, 178)",
@@ -1271,13 +1378,32 @@ test("archive joins pages within a month and follows the sorted reading position
   await expect(article.getByText("代码")).toHaveCSS("color", "rgb(95, 88, 76)");
   await expect(december.getByRole("img")).toHaveCSS("filter", "none");
   await expect(coverTitle).toHaveCSS("color", "rgb(45, 41, 34)");
-  await expect(coverTitle).toHaveCSS(
-    "border-bottom-color",
-    "rgb(216, 205, 186)",
+  expect(await gradient()).toContain("linear-gradient");
+  expect(await gradient()).not.toBe(darkGradient);
+  const card = entry.locator("div[tabindex='-1']");
+  const bounds = () =>
+    card.evaluate((element) => {
+      const { top, height, width } = element.getBoundingClientRect();
+      return { top, height, width };
+    });
+  const expectIconRow = async (button: Locator) => {
+    await expect(button).toBeVisible();
+    await expect(button.locator("svg")).toHaveCount(1);
+    expect.soft(await button.textContent()).toBe("");
+    expect
+      .soft((await button.boundingBox())!.width)
+      .toBeCloseTo((await bounds()).width, 0);
+  };
+  const expand = card.getByRole("button", { name: "展开全文" });
+  await expectIconRow(expand);
+  const collapsedHeight = (await bounds()).height;
+  expect(collapsedHeight).toBeCloseTo(
+    await page.evaluate(() => window.innerHeight * 0.8),
+    0,
   );
-  expect(await coverBackground(coverTitle)).not.toBe(darkCoverBackground);
-  const expand = page.getByRole("button", { name: "展开全文" });
   await expand.press("Enter");
+  await expect(card).toBeFocused();
+  expect((await bounds()).height).toBeGreaterThan(collapsedHeight);
   await expect(page.locator(".timeline-item :focus")).toContainText(
     "Latest article",
   );
@@ -1292,6 +1418,17 @@ test("archive joins pages within a month and follows the sorted reading position
   );
   await page.keyboard.press("Escape");
   await expect(lightbox).toBeHidden();
+  const collapse = card.getByRole("button", { name: "收起全文" });
+  await expectIconRow(collapse);
+  await collapse.scrollIntoViewIfNeeded();
+  expect((await bounds()).top).toBeLessThan(0);
+  await collapse.click({ position: { x: 6, y: 20 } });
+  await expect(card).toBeFocused();
+  await expect(expand).toBeVisible();
+  await expect
+    .poll(async () => (await bounds()).height)
+    .toBeCloseTo(collapsedHeight, 0);
+  await expect.poll(async () => (await bounds()).top).toBeGreaterThanOrEqual(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(page.viewportSize()!.width);
@@ -1301,7 +1438,7 @@ test("archive joins pages within a month and follows the sorted reading position
     element.addEventListener("transitionrun", (event) => {
       if (!(event instanceof TransitionEvent)) return;
       const transition = `${event.target instanceof Node ? event.target.textContent : ""}:${event.propertyName}`;
-      element.dataset.monthTransitions = `${element.dataset.monthTransitions ?? ""} ${transition}`;
+      element.dataset.dateTransitions = `${element.dataset.dateTransitions ?? ""} ${transition}`;
     });
   });
   await december.locator(".timeline-item").first().scrollIntoViewIfNeeded();
@@ -1312,10 +1449,10 @@ test("archive joins pages within a month and follows the sorted reading position
       window.scrollBy(0, entry.getBoundingClientRect().top - 10);
     });
   await expect(reading).toContainText("2025 年 12 月");
-  for (const label of ["融冬二月", "歲末十二"]) {
+  for (const label of ["貳〇貳陸", "貳〇貳伍", "融冬二月", "歲末十二"]) {
     for (const property of ["opacity", "translate"]) {
       await expect(reading).toHaveAttribute(
-        "data-month-transitions",
+        "data-date-transitions",
         new RegExp(`${label}:${property}`),
         { timeout: 2_000 },
       );
@@ -1325,6 +1462,8 @@ test("archive joins pages within a month and follows the sorted reading position
     paperMonthColor,
   );
   await expect(decemberTick).toHaveCSS("color", inactiveTickColor);
+  await coverLink.focus();
+  await expect(cover).toHaveCSS("scale", "1.02");
   const more = page.getByRole("button", { name: "加载更多" });
   await more.scrollIntoViewIfNeeded();
   await expect(december.getByText("Archive 20", { exact: true })).toBeVisible();
@@ -1359,7 +1498,8 @@ for (const colorScheme of ["dark", "light"] as const) {
     const state = await backend(page);
     state.loggedIn = false;
     state.multiPage = true;
-    await page.emulateMedia({ colorScheme });
+    const reducedMotion = colorScheme === "dark" ? "no-preference" : "reduce";
+    await page.emulateMedia({ colorScheme, reducedMotion });
     const nextScripts = "**/_next/static/**/*.js";
     await page.route(nextScripts, (route) => route.abort());
     const root = page.locator("html");
@@ -1398,8 +1538,39 @@ for (const colorScheme of ["dark", "light"] as const) {
       "aria-pressed",
       String(theme === "paper"),
     );
-    await expect(page.getByText("PUBLIC", { exact: true })).toBeVisible();
+    const publicTitle = page.getByText("PUBLIC", { exact: true });
+    await expect(publicTitle).toBeVisible();
     expect(await saved()).toBe(theme);
+    const card = page
+      .locator(".timeline-item")
+      .filter({ has: publicTitle })
+      .locator("div[tabindex='-1']");
+    const outline = () =>
+      card.evaluate(
+        (element) => getComputedStyle(element, "::after").boxShadow,
+      );
+    const initialOutline = await outline();
+    expect(initialOutline).toContain("inset");
+
+    await root.evaluate((element) => {
+      const startTransition = document.startViewTransition;
+      if (!startTransition) return;
+      document.startViewTransition = (update) => {
+        element.setAttribute("data-theme-requested", "true");
+        const transition = startTransition.call(document, update);
+        void transition.ready.then(
+          () => {
+            const reveal = getComputedStyle(
+              element,
+              "::view-transition-new(root)",
+            );
+            element.setAttribute("data-theme-animation", reveal.animationName);
+          },
+          () => {},
+        );
+        return transition;
+      };
+    });
     await page.evaluate(() => window.scrollTo(0, window.innerHeight + 100));
     const position = await page.evaluate(() => window.scrollY);
     expect(position).toBeGreaterThan(0);
@@ -1412,6 +1583,16 @@ for (const colorScheme of ["dark", "light"] as const) {
     );
     await expect(root).toHaveAttribute("data-theme", other);
     expect(await saved()).toBe(other);
+    if (reducedMotion === "reduce") {
+      await expect(root).not.toHaveAttribute("data-theme-requested", "true");
+    } else {
+      await expect(root).toHaveAttribute(
+        "data-theme-animation",
+        "theme-reveal",
+      );
+    }
+    expect(await outline()).toContain("inset");
+    expect(await outline()).not.toBe(initialOutline);
     expect(await page.evaluate(() => window.scrollY)).toBe(position);
     await expect(page.getByRole("textbox")).toHaveValue("fixture");
     expect(new URL(page.url()).searchParams.get("orderBy")).toBe("updated_at");
@@ -1441,7 +1622,9 @@ test("timeline requests can be retried without replacing loaded entries", async 
   await page.goto("/");
   const retry = page.getByRole("button", { name: "重试加载" });
   const failure = page.getByRole("alert").filter({ hasText: "时间线加载失败" });
-  await expect(failure).toBeVisible();
+  await expect(
+    page.locator("[data-timeline-archive]").getByRole("alert"),
+  ).toHaveText("时间线加载失败");
   await expect(page.getByText("没有找到相关内容", { exact: true })).toHaveCount(
     0,
   );
@@ -1502,7 +1685,9 @@ test("timeline disclosures preserve keyboard focus", async ({ page }) => {
   await expect(link).toBeHidden();
 });
 
-test("album navigation does not cover source actions", async ({ page }) => {
+test("album navigation supports touch, visible indicators, and source actions", async ({
+  page,
+}, testInfo) => {
   const state = await backend(page);
   state.archiveItems = [
     {
@@ -1523,11 +1708,50 @@ test("album navigation does not cover source actions", async ({ page }) => {
     },
   ];
   await page.goto("/");
-  await page.getByRole("button", { name: "下一张" }).click();
+  const first = page.getByRole("button", { name: "跳转到第 1 张" });
+  const second = page.getByRole("button", { name: "跳转到第 2 张" });
+  await expect(first).toBeVisible();
+  await expect(first.locator("..")).toHaveCSS("opacity", "1");
+  await expect(first).toHaveAttribute("aria-current", "true");
+  if (testInfo.project.use.hasTouch) {
+    const image = page.getByRole("button", { name: "查看第 1 张图片" });
+    await image.scrollIntoViewIfNeeded();
+    const bounds = (await image.boundingBox())!;
+    const x = Math.round(bounds.x + bounds.width / 2);
+    const y = Math.round(bounds.y + bounds.height / 2);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: x - 75, y }],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await cdp.detach();
+  } else {
+    await page.getByRole("button", { name: "下一张" }).click();
+  }
+  await expect(second).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("button", { name: "上一张" })).toBeVisible();
+  await expect(page.locator(".fancybox__container")).toBeHidden();
+
+  await first.click();
+  await expect(first).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "查看第 1 张图片" }).click();
+  const lightbox = page.locator(".fancybox__container");
+  await expect(lightbox).toBeVisible();
+  await lightbox.getByRole("button", { name: /next/i }).click();
+  await lightbox.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(second).toHaveAttribute("aria-current", "true");
+
   await page.getByRole("button", { name: "相册", exact: true }).click();
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "设为私密" }).click();
+  await page.getByRole("button", { name: "确认", exact: true }).click();
   await expect(page.getByText("私密", { exact: true })).toBeVisible();
 });
 
@@ -1603,6 +1827,7 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
     state.requests.filter((request) =>
       request.path.startsWith("/timeline-items"),
     ).length;
+  await recordDialogMotion(page);
   await page.goto("/");
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
   const initialReads = timelineReads();
@@ -1613,6 +1838,9 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
   await page.keyboard.press("Enter");
   const panel = page.getByRole("dialog", { name: "管理面板" });
   await expect(panel).toBeVisible();
+  const motion = page.viewportSize()!.width >= 1024 ? "translate" : "scale";
+  await expect(panel).toHaveAttribute("data-motion", new RegExp(motion));
+  await expect(panel).toHaveAttribute("data-motion", /opacity::backdrop/);
   await expect(panel.getByText("运行 historical-run")).toBeVisible();
   await panel.getByRole("tab", { name: "同步", exact: true }).focus();
   await page.keyboard.press("End");
@@ -2049,6 +2277,50 @@ test("unknown acceptance is reconciled with GET and closing the panel stops poll
   expect(state.run?.status).toBe("running");
 });
 
+test("native login modal traps focus and cleans up each dismissal", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  await recordDialogMotion(page);
+
+  for (const dismissal of ["escape", "button", "backdrop"]) {
+    const reduced = dismissal === "button";
+    await page.emulateMedia({
+      reducedMotion: reduced ? "reduce" : "no-preference",
+    });
+    await page.goto("/?login&search=fixture#timeline");
+    const dialog = page.getByRole("dialog", { name: "管理员登录" });
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((element) => element.matches(":modal"))).toBe(
+      true,
+    );
+    if (reduced) {
+      await expect(dialog).toHaveCSS("transition-duration", "0s");
+    } else {
+      await expect(dialog).toHaveAttribute("data-motion", /scale/);
+      await expect(dialog).toHaveAttribute("data-motion", /opacity::backdrop/);
+    }
+
+    const username = dialog.getByRole("textbox", { name: "用户名" });
+    const search = page.locator('input[aria-label="搜索时间线"]');
+    await expect(search).toBeAttached();
+    await username.focus();
+    await search.evaluate((element) => element.focus());
+    await expect(username).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByLabel("密码", { exact: true })).toBeFocused();
+
+    if (dismissal === "escape") await page.keyboard.press("Escape");
+    else if (dismissal === "button")
+      await dialog.getByRole("button", { name: "关闭登录" }).click();
+    else await page.mouse.click(1, 1);
+
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/\/\?search=fixture#timeline$/);
+  }
+});
+
 test("login confirmation gates admin requests, and the login form still works", async ({
   page,
 }) => {
@@ -2061,9 +2333,11 @@ test("login confirmation gates admin requests, and the login form still works", 
   expect(
     state.requests.filter((request) => request.path.startsWith("/admin/")),
   ).toHaveLength(0);
-  await page.locator('input[name="username"]').fill("test");
-  await page.locator('input[name="password"]').fill("test");
-  await page.getByRole("button", { name: /登\s*录/ }).click();
+  const dialog = page.getByRole("dialog", { name: "管理员登录" });
+  await dialog.getByLabel("用户名").fill("test");
+  await dialog.getByLabel("密码").fill("test");
+  await dialog.getByRole("button", { name: "登 录", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
   await expect(
     page
       .getByRole("button", { name: "管理面板", exact: true })
@@ -2120,23 +2394,59 @@ test("unconfirmed identity issues no admin reads and log 401 clears existing res
   ).toHaveCount(0);
 });
 
-test("existing private item controls still update the current admin cache", async ({
+test("inline confirmation updates the cache only for confirmed admin actions", async ({
   page,
 }) => {
   const state = await backend(page);
+  const nativeDialogs: string[] = [];
+  page.on("dialog", (dialog) => {
+    nativeDialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
   await page.goto("/");
   const item = page
     .locator(".timeline-item")
     .filter({ has: page.getByText("PRIVATE", { exact: true }) });
-  await item.getByRole("button", { name: "feed", exact: true }).click();
-  page.once("dialog", (dialog) => void dialog.accept());
+  const source = item.getByRole("button", { name: "feed", exact: true });
+  const confirm = item.getByRole("button", { name: "确认", exact: true });
+  const cancel = item.getByRole("button", { name: "取消", exact: true });
+  const remove = item.getByRole("button", { name: "删除", exact: true });
+  const requestCount = (method: string) =>
+    state.requests.filter(
+      (request) =>
+        request.path === "/timeline-items/PRIVATE" && request.method === method,
+    ).length;
+
+  await source.click();
   await item.getByRole("button", { name: "设为公开", exact: true }).click();
+  await expect(cancel).toBeFocused();
+  expect(requestCount("PATCH")).toBe(0);
+  await confirm.click();
+  await expect(source).toBeFocused();
   await expect(item.getByText("私密", { exact: true })).toHaveCount(0);
-  await item.getByRole("button", { name: "feed", exact: true }).click();
+  await source.click();
   await expect(
     item.getByRole("button", { name: "设为私密", exact: true }),
   ).toBeVisible();
-  expect(
-    state.requests.filter((request) => request.method === "PATCH"),
-  ).toHaveLength(1);
+  expect(requestCount("PATCH")).toBe(1);
+
+  await remove.click();
+  await cancel.click();
+  await expect(remove).toBeVisible();
+  await remove.click();
+  await page.keyboard.press("Escape");
+  await expect(source).toBeFocused();
+  await expect(confirm).toBeHidden();
+  await source.click();
+  await remove.click();
+  await page.getByRole("heading", { name: "2026", exact: true }).click();
+  await expect(confirm).toBeHidden();
+  expect(requestCount("DELETE")).toBe(0);
+
+  await source.click();
+  await remove.click();
+  await confirm.click();
+  await expect(item).toHaveCount(0);
+  expect(requestCount("DELETE")).toBe(1);
+  expect(nativeDialogs).toEqual([]);
 });

@@ -11,6 +11,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import GlobalContext from "@/contexts/GlobalContext";
+import useDialogBackdrop from "@/hooks/useDialogBackdrop";
 import usePageVisible from "@/hooks/usePageVisible";
 import { fetcherGET, fetcherPOST } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
@@ -100,7 +101,6 @@ export default function AdminConsole({
   const { canManageItems, logout, isLoggingOut } = useContext(GlobalContext);
   const visible = usePageVisible();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const backdropPointerDown = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
     sync: null,
@@ -162,6 +162,7 @@ export default function AdminConsole({
     dialogRef.current?.close();
     onClose();
   };
+  const backdrop = useDialogBackdrop(closeDialog);
 
   const selectTab = (next: Tab) => {
     if (next === tab) return;
@@ -203,31 +204,13 @@ export default function AdminConsole({
       id="admin-console"
       ref={dialogRef}
       aria-labelledby="admin-console-title"
-      onPointerDown={(event) => {
-        backdropPointerDown.current =
-          event.button === 0 && event.target === event.currentTarget;
-      }}
-      onPointerUp={(event) => {
-        if (
-          !backdropPointerDown.current ||
-          event.target !== event.currentTarget
-        )
-          return;
-        const { left, right, top, bottom } =
-          event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < left ||
-          event.clientX > right ||
-          event.clientY < top ||
-          event.clientY > bottom
-        )
-          closeDialog();
-      }}
+      inert={!open}
+      {...backdrop}
       onCancel={(event) => {
         event.preventDefault();
         closeDialog();
       }}
-      className="fixed inset-x-3 top-[max(.75rem,env(safe-area-inset-top))] bottom-[max(.75rem,env(safe-area-inset-bottom))] m-0 size-auto max-h-none max-w-none flex-col overflow-hidden rounded-2xl border border-control bg-background-light text-foreground shadow-2xl backdrop:bg-black/60 open:flex lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[min(100%,46rem)] lg:rounded-none lg:border-y-0 lg:border-r-0"
+      className="archive-dialog fixed inset-x-3 top-[max(.75rem,env(safe-area-inset-top))] bottom-[max(.75rem,env(safe-area-inset-bottom))] m-0 size-auto max-h-none max-w-none flex-col overflow-hidden rounded-2xl border border-control bg-background-light text-foreground shadow-2xl backdrop:bg-black/60 open:flex lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[min(100%,46rem)] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:[--closed-dialog-scale:1] lg:[--closed-dialog-x:100%]"
     >
       <header className="shrink-0 space-y-3 border-b border-binding px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex items-center justify-between gap-4">

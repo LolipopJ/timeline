@@ -6,14 +6,68 @@
   @apply translate-y-0 opacity-100;
 }
 .fade-y-exit {
-  @apply translate-y-0 opacity-100;
+  @apply translate-y-0 opacity-100 motion-reduce:hidden;
 }
 .fade-y-exit-active {
   @apply translate-y-1/2 opacity-0;
 }
 .fade-y-enter-active,
 .fade-y-exit-active {
-  @apply transition-[opacity,translate] duration-150 ease-[ease];
+  @apply motion-safe:transition-[opacity,translate] motion-safe:duration-150 motion-safe:ease-[ease];
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .timeline-item {
+    animation: timeline-item-enter 200ms ease-out;
+  }
+}
+
+@keyframes timeline-item-enter {
+  from {
+    translate: 0 0.375rem;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .archive-dialog,
+  .archive-dialog::backdrop {
+    transition-duration: 180ms;
+    transition-timing-function: ease-out;
+    transition-behavior: allow-discrete;
+  }
+
+  .archive-dialog {
+    opacity: 0;
+    scale: var(--closed-dialog-scale, 0.98);
+    translate: var(--closed-dialog-x, 0) 0;
+    transition-property: display, overlay, opacity, scale, translate;
+  }
+
+  .archive-dialog[open] {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+
+    @starting-style {
+      opacity: 0;
+      scale: var(--closed-dialog-scale, 0.98);
+      translate: var(--closed-dialog-x, 0) 0;
+    }
+  }
+
+  .archive-dialog::backdrop {
+    opacity: 0;
+    transition-property: display, overlay, opacity;
+  }
+
+  .archive-dialog[open]::backdrop {
+    opacity: 1;
+
+    @starting-style {
+      opacity: 0;
+    }
+  }
 }
 
 @keyframes achievement-shine {

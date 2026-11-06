@@ -22,6 +22,10 @@ import useSWR, { SWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 
 import AdminConsole from "@/components/AdminConsole";
+import TimelineArchive, {
+  TimelineArchiveError,
+  TimelineArchiveLoading,
+} from "@/components/TimelineArchive";
 import TimelineCurrentDate from "@/components/TimelineCurrentDate";
 import TimelineItem from "@/components/TimelineItem";
 import TimelineSearch from "@/components/TimelineSearch";
@@ -44,7 +48,7 @@ const DATA_CACHE = { provider: () => new Map(), keepPreviousData: false };
 const archiveTickClass =
   "relative before:absolute before:top-1/2 before:-left-(--archive-gutter) before:-translate-1/2";
 const floatingButtonClass =
-  "grid size-12 cursor-pointer place-items-center rounded-full border border-control bg-background-light text-foreground shadow-lg motion-safe:transition-colors hover:bg-background-lighter active:bg-background-lighter";
+  "size-12 cursor-pointer place-items-center rounded-full border border-control bg-background-light text-foreground shadow-lg hover:bg-background-lighter active:bg-background-lighter";
 
 function groupByMonth(
   pages: TimelineItemClient[][],
@@ -92,6 +96,7 @@ export default function TimelineHome() {
   const {
     data: serviceLabels,
     error: servicesError,
+    isValidating: isValidatingServices,
     mutate: reloadServices,
   } = useSWR<string[]>(
     `/timeline-services?view=${isLoggedIn && view === "admin" ? "admin" : "public"}`,
@@ -153,22 +158,17 @@ export default function TimelineHome() {
 
   if (!serviceLabels)
     return (
-      <div className="my-12 text-center text-foreground-dark">
+      <TimelineArchive>
         {servicesError ? (
-          <>
-            <p role="alert">筛选来源加载失败</p>
-            <button
-              type="button"
-              className="mt-3 cursor-pointer rounded-md border border-control px-3 py-2 hover:bg-background-lighter"
-              onClick={() => void reloadServices()}
-            >
-              重试加载
-            </button>
-          </>
+          <TimelineArchiveError
+            error="筛选来源加载失败"
+            onRetry={() => void reloadServices()}
+            retrying={isValidatingServices}
+          />
         ) : (
-          <p role="status">正在加载筛选来源</p>
+          <TimelineArchiveLoading label="正在加载筛选来源" />
         )}
-      </div>
+      </TimelineArchive>
     );
 
   return (
@@ -256,6 +256,9 @@ function TimelineData({
     () => groupByMonth(timelineItems, orderBy),
     [timelineItems, orderBy],
   );
+  const showInitialStatus =
+    !years.length &&
+    (isLoadingTimelineItems || Boolean(queryTimelineItemsError));
   const currentMonth = years.some(({ months }) =>
     months.some(({ key }) => key === readingMonth),
   )
@@ -349,39 +352,88 @@ function TimelineData({
   }, [years]);
 
   return (
-    <div
-      ref={timelineRef}
-      tabIndex={-1}
-      className="mx-auto max-w-6xl outline-none lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10 lg:px-8 lg:[--timeline-bottom:2.5rem]"
-    >
-      <aside
-        aria-label="时间线工具"
-        className="sticky top-0 z-20 flex min-h-17 items-center gap-2 border-b border-binding bg-background-light px-3 pt-[max(.5rem,env(safe-area-inset-top))] pb-2 sm:gap-3 sm:px-6 lg:top-8 lg:mt-8 lg:h-[calc(100dvh-2rem-var(--timeline-bottom))] lg:min-h-68 lg:flex-col lg:items-stretch lg:gap-5 lg:self-start lg:border-b-0 lg:bg-background lg:px-0 lg:pt-2 lg:pb-0"
+    <>
+      <TimelineArchive
+        ref={timelineRef}
+        toolbarRef={toolbarRef}
+        archiveRef={archiveRef}
+        toolbar={
+          <>
+            <TimelineCurrentDate
+              month={currentMonth}
+              isLoading={isLoadingTimelineItems}
+            />
+            <TimelineSearch
+              searchKey={searchKey}
+              value={filters}
+              serviceLabels={serviceLabels}
+              onChange={onFiltersChange}
+              className="min-w-0 flex-1"
+            />
+            <TimelineTools previewFocusRef={previewFocusRef} />
+          </>
+        }
+        footer={
+          !showInitialStatus && (
+            <div className="my-12 text-center select-none">
+              {queryTimelineItemsError && (
+                <p role="alert" className="mb-3 text-danger">
+                  时间线加载失败
+                </p>
+              )}
+              {isFullyLoaded && !years.length ? (
+                <p role="status" className="text-foreground-dark">
+                  没有找到相关内容
+                </p>
+              ) : isFullyLoaded ? (
+                <div className="text-foreground-dark">
+                  <Icon
+                    path={mdiSlashForwardBox}
+                    className="mx-auto mb-1 size-7"
+                  />
+                  <span>没有更多噜</span>
+                </div>
+              ) : (
+                <button
+                  ref={loadMoreButtonRef}
+                  type="button"
+                  className="cursor-pointer rounded-md border border-control bg-background-light px-3 py-2 hover:bg-background-lighter disabled:cursor-default disabled:opacity-70"
+                  onClick={() => {
+                    if (queryTimelineItemsError) refreshTimeline();
+                    else void setQueryTimelineItemsPage((prev) => prev + 1);
+                  }}
+                  disabled={isValidatingTimelineItems}
+                >
+                  {isValidatingTimelineItems ? (
+                    <Icon
+                      path={mdiLoading}
+                      size={1}
+                      aria-label="正在加载时间线"
+                      className="motion-safe:animate-spin"
+                    />
+                  ) : queryTimelineItemsError ? (
+                    "重试加载"
+                  ) : (
+                    "加载更多"
+                  )}
+                </button>
+              )}
+            </div>
+          )
+        }
       >
-        <div
-          ref={toolbarRef}
-          className="flex min-w-0 flex-1 items-center gap-2 self-stretch sm:gap-3 lg:flex-none lg:flex-col lg:items-stretch lg:gap-5"
-        >
-          <TimelineCurrentDate
-            month={currentMonth}
-            isLoading={isLoadingTimelineItems}
-          />
-          <TimelineSearch
-            searchKey={searchKey}
-            value={filters}
-            serviceLabels={serviceLabels}
-            onChange={onFiltersChange}
-            className="min-w-0 flex-1"
-          />
-          <TimelineTools previewFocusRef={previewFocusRef} />
-        </div>
-      </aside>
-      <div className="min-w-0 px-4 pt-6 pb-12 sm:px-6 lg:px-0 lg:pt-8">
-        <div
-          ref={archiveRef}
-          className="ml-1 border-l border-binding pl-(--archive-gutter) [--archive-gutter:1.125rem] lg:ml-24 lg:[--archive-gutter:1.75rem]"
-        >
-          {years.map(({ year, months }) => (
+        {showInitialStatus ? (
+          queryTimelineItemsError ? (
+            <TimelineArchiveError
+              error="时间线加载失败"
+              onRetry={refreshTimeline}
+              retrying={isValidatingTimelineItems}
+            />
+          ) : (
+            <TimelineArchiveLoading label="正在加载时间线" />
+          )
+        ) : (
+          years.map(({ year, months }) => (
             <section
               key={year}
               aria-labelledby={`archive-${year}`}
@@ -420,91 +472,48 @@ function TimelineData({
                 </section>
               ))}
             </section>
-          ))}
-        </div>
-        <div className="my-12 text-center select-none">
-          {queryTimelineItemsError && (
-            <p role="alert" className="mb-3 text-danger">
-              时间线加载失败
-            </p>
-          )}
-          {isFullyLoaded && !years.length ? (
-            <p role="status" className="text-foreground-dark">
-              没有找到相关内容
-            </p>
-          ) : isFullyLoaded ? (
-            <div className="text-foreground-dark">
-              <Icon path={mdiSlashForwardBox} className="mx-auto mb-1 size-7" />
-              <span>没有更多噜</span>
-            </div>
-          ) : (
-            <button
-              ref={loadMoreButtonRef}
-              type="button"
-              className="cursor-pointer rounded-md border border-control bg-background-light px-3 py-2 hover:bg-background-lighter disabled:cursor-default disabled:opacity-70"
-              onClick={() => {
-                if (queryTimelineItemsError) refreshTimeline();
-                else void setQueryTimelineItemsPage((prev) => prev + 1);
-              }}
-              disabled={isValidatingTimelineItems}
-            >
-              {isValidatingTimelineItems ? (
-                <Icon
-                  path={mdiLoading}
-                  size={1}
-                  aria-label="正在加载时间线"
-                  className="motion-safe:animate-spin"
-                />
-              ) : queryTimelineItemsError ? (
-                "重试加载"
-              ) : (
-                "加载更多"
-              )}
-            </button>
-          )}
-        </div>
+          ))
+        )}
+      </TimelineArchive>
+      <div className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 lg:bottom-10">
+        <button
+          type="button"
+          aria-label="回到顶部"
+          title="回到顶部"
+          data-open={showBackToTop}
+          inert={!showBackToTop}
+          className={`${floatingButtonClass} motion-safe:archive-disclosure ${showBackToTop ? "grid" : "hidden"}`}
+          onClick={() => {
+            timelineRef.current?.focus({ preventScroll: true });
+            const reduceMotion = window.matchMedia(
+              "(prefers-reduced-motion: reduce)",
+            ).matches;
+            window.scrollTo({
+              top: 0,
+              behavior: reduceMotion ? "instant" : "smooth",
+            });
+          }}
+        >
+          <Icon path={mdiArrowUp} size={1} aria-hidden="true" />
+        </button>
+        {canManageItems && (
+          <button
+            type="button"
+            aria-label="管理面板"
+            title="管理面板"
+            aria-haspopup="dialog"
+            aria-controls="admin-console"
+            aria-expanded={adminOpen}
+            className={`${floatingButtonClass} grid motion-safe:transition-colors`}
+            onClick={(event) => {
+              event.currentTarget.focus({ preventScroll: true });
+              setAdminOpen(true);
+            }}
+          >
+            <Icon path={mdiCogOutline} size={1} aria-hidden="true" />
+          </button>
+        )}
       </div>
-      {(showBackToTop || canManageItems) && (
-        <div className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 lg:bottom-(--timeline-bottom)">
-          {showBackToTop && (
-            <button
-              type="button"
-              aria-label="回到顶部"
-              title="回到顶部"
-              className={`${floatingButtonClass}`}
-              onClick={() => {
-                timelineRef.current?.focus({ preventScroll: true });
-                const reduceMotion = window.matchMedia(
-                  "(prefers-reduced-motion: reduce)",
-                ).matches;
-                window.scrollTo({
-                  top: 0,
-                  behavior: reduceMotion ? "instant" : "smooth",
-                });
-              }}
-            >
-              <Icon path={mdiArrowUp} size={1} aria-hidden="true" />
-            </button>
-          )}
-          {canManageItems && (
-            <button
-              type="button"
-              aria-label="管理面板"
-              title="管理面板"
-              aria-haspopup="dialog"
-              aria-controls="admin-console"
-              aria-expanded={adminOpen}
-              className={`${floatingButtonClass}`}
-              onClick={(event) => {
-                event.currentTarget.focus({ preventScroll: true });
-                setAdminOpen(true);
-              }}
-            >
-              <Icon path={mdiCogOutline} size={1} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
       {canManageItems && (
         <AdminConsole
           open={adminOpen}
@@ -512,6 +521,6 @@ function TimelineData({
           onSyncCompleted={refreshTimeline}
         />
       )}
-    </div>
+    </>
   );
 }
