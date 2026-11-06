@@ -233,7 +233,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       {...rest}
     >
       <time
-        className="font-mono text-xs whitespace-nowrap text-foreground-dark tabular-nums lg:absolute lg:top-4 lg:right-[calc(100%+var(--archive-gutter)+0.75rem)] lg:-translate-y-1/2 lg:group-focus-within/item:text-foreground lg:group-hover/item:text-foreground motion-safe:lg:transition-colors"
+        className="font-mono text-xs whitespace-nowrap text-foreground-dark tabular-nums lg:absolute lg:top-4 lg:right-[calc(100%+var(--archive-gutter)+0.75rem)] lg:-translate-y-1/2 lg:group-focus-within/item:text-foreground-dark lg:group-hover/item:text-foreground motion-safe:lg:transition-colors"
         dateTime={displayedDateTime === "updated_at" ? updated_at : created_at}
         title={
           `创建于：${createdAtString}` +

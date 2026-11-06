@@ -75,10 +75,10 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
           aria-label={expanded ? "收起全文" : "展开全文"}
           aria-expanded={expanded}
           onClick={toggleExpanded}
-          className={`flex min-h-11 w-full cursor-pointer items-center justify-center bg-background-light/90 text-foreground backdrop-blur-[2px] hover:text-primary focus-visible:-outline-offset-2 ${
+          className={`flex min-h-11 w-full cursor-pointer items-center justify-center bg-background-light text-foreground hover:text-primary focus-visible:-outline-offset-2 ${
             expanded
               ? ""
-              : "absolute inset-x-0 bottom-0 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-8 before:bg-linear-to-b before:from-transparent before:to-background-light"
+              : "absolute inset-x-0 bottom-0 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-linear-to-b before:from-transparent before:to-background-light"
           }`}
         >
           <Icon

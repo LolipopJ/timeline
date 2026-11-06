@@ -7,6 +7,7 @@ import {
   mdiTrophyOutline,
 } from "@mdi/js";
 import Icon from "@mdi/react";
+import { useRef } from "react";
 
 import GameCover from "@/components/TimelineItem/game-cover";
 import type { TimelineComponent } from "@/interfaces/timeline";
@@ -78,24 +79,61 @@ export default function TimelineItemGameAchievement({
   showCompletionDate,
   ...rest
 }: TimelineComponent & { showCompletionDate?: boolean }) {
+  const shineRef = useRef<HTMLSpanElement>(null);
+  const trophyRef = useRef<HTMLSpanElement>(null);
   const achievement = item.achievement;
   if (!achievement) return null;
   const platform = platforms[achievement.platform];
   const milestone = milestones[achievement.kind];
   const portrait = achievement.platform === "steam";
   const title = item.title ?? achievement.gameId;
+
+  function playAnimation() {
+    const shine = shineRef.current;
+    const trophy = trophyRef.current;
+    if (
+      !shine ||
+      !trophy ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      shine.getAnimations().length > 0
+    ) {
+      return;
+    }
+
+    const duration = 720;
+    shine.animate(
+      { translate: ["-100%", "100%"] },
+      { duration, easing: "ease-out" },
+    );
+    trophy.animate(
+      [
+        { translate: "0 0", easing: "ease-out" },
+        { translate: "0 -0.125rem", offset: 0.4, easing: "ease-in-out" },
+        { translate: "0 0" },
+      ],
+      duration,
+    );
+  }
+
   return (
     <article
-      className={`group/achievement relative isolate flex min-w-0 gap-4 overflow-hidden rounded-lg bg-background-light bg-linear-to-bl from-(--achievement-accent)/15 to-transparent to-65% p-4 sm:gap-6 sm:p-6 paper:from-(--achievement-accent)/10 ${platform.accent} ${className}`}
+      className={`relative isolate flex min-w-0 gap-4 overflow-hidden rounded-lg bg-background-light bg-linear-to-bl from-(--achievement-accent)/15 to-transparent to-65% p-4 sm:gap-6 sm:p-6 paper:from-(--achievement-accent)/10 ${platform.accent} ${className}`}
       {...rest}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") playAnimation();
+      }}
+      onFocus={(event) => {
+        if (event.target.matches(":focus-visible")) playAnimation();
+      }}
     >
       <span
         aria-hidden="true"
         className={`pointer-events-none absolute inset-0 -z-10 mask-[linear-gradient(90deg,transparent_15%,black_90%)] text-(--achievement-accent) opacity-25 paper:opacity-15 ${platform.texture}`}
       />
       <span
+        ref={shineRef}
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 -z-10 -translate-x-full bg-linear-[112deg,transparent_36%,currentColor_50%,transparent_64%] text-(--achievement-accent) opacity-15 motion-safe:group-hover/achievement:animate-[achievement-shine_720ms_ease-out_both] motion-safe:group-has-focus-visible/achievement:animate-[achievement-shine_720ms_ease-out_both]`}
+        className="pointer-events-none absolute inset-0 -z-10 -translate-x-full bg-linear-[112deg,transparent_36%,currentColor_50%,transparent_64%] text-(--achievement-accent) opacity-15"
       />
       <GameCover
         src={item.attachments?.[0]?.url}
@@ -129,11 +167,9 @@ export default function TimelineItemGameAchievement({
         <div
           className={`inline-flex max-w-full items-center gap-1.5 rounded-full bg-linear-to-r px-2.5 py-1 text-sm font-semibold ring-1 ring-current/25 ring-inset ${milestone.color} ${milestone.background}`}
         >
-          <Icon
-            path={milestone.icon}
-            className={`size-4 shrink-0 motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover/achievement:-translate-y-0.5 motion-safe:group-has-focus-visible/achievement:-translate-y-0.5`}
-            aria-hidden="true"
-          />
+          <span ref={trophyRef} className="size-4 shrink-0" aria-hidden="true">
+            <Icon path={milestone.icon} className="size-full" />
+          </span>
           <span>{milestone.name}</span>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-foreground-dark">

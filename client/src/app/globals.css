@@ -300,12 +300,12 @@
     }
 
     &:focus-within::before {
-      @apply scale-125 border-primary bg-primary;
+      @apply scale-125 border-foreground-dark bg-foreground-dark;
     }
 
     @media (hover: hover) {
       &:hover::before {
-        @apply scale-125 border-primary bg-primary;
+        @apply scale-125 border-foreground bg-foreground;
       }
     }
 

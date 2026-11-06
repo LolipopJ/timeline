@@ -69,12 +69,3 @@
     }
   }
 }
-
-@keyframes achievement-shine {
-  from {
-    translate: -100%;
-  }
-  to {
-    translate: 100%;
-  }
-}

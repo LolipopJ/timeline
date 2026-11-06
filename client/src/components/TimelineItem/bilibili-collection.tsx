@@ -25,7 +25,7 @@ export default function TimelineItemBilibiliCollection(
             src={cover.url}
             className="size-full object-cover motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-focus-within/cover:scale-101 motion-safe:group-hover/cover:scale-101"
           />
-          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/95 via-black/85 to-transparent px-4 pt-10 pb-3 text-foreground paper:from-background-light paper:via-background-light/95">
+          <div className="absolute inset-x-0 bottom-0 bg-linear-to-b from-transparent via-black/65 via-[4rem] to-black/90 px-4 pt-16 pb-3 text-foreground paper:via-background-light/70 paper:to-background-light">
             <h1
               className={`line-clamp-1 text-base font-semibold md:text-lg ${startsWithOpeningPunctuation ? "-ms-2.5" : ""}`}
               title={item.title ?? undefined}

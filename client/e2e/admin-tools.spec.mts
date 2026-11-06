@@ -416,6 +416,46 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
   if (testInfo.project.name === "mobile")
     expect(textBox.y).toBeGreaterThanOrEqual(coverBox.y + coverBox.height);
   else expect(textBox.x).toBeGreaterThanOrEqual(coverBox.x + coverBox.width);
+  if (testInfo.project.name === "desktop") {
+    await test.step("achievement animation finishes through pointer exit and re-entry", async () => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      const shine = steamCard.locator("span.-translate-x-full");
+      await steamCard.hover();
+      const playback = await shine.evaluateHandle((element) => {
+        const [animation] = element.getAnimations();
+        if (!animation) throw new Error("Hover did not start the animation");
+        // Slow playback so the pointer moves cannot race the end of the animation.
+        animation.updatePlaybackRate(0.1);
+        return animation;
+      });
+
+      await page.mouse.move(0, 0);
+      expect(await playback.evaluate((animation) => animation.playState)).toBe(
+        "running",
+      );
+      await steamCard.hover();
+      expect(
+        await shine.evaluate(
+          (element, animation) => element.getAnimations()[0] === animation,
+          playback,
+        ),
+      ).toBe(true);
+
+      await page.mouse.move(0, 0);
+      await playback.evaluate(async (animation) => {
+        animation.updatePlaybackRate(1);
+        await animation.finished;
+      });
+      await steamCard.hover();
+      expect(
+        await shine.evaluate(
+          (element) => element.getAnimations()[0]?.playState,
+        ),
+      ).toBe("running");
+      await page.mouse.move(0, 0);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+    });
+  }
   await link.focus();
   await expect(link).toBeFocused();
   expect(
