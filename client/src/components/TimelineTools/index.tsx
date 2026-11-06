@@ -4,8 +4,7 @@ import { type RefObject, useEffect, useId, useRef, useState } from "react";
 
 import AdminViewToggle from "@/components/AdminViewToggle";
 import ThemeToggle from "@/components/ThemeToggle";
-
-import config from "../../../configs/client";
+import config from "@/config";
 
 const { homepage, email, github } = config;
 const links = [

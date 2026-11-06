@@ -1,6 +1,6 @@
 import { DataSource } from "typeorm";
 
-import config from "../../configs/server";
+import config from "../config";
 import { createLogger, formatError } from "../utils/logger";
 import {
   AchievementGameSnapshot,
@@ -89,7 +89,7 @@ export const initializeDatabase = async () => {
       [
         `Failed to connect to PostgreSQL at \`${DATABASE_TARGET}\`.`,
         getDatabaseErrorHint(error),
-        "请检查 `server/configs/server.ts` 中的 `database` 配置与数据库运行状态。",
+        "请检查 `config.yaml` 中的 `server.database` 配置与数据库运行状态。",
       ]
         .filter(Boolean)
         .join("\n"),

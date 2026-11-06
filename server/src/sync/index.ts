@@ -1,6 +1,6 @@
 import { SyncServiceType } from "@timeline/contracts";
 
-import config from "../../configs/server";
+import config from "../config";
 import type { SyncService } from "../types/config";
 import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { createSyncCoordinator } from "./coordinator";

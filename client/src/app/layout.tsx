@@ -10,6 +10,7 @@ import useSWR from "swr";
 
 import { LoginModal } from "@/components/LoginModal";
 import { MessageContainer } from "@/components/Message";
+import config from "@/config";
 import { LS_LAST_VISIT_DATE } from "@/constants";
 import GlobalContext, {
   GLOBAL_CONTEXT_DEFAULT_VALUE,
@@ -17,8 +18,6 @@ import GlobalContext, {
 } from "@/contexts/GlobalContext";
 import { AUTH_EXPIRED_EVENT, fetcherGET, fetcherPOST } from "@/services/axios";
 import { THEME_INIT_SCRIPT } from "@/utils/theme";
-
-import config from "../../configs/client";
 
 export default function RootLayout({
   children,

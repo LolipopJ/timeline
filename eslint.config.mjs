@@ -20,8 +20,9 @@ const tailwindcss = clientInstalled
   ? (await import("eslint-plugin-tailwindcss")).default
   : undefined;
 
-const clientFiles = ["client/**/*.{js,jsx,mjs,ts,tsx}"];
+const clientFiles = ["client/**/*.{js,jsx,mjs,mts,ts,tsx}"];
 const sharedFiles = [
+  "config.mts",
   "server/**/*.ts",
   "packages/contracts/**/*.ts",
   "scripts/**/*.{ts,mjs}",
@@ -61,8 +62,6 @@ export default defineConfig([
     "**/yarn-error.log*",
     "**/.env*",
     ".migration-backup/**",
-    "client/configs/client.ts",
-    "server/configs/server.ts",
     "**/.vercel/**",
     "**/*.tsbuildinfo",
     "**/next-env.d.ts",

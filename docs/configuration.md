@@ -1,13 +1,15 @@
 # 配置指南
 
-按 [快速开始](../README.md#快速开始) 复制两份配置。
+将 [配置模板](../config.example.yaml) 复制为仓库根目录的 `config.yaml`。此文件由 Git 忽略。
 
-- `client/configs/client.ts` 保存站点信息和 API 地址。模板中的 `server.baseURL` 为 `http://127.0.0.1:4000`。客户端配置随构建公开，修改 API 地址后需重新构建。
-- `server/configs/server.ts` 保存数据库连接、管理员凭据、平台令牌和同步来源。服务端默认监听 `4000`，跨源访问时可通过 `allowedOrigin` 指定客户端的 Origin。
+- `client` 保存站点信息和公开 API 地址。模板的 `client.apiBaseURL` 为 `http://127.0.0.1:4000`，同源部署可省略。修改 `client` 后需重新构建静态客户端，开发模式下需重启 Next.js。
+- `server` 保存数据库连接、管理员凭据、平台令牌和同步来源。服务端默认监听 `4000`。可用 `server.allowedOrigin` 指定单个 HTTP(S) Origin（协议、主机和可选端口）。末尾的 `/` 会自动去除，省略或填 `true` 时允许所有来源。修改 `server` 后需重启服务端。
+
+使用两个空格缩进。数字 ID、密码、Cron 表达式和日期都写成带引号的字符串，端口和 `issueNumber` 写成数字，开关使用 `true` 或 `false`。Windows 路径可使用单引号保留反斜杠。各节可省略未用到的可选字段。配置使用一份 YAML 文档，映射键按字符串处理且必须唯一。YAML 别名会被拒绝。
 
 ## 数据库
 
-在 `database` 中填写 `user`、`password`、`host`、`port` 和数据库名 `database`。服务端启动时会同步表结构，数据库本身需手动创建。开发模式在数据库名后追加 `_dev`，生产模式使用配置中的名称。
+在 `server.database` 中填写 `user`、`password`、`host`、`port` 和数据库名 `database`。服务端启动时会同步表结构，数据库本身需手动创建。开发模式在数据库名后追加 `_dev`，生产模式使用配置中的名称。
 
 以下示例使用模板的库名。按运行环境选择对应的语句。
 
@@ -21,7 +23,7 @@ CREATE DATABASE timeline;
 
 ## 管理员
 
-将 `admin.secretKey` 和 `admin.accounts` 中的示例值换成自己的 JWT 密钥与账号密码。账号通过 `username` 和 `password` 配置。仅提供公开访问时可移除 `admin`。
+启用管理员时取消模板中 `server.admin` 整段的注释，填写自己的 JWT 密钥 `secretKey`，并在 `accounts` 中填写各账号的 `username` 和 `password`。默认提供公开访问。
 
 访问客户端的 `/?login` 打开登录窗口。管理员可以查看私密条目。点击右下角的管理图标打开管理面板，点击面板外部空白处、关闭按钮或按 Esc 可关闭面板。
 
@@ -36,26 +38,22 @@ CREATE DATABASE timeline;
 
 ## 同步来源
 
-在 `server/configs/server.ts` 中导入 `SyncServiceType`，然后在 `services` 中添加来源。模板中已有可取消注释的示例。 [服务端配置模板](../server/configs/server.example.ts)
+在 `server.services` 列表中添加来源。空列表写为 `services: []`。启用模板中的来源时，移除 `[]` 并取消对应条目的注释。
 
-```ts
-import { SyncServiceType } from "@timeline/contracts";
-```
+每个来源需要唯一且稳定的 `id` 和对应的 `type`。`label` 用作前端标签，`enabled: false` 停用该来源，`secret: true` 将新同步内容设为仅管理员可见。`from` 可填写 UTC 零点的日期（如 `"2026-01-01"`）或带时区的 ISO 时间（如 `"2026-01-01T00:00:00+08:00"`）。
 
-每个来源需要唯一且稳定的 `id`，以及对应的 `type`（如 `SyncServiceType.FEED`）。`label` 用作前端标签，`from` 可设置采集起始日期，`enabled: false` 会停用该来源。
-
-| 来源               | `SyncServiceType` 成员       | 来源参数                                                                           |
-| ------------------ | ---------------------------- | ---------------------------------------------------------------------------------- |
-| Bilibili 收藏夹    | `BILIBILI_COLLECTION`        | 收藏夹 ID `mediaId`                                                                |
-| Bilibili 作品      | `BILIBILI_WORK`              | 用户 ID `userId`                                                                   |
-| RSS 或 Atom 订阅   | `FEED`                       | 订阅地址 `url`，`syntax` 默认为 `"atom"`，RSS 用 `"rss"`                           |
-| GitHub Issue 评论  | `GITHUB_ISSUE_COMMENT`       | `owner`、`repo`、`issueNumber` 和 `githubPersonalAccessToken`                      |
-| QQ 空间说说        | `QZONE_TALK`                 | QQ 号 `qqNumber`                                                                   |
-| Steam 近期游戏时长 | `STEAM_RECENTLY_PLAYED_TIME` | `steamId`（SteamID64）、`steamWebAPIKey`                                           |
-| Steam 游戏评测     | `STEAM_GAME_REVIEW`          | Steam 社区自定义地址 `/id/<userId>/` 中的 `userId`                                 |
-| PSN 奖杯           | `PSN_GAME_ACHIEVEMENT`       | `psnNpsso`、可选的数字账号 ID `accountId`                                          |
-| Xbox 成就          | `XBOX_GAME_ACHIEVEMENT`      | `xboxClientId`、`xboxClientSecret`、`xboxTokenStorePath`、可选的数字用户 ID `xuid` |
-| Steam 成就         | `STEAM_GAME_ACHIEVEMENT`     | `steamId`（SteamID64）、`steamWebAPIKey`                                           |
+| 来源 | `type` | 来源参数 |
+| --- | --- | --- |
+| Bilibili 收藏夹 | `BilibiliCollection` | 收藏夹 ID `mediaId` |
+| Bilibili 作品 | `BilibiliWork` | 用户 ID `userId` |
+| RSS 或 Atom 订阅 | `Feed` | 订阅地址 `url`，`syntax` 默认为 `"atom"`，RSS 用 `"rss"` |
+| GitHub Issue 评论 | `GithubIssueComment` | `owner`、`repo`、`issueNumber` 和 `githubPersonalAccessToken` |
+| QQ 空间说说 | `QZoneTalk` | QQ 号 `qqNumber` |
+| Steam 近期游戏时长 | `SteamRecentlyPlayedTime` | `steamId`（SteamID64）、`steamWebAPIKey` |
+| Steam 游戏评测 | `SteamGameReview` | Steam 社区自定义地址 `/id/<userId>/` 中的 `userId` |
+| PSN 奖杯 | `PsnGameAchievement` | `psnNpsso`、可选的数字账号 ID `accountId` |
+| Xbox 成就 | `XboxGameAchievement` | `xboxClientId`、`xboxClientSecret`、`xboxTokenStorePath`、可选的数字用户 ID `xuid` |
+| Steam 成就 | `SteamGameAchievement` | `steamId`（SteamID64）、`steamWebAPIKey` |
 
 凭据填写在使用它的 `services` 项中。多个任务使用同一凭据时，每个任务都要填写。
 
@@ -67,7 +65,7 @@ QQ 空间来源需要扫码授权。以管理员身份登录客户端后，在�
 
 ## 游戏完成里程碑
 
-在本地 `server/configs/server.ts` 的每个成就任务中填写相应的授权字段。三个平台可分别启停、设置 `syncInterval` 和 `from`，也可通过现有管理员工具手动同步。
+在 `server.services` 的每个成就任务中填写相应的授权字段。三个平台可分别启停、设置 `syncInterval` 和 `from`，也可通过现有管理员工具手动同步。
 
 | 字段                               | 需要填写的内容                                                                                                                                       |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -103,11 +101,11 @@ Linux 使用 `server/.venv/bin/python` 和 `server/.venv/bin/xbox-authenticate`�
 
 本体成就优先使用 Steam 公开成就页上明确分组的本体集合，按 API ID 与 Web API 的完整定义核对。Steam 将所有成就放在同一个默认组时，可在 `gameOverrides` 为该游戏提供经过核验的 `baseAchievementIds`。使用 `GetSchemaForGame` 中的 `name` 字段，保留大小写和前导零。全成就始终按 Web API 的完整定义与实际解锁时间计算。 [Steam 成就集](https://partner.steamgames.com/doc/features/achievements/ach_guide?l=english#achievement_sets)
 
-```ts
-gameOverrides: {
-  123456: {},
-  234567: { baseAchievementIds: ['ACH_STORY', 'ACH_FINAL'] },
-},
+```yaml
+gameOverrides:
+  123456: {}
+  234567:
+    baseAchievementIds: ["ACH_STORY", "ACH_FINAL"]
 ```
 
 ### 范围、重查与历史
@@ -118,6 +116,6 @@ gameOverrides: {
 
 ## 同步频率
 
-全局 `syncInterval` 默认为 `*/30 * * * *`，即每小时的第 0 和第 30 分钟。单个来源可用同名字段覆盖，例如 `0 * * * *` 表示每小时整点同步。
+全局 `server.syncInterval` 默认为 `*/30 * * * *`，即每小时的第 0 和第 30 分钟。单个来源可用同名字段覆盖，例如 `0 * * * *` 表示每小时整点同步。
 
 同一时刻到期的来源合并为一轮。已有同步运行时，新的定时触发会跳过。启动和手动同步覆盖所有已启用来源。

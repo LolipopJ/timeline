@@ -1,0 +1,92 @@
+# 复制为仓库根目录的 config.yaml。字符串使用引号，数字和布尔值保持原样。
+client:
+  # 随静态构建发布。浏览器可访问的 API 地址，同源部署可省略。
+  apiBaseURL: "http://127.0.0.1:4000"
+  homepage: "https://www.example.com"
+  github: "https://github.com/example"
+  email: "mail@example.com"
+  metadata:
+    title: "My Timeline"
+    description: "What does this guy say?"
+
+server:
+  listeningPort: 4000
+  # 指定客户端的 Origin。省略时允许所有来源。
+  # allowedOrigin: "https://timeline.example.com"
+  # 未单独设置同步频率的来源每 30 分钟同步一次。
+  syncInterval: "*/30 * * * *"
+
+  database:
+    host: "127.0.0.1"
+    port: 5432
+    database: "timeline"
+    user: "your_postgresql_user"
+    password: "your_postgresql_password"
+
+  # 启用管理员时取消整段注释并填写自己的 JWT 密钥和账号。
+  # admin:
+  #   secretKey: "your_jwt_secret"
+  #   accounts:
+  #     - username: "your_admin_username"
+  #       password: "your_admin_password"
+
+  # 添加来源时移除 []，再取消所需条目的注释。每项的 id 必须唯一且稳定。
+  services: []
+  #   - type: "BilibiliCollection"
+  #     id: "MyBilibiliCollections"
+  #     label: "My Bilibili Collections"
+  #     mediaId: "75618059"
+  #
+  #   - type: "BilibiliWork"
+  #     id: "MyBilibiliWorks"
+  #     label: "My Bilibili Works"
+  #     userId: "15487659"
+  #
+  #   - type: "Feed"
+  #     id: "MyBlog"
+  #     label: "My Blog Articles"
+  #     syntax: "atom"
+  #     url: "https://blog.example.com/atom.xml"
+  #     syncInterval: "0 * * * *"
+  #
+  #   - type: "GithubIssueComment"
+  #     id: "GithubIssueComments"
+  #     owner: "github_repo_owner"
+  #     repo: "github_repo_name"
+  #     issueNumber: 1
+  #     githubPersonalAccessToken: "your_github_personal_access_token"
+  #
+  #   - type: "QZoneTalk"
+  #     id: "MyQQZone"
+  #     qqNumber: "408550000"
+  #     from: "2018-01-01"
+  #
+  #   - type: "SteamGameReview"
+  #     id: "MySteamReviews"
+  #     userId: "your_steam_community_id"
+  #
+  #   - type: "SteamRecentlyPlayedTime"
+  #     id: "MySteamRecentlyPlayedTime"
+  #     steamId: "your_steam_id64"
+  #     steamWebAPIKey: "your_steam_web_api_key"
+  #
+  #   - type: "PsnGameAchievement"
+  #     id: "MyPsnAchievements"
+  #     psnNpsso: "your_psn_npsso"
+  #     # accountId: "your_numeric_psn_account_id"
+  #
+  #   - type: "XboxGameAchievement"
+  #     id: "MyXboxAchievements"
+  #     xboxClientId: "your_oauth_application_id"
+  #     xboxClientSecret: "your_oauth_application_secret"
+  #     xboxTokenStorePath: "/absolute/path/to/timeline/server/.temporary/xbox.oauth.json"
+  #     # xuid: "your_numeric_xbox_user_id"
+  #
+  #   - type: "SteamGameAchievement"
+  #     id: "MySteamAchievements"
+  #     steamId: "your_steam_id64"
+  #     steamWebAPIKey: "your_steam_web_api_key"
+  #     # gameOverrides:
+  #     #   123456: {}
+  #     #   234567:
+  #     #     baseAchievementIds: ["ACH_STORY", "ACH_FINAL"]

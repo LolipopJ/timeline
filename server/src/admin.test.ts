@@ -79,7 +79,7 @@ const selectItems = (options: FindManyOptions<TimelineItem>) => {
       conditions.some((condition) => matches(item, condition)),
   );
 };
-mock.module("../configs/server", () => ({ default: config }));
+mock.module("./config", () => ({ default: config }));
 mock.module("./sync", () => ({ syncCoordinator: coordinator }));
 mock.module("./database", () => ({ initializeDatabase, destroyDatabase }));
 mock.module("./database/controller/timeline-item", () => ({

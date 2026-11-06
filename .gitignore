@@ -29,8 +29,7 @@ yarn-error.log*
 .env*
 
 # local config files
-/client/configs/client.ts
-/server/configs/server.ts
+/config.yaml
 
 # vercel
 .vercel

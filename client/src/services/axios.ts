@@ -1,13 +1,13 @@
 import axios from "axios";
 
-import clientConfig from "../../configs/client";
+import clientConfig from "@/config";
 
 export const AUTH_EXPIRED_EVENT = "auth-expired";
 
 export const instance = axios.create({
   timeout: 3000,
   withCredentials: true,
-  ...clientConfig.server,
+  baseURL: clientConfig.apiBaseURL,
 });
 
 instance.interceptors.response.use(

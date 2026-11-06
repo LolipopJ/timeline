@@ -15,7 +15,6 @@ import type { Cookie, ElysiaCookie } from "elysia/cookies";
 import fs from "fs";
 import schedule from "node-schedule";
 
-import config from "../configs/server";
 import { getAdminLogs, getAdminSyncStatus, requestAdminSync } from "./admin";
 import { serializeTimelineItem } from "./api/serializers";
 import {
@@ -23,6 +22,7 @@ import {
   isTimelineItemId,
   isTimelineView,
 } from "./api/timeline-query";
+import config from "./config";
 import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import { destroyDatabase, initializeDatabase } from "./database";
 import {

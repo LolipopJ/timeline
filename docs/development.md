@@ -32,7 +32,9 @@
 
 ## 游戏成就采集
 
-PSN 使用 `psn-api`，Steam 使用已有 Axios；只启用这些来源无需 Python。Xbox 使用 Python 3.12+，从仓库根目录通过 `uv` 准备本机环境，不提交或跨平台复制虚拟环境。
+PSN 使用 `psn-api`，Steam 使用已有 Axios，无需 Python 环境。
+
+Xbox 使用 Python 3.12+，从仓库根目录通过 `uv` 准备本机环境，不提交或跨平台复制虚拟环境。
 
 ```powershell
 uv venv --python 3.12 server/.venv

@@ -13,6 +13,7 @@ import {
   mdiStarShooting,
   mdiSteam,
   mdiTrashCanOutline,
+  mdiTrophyVariant,
   mdiVideoVintage,
 } from "@mdi/js";
 import Icon from "@mdi/react";
@@ -49,9 +50,9 @@ const LABEL_ICON_PATH: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
   [SyncServiceType.QZONE_TALK]: mdiStarShooting,
   [SyncServiceType.STEAM_GAME_REVIEW]: mdiSteam,
-  [SyncServiceType.PSN_GAME_ACHIEVEMENT]: mdiSonyPlaystation,
-  [SyncServiceType.XBOX_GAME_ACHIEVEMENT]: mdiMicrosoftXbox,
-  [SyncServiceType.STEAM_GAME_ACHIEVEMENT]: mdiSteam,
+  [SyncServiceType.PSN_GAME_ACHIEVEMENT]: mdiTrophyVariant,
+  [SyncServiceType.XBOX_GAME_ACHIEVEMENT]: mdiTrophyVariant,
+  [SyncServiceType.STEAM_GAME_ACHIEVEMENT]: mdiTrophyVariant,
 };
 
 const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {
@@ -61,6 +62,9 @@ const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: "oklch(55.4% 0.046 257.417)",
   [SyncServiceType.QZONE_TALK]: "#cc8f14",
   [SyncServiceType.STEAM_GAME_REVIEW]: "#95a1ae",
+  [SyncServiceType.PSN_GAME_ACHIEVEMENT]: "oklch(85.2% 0.199 91.936)",
+  [SyncServiceType.XBOX_GAME_ACHIEVEMENT]: "oklch(85.2% 0.199 91.936)",
+  [SyncServiceType.STEAM_GAME_ACHIEVEMENT]: "oklch(85.2% 0.199 91.936)",
 };
 
 const twoDigits = (value: number) => String(value).padStart(2, "0");
@@ -241,7 +245,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
           aria-expanded={menuOpen}
-          className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-sm font-medium hover:text-primary"
+          className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-sm font-medium"
         >
           {source}
         </button>

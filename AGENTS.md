@@ -5,8 +5,10 @@ Timeline 是聚合多来源内容的个人时间线应用，使用 Bun Workspace
 ## 仓库布局
 
 ```text
+config.example.yaml            客户端与服务端的配置模板
+config.mts                     根配置文件读取与 YAML 解析
 client/
-  configs/client.example.ts     客户端公开配置模板
+  config.mjs                    构建时校验客户端公开配置
   src/app/                      App Router 页面、布局和全局样式
   src/components/               时间线、搜索、登录及媒体组件
   src/services/axios.ts         HTTP 实例、请求方法和登录过期事件
@@ -14,7 +16,7 @@ client/
   src/hooks/                    客户端 hooks
   src/utils/                    客户端工具
 server/
-  configs/server.example.ts     服务端配置模板
+  src/config.ts                 启动时校验服务端配置
   src/index.ts                  HTTP 路由、鉴权、启动、调度和退出处理
   src/api/serializers.ts        数据库实体到 HTTP DTO 的转换
   src/database/                 TypeORM 数据源、实体及数据库操作
@@ -51,13 +53,13 @@ openspec/                      规格及变更规划
 
 需要自动修复时使用已有的 `lint:client:fix`、`lint:server:fix` 或 `lint:contracts:fix`，仅在本次修改范围内应用修复。根 `lint` 仍引用当前不存在的 `scripts/`，目前优先使用上述分区命令。
 
-根目录没有统一的 `build`、`typecheck` 或 `test` 脚本。管理工具的 Playwright 配置位于 `playwright.config.ts`，用例位于 `client/e2e/admin-tools.spec.ts`。在仓库根目录安装依赖并准备客户端配置后，先运行 `bun run build:client`，再运行 `node node_modules/@playwright/test/cli.js test`，以桌面和移动视口检查静态产物。缺少浏览器时先运行 `node node_modules/@playwright/test/cli.js install chromium`。后端回归从 `server/` 目录按文件运行，例如 `bun test src/admin.test.ts`。
+根目录没有统一的 `build`、`typecheck` 或 `test` 脚本。管理工具的 Playwright 配置位于 `playwright.config.ts`，用例位于 `client/e2e/admin-tools.spec.mts`。在仓库根目录安装依赖并准备客户端配置后，先运行 `bun run build:client`，再运行 `node node_modules/@playwright/test/cli.js test`，以桌面和移动视口检查静态产物。缺少浏览器时先运行 `node node_modules/@playwright/test/cli.js install chromium`。后端回归从 `server/` 目录按文件运行，例如 `bun test src/admin.test.ts`。
 
 ## 配置、数据与运行
 
-- 本地配置由 `client/configs/client.example.ts` 和 `server/configs/server.example.ts` 分别复制为同目录的 `client.ts`、`server.ts`。配置通过 TypeScript 模块直接导入，不要假设项目使用 `.env` 作为配置入口。
-- 客户端配置是公开构建输入，API 地址修改后需重新构建。管理员凭据、JWT 密钥、数据库密码、平台令牌和登录会话只能保留在服务端或本地运行数据中，不能写入客户端、示例或提交记录。
-- 配置字段分别由 `client/src/types/config.ts` 和 `server/src/types/config.ts` 定义；修改配置时同步维护类型、示例和相关 README 说明。
+- 从根目录的 `config.example.yaml` 复制出 Git 忽略的 `config.yaml`，按 `client` 和 `server` 两节填写。
+- `client` 是公开构建输入，修改后需重新构建。管理员凭据、JWT 密钥、数据库密码和平台令牌填入 `server`，登录会话保留在服务端运行目录。
+- 配置字段分别由 `client/config.mjs` 和 `server/src/types/config.ts` 的校验规则定义。修改时同步维护 `config.example.yaml` 与配置指南。
 - PostgreSQL 数据库需要手动创建。开发模式在配置的数据库名称后追加 `_dev`；当前 TypeORM 数据源使用 `synchronize: true`。数据库验证使用开发库，不要用生产库做检查，也不要自行引入兼容旧 schema 的迁移层。
 - 服务端启动会连接数据库、创建运行目录并立即触发同步，随后按 `syncInterval` 调度。`FULL_SYNC=true` 会先执行全量同步；仅为检查文档或类型时不要启动服务端。
 - 运行目录通过 `server/src/constants/index.ts` 定位到 `server/.static` 和 `server/.temporary`，不依赖启动工作目录。部署及修改路径逻辑时保留已有媒体、缓存和会话数据；这些目录不应提交到 Git。

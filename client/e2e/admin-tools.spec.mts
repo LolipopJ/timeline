@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 import type { SyncRunDto, TimelineItemClient } from "@timeline/contracts";
 import { SyncServiceType } from "@timeline/contracts";
 
-import clientConfig from "../configs/client";
+import { readClientConfig } from "../config.mjs";
+
+const clientConfig = readClientConfig();
 
 test.use({ timezoneId: "UTC" });
 const COVER_URL =

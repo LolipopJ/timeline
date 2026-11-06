@@ -1,36 +1,168 @@
-import type { SyncServiceType } from "@timeline/contracts";
+import { SyncServiceType } from "@timeline/contracts";
+import { z } from "zod";
 
-export interface ServerConfig {
-  services: SyncService[];
-  database: {
-    user: string;
-    password: string;
-    host: string;
-    port: number;
-    database: string;
-  };
-  admin?: {
-    secretKey: string;
-    accounts: LoginAccount[];
-  };
-  listeningPort?: number;
-  /**
-   * Access-Control-Allow-Origin
-   * @link https://elysiajs.com/plugins/cors.html#origin
-   * @default true
-   */
-  allowedOrigin?: string | RegExp | true;
-  /**
-   * 未单独配置 `syncInterval` 的同步服务使用的默认 Cron 表达式
-   * @default *\/30 * * * *
-   */
-  syncInterval?: string;
-}
+const text = z.string().min(1);
+const port = z.int().min(1).max(65535);
+const from = z
+  .union([z.iso.date(), z.iso.datetime({ offset: true })])
+  .transform((value) => new Date(value));
 
-export interface LoginAccount {
-  username: string;
-  password: string;
-}
+const syncServiceBase = z.strictObject({
+  id: text,
+  type: z.enum(SyncServiceType),
+  enabled: z.boolean().optional(),
+  syncInterval: text.optional(),
+  label: z.string().optional(),
+  from: from.optional(),
+  secret: z.boolean().optional(),
+  full: z.boolean().optional(),
+});
+
+const bilibiliCollection = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.BILIBILI_COLLECTION),
+  mediaId: text,
+});
+
+const bilibiliWork = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.BILIBILI_WORK),
+  userId: text,
+});
+
+const feed = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.FEED),
+  syntax: z.enum(["atom", "rss"]).optional(),
+  url: text,
+});
+
+const githubIssueComment = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.GITHUB_ISSUE_COMMENT),
+  githubPersonalAccessToken: text,
+  owner: text,
+  repo: text,
+  issueNumber: z.int().positive(),
+});
+
+const qzoneTalk = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.QZONE_TALK),
+  qqNumber: text,
+});
+
+const steamRecentlyPlayedTime = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.STEAM_RECENTLY_PLAYED_TIME),
+  steamWebAPIKey: text,
+  steamId: text,
+});
+
+const steamGameReview = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.STEAM_GAME_REVIEW),
+  userId: text,
+});
+
+const psnGameAchievement = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.PSN_GAME_ACHIEVEMENT),
+  psnNpsso: text,
+  accountId: text.optional(),
+});
+
+const xboxGameAchievement = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.XBOX_GAME_ACHIEVEMENT),
+  xboxClientId: text,
+  xboxClientSecret: text,
+  xboxTokenStorePath: text,
+  xuid: text.optional(),
+});
+
+const steamGameAchievement = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.STEAM_GAME_ACHIEVEMENT),
+  steamWebAPIKey: text,
+  steamId: text,
+  gameOverrides: z
+    .record(
+      z.string().regex(/^[1-9]\d*$/),
+      z.strictObject({ baseAchievementIds: z.array(text).optional() }),
+    )
+    .optional(),
+});
+
+const syncService = z.discriminatedUnion("type", [
+  bilibiliCollection,
+  bilibiliWork,
+  feed,
+  githubIssueComment,
+  qzoneTalk,
+  steamRecentlyPlayedTime,
+  steamGameReview,
+  psnGameAchievement,
+  xboxGameAchievement,
+  steamGameAchievement,
+]);
+
+const allowedOrigin = z
+  .union([z.literal(true), z.string()])
+  .transform((value, ctx) => {
+    if (value === true) return value;
+    const url = URL.parse(value);
+    if (
+      url &&
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.href === `${url.origin}/` &&
+      !url.hostname.includes("*")
+    ) {
+      return url.origin;
+    }
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "填写单个 HTTP(S) Origin，例如 https://timeline.example.com，或填 true 允许所有来源",
+    });
+    return z.NEVER;
+  });
+
+export const serverConfigSchema = z.strictObject({
+  database: z.strictObject({
+    user: text,
+    password: z.string(),
+    host: text,
+    port,
+    database: text,
+  }),
+  admin: z
+    .strictObject({
+      secretKey: text,
+      accounts: z.array(z.strictObject({ username: text, password: text })),
+    })
+    .optional(),
+  listeningPort: port.optional(),
+  allowedOrigin: allowedOrigin.optional(),
+  syncInterval: text.optional(),
+  services: z
+    .array(syncService)
+    .refine(
+      (services) =>
+        new Set(services.map(({ id }) => id)).size === services.length,
+      "来源 id 必须唯一",
+    ),
+});
+
+export type ServerConfig = z.infer<typeof serverConfigSchema>;
+export type SyncService = z.infer<typeof syncService>;
+export type SyncServiceBase = z.infer<typeof syncServiceBase>;
+export type SyncServiceBilibiliCollection = z.infer<typeof bilibiliCollection>;
+export type SyncServiceBilibiliWork = z.infer<typeof bilibiliWork>;
+export type SyncServiceFeed = z.infer<typeof feed>;
+export type SyncServiceGithubIssueComment = z.infer<typeof githubIssueComment>;
+export type SyncServiceQzoneTalk = z.infer<typeof qzoneTalk>;
+export type SyncServiceSteamRecentlyPlayedTime = z.infer<
+  typeof steamRecentlyPlayedTime
+>;
+export type SyncServiceSteamGameReview = z.infer<typeof steamGameReview>;
+export type SyncServicePsnGameAchievement = z.infer<typeof psnGameAchievement>;
+export type SyncServiceXboxGameAchievement = z.infer<
+  typeof xboxGameAchievement
+>;
+export type SyncServiceSteamGameAchievement = z.infer<
+  typeof steamGameAchievement
+>;
 
 export interface TimelineItemAttachment {
   /** 文件名 */
@@ -42,117 +174,4 @@ export interface TimelineItemAttachment {
   /** Date before persistence, ISO string when read from the JSON column. */
   created_at?: Date | string;
   updated_at?: Date | string;
-}
-
-export type SyncService =
-  | SyncServiceBilibiliCollection
-  | SyncServiceBilibiliWork
-  | SyncServiceFeed
-  | SyncServiceGithubIssueComment
-  | SyncServiceQzoneTalk
-  | SyncServiceSteamRecentlyPlayedTime
-  | SyncServiceSteamGameReview
-  | SyncServicePsnGameAchievement
-  | SyncServiceXboxGameAchievement
-  | SyncServiceSteamGameAchievement;
-
-export interface SyncServiceBase {
-  id: string;
-  type: SyncServiceType;
-  /** 是否启动定时同步功能 */
-  enabled?: boolean;
-  /** 此服务的定时同步 Cron 表达式，省略时使用全局设置 */
-  syncInterval?: string;
-  /** 前端展示的标签 */
-  label?: string;
-  /** 同步内容的最早日期 */
-  from?: Date;
-  /** 是否仅管理员用户可见 */
-  secret?: boolean;
-  /** 是否执行全量同步，忽略上次同步时间，仅受 `from` 字段约束 */
-  full?: boolean;
-}
-
-export interface SyncServicePsnGameAchievement extends SyncServiceBase {
-  type: SyncServiceType.PSN_GAME_ACHIEVEMENT;
-  /** @link https://psn-api.achievements.app/authentication/authenticating-manually */
-  psnNpsso: string;
-  /** PSN 数字账号 ID，省略时使用 NPSSO 对应的账号 */
-  accountId?: string;
-}
-
-export interface SyncServiceXboxGameAchievement extends SyncServiceBase {
-  type: SyncServiceType.XBOX_GAME_ACHIEVEMENT;
-  /** 自有 OAuth Web 应用的 ID 和 secret，须与会话文件匹配 */
-  xboxClientId: string;
-  xboxClientSecret: string;
-  /** xbox-webapi OAuth2TokenResponse JSON 会话文件的绝对路径 */
-  xboxTokenStorePath: string;
-  /** Xbox 数字用户 ID，省略时使用 OAuth 会话对应的账号 */
-  xuid?: string;
-}
-
-export interface SyncServiceSteamGameAchievement extends SyncServiceBase {
-  type: SyncServiceType.STEAM_GAME_ACHIEVEMENT;
-  steamWebAPIKey: string;
-  /** SteamID64，不是社区自定义地址 */
-  steamId: string;
-  /** 按 AppID 补充同步游戏，或为尚未分组的游戏指定已核验的本体成就 API ID */
-  gameOverrides?: Record<number, { baseAchievementIds?: string[] }>;
-}
-
-export interface SyncServiceBilibiliCollection extends SyncServiceBase {
-  type: SyncServiceType.BILIBILI_COLLECTION;
-  /** Bilibili 收藏夹 ID */
-  mediaId: string;
-}
-
-export interface SyncServiceBilibiliWork extends SyncServiceBase {
-  type: SyncServiceType.BILIBILI_WORK;
-  /** Bilibili 用户 ID */
-  userId: string;
-}
-
-export interface SyncServiceFeed extends SyncServiceBase {
-  type: SyncServiceType.FEED;
-  /**
-   * Supported syntaxes:
-   * @enum `atom` - http://www.w3.org/2005/Atom
-   * @enum `rss` - https://web.resource.org/rss/1.0/modules/content/
-   */
-  syntax?: "atom" | "rss";
-  url: string;
-}
-
-export interface SyncServiceGithubIssueComment extends SyncServiceBase {
-  type: SyncServiceType.GITHUB_ISSUE_COMMENT;
-  /** 可访问目标仓库的个人令牌，同步该令牌所属账号的评论 */
-  githubPersonalAccessToken: string;
-  owner: string;
-  repo: string;
-  issueNumber: number;
-}
-
-export interface SyncServiceQzoneTalk extends SyncServiceBase {
-  type: SyncServiceType.QZONE_TALK;
-  qqNumber: string;
-}
-
-export interface SyncServiceSteamRecentlyPlayedTime extends SyncServiceBase {
-  type: SyncServiceType.STEAM_RECENTLY_PLAYED_TIME;
-  steamWebAPIKey: string;
-  /** https://help.steampowered.com/zh-cn/faqs/view/2816-BE67-5B69-0FEC */
-  steamId: string;
-}
-
-export interface SyncServiceSteamGameReview extends SyncServiceBase {
-  type: SyncServiceType.STEAM_GAME_REVIEW;
-  /** Steam 用户 ID */
-  userId: string;
-}
-
-export interface SyncServiceTelegramChat extends SyncServiceBase {
-  type: SyncServiceType.TELEGRAM_CHAT;
-  /** Telegram 聊天 ID */
-  chatId: string;
 }

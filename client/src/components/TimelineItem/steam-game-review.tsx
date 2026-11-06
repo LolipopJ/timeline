@@ -64,7 +64,7 @@ export default function TimelineItemSteamGameReview(props: TimelineComponent) {
   return (
     <div className={`steam-game-review ${className}`} {...rest}>
       <article className="flex min-w-0 flex-col gap-4 bg-background-light px-4 py-6 sm:flex-row lg:gap-6 lg:px-6 lg:py-8">
-        <div className="flex shrink-0 items-center gap-3 sm:w-28 sm:flex-col sm:items-stretch sm:gap-2">
+        <div className="flex shrink-0 flex-col items-center gap-1 sm:w-28 sm:items-stretch sm:gap-2">
           <a
             href={`https://steamcommunity.com/app/${content_id}`}
             target="_blank"

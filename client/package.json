@@ -36,6 +36,7 @@
     "@types/uuid": "^11.0.0",
     "postcss": "^8.5.32",
     "tailwindcss": "4.3.4",
-    "serve": "14.2.6"
+    "serve": "14.2.6",
+    "zod": "4.6.7"
   }
 }

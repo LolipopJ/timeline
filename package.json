@@ -30,15 +30,19 @@
     "lint": "eslint client server packages/contracts scripts",
     "lint:client": "eslint client",
     "lint:client:fix": "eslint client --fix",
-    "lint:server": "eslint server packages/contracts",
-    "lint:server:fix": "eslint server packages/contracts --fix",
+    "lint:server": "eslint config.mts server packages/contracts",
+    "lint:server:fix": "eslint config.mts server packages/contracts --fix",
     "lint:contracts": "eslint packages/contracts",
     "lint:contracts:fix": "eslint packages/contracts --fix",
     "prepare": "husky"
   },
   "lint-staged": {
-    "client/**/*.{js,jsx,mjs,ts,tsx}": "eslint --fix",
+    "config.mts": "eslint --fix",
+    "client/**/*.{js,jsx,mjs,mts,ts,tsx}": "eslint --fix",
     "{server,packages/contracts,scripts}/**/*.{ts,mjs}": "eslint --fix"
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

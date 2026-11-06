@@ -24,7 +24,8 @@
     "psn-api": "^2.18.1",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^1.1.2",
-    "xml-js": "^1.6.11"
+    "xml-js": "^1.6.11",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

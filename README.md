@@ -8,11 +8,10 @@ Timeline 将不同平台的内容同步到一条个人时间线，支持搜索�
 
 ```sh
 bun install --frozen-lockfile
-cp client/configs/client.example.ts client/configs/client.ts
-cp server/configs/server.example.ts server/configs/server.ts
+cp config.example.yaml config.yaml
 ```
 
-在 `server/configs/server.ts` 填写数据库连接，替换模板中的管理员凭据或移除 `admin`。手动创建开发库，库名为配置的数据库名加 `_dev`，模板对应 `timeline_dev`。按需配置同步来源，然后启动。
+在 `config.yaml` 中填写 `server.database`。手动创建开发环境数据库，库名为配置的数据库名加 `_dev`（例如对于配置的数据库 `timeline`，开发环境下会连接数据库 `timeline_dev`）。按需配置管理员和同步来源，然后启动。
 
 ```sh
 bun run dev
