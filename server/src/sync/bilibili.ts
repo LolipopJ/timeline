@@ -1,5 +1,7 @@
 import axios from "axios";
+import { z } from "zod";
 
+import { USER_AGENT_DESKTOP } from "../constants";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
@@ -48,24 +50,24 @@ interface BilibiliCollection {
   media_list_link: string;
 }
 
-interface BilibiliWork {
-  aid: number;
-  title: string;
-  pubdate: number;
-  ctime: number;
-  state: number;
-  pic: string;
-  duration: number;
-  stat: {
-    view: number;
-  };
-  bvid: string;
-  ugc_pay: number;
-  interactive_video: boolean;
-  enable_vt: number;
-  vt_display: string;
-  playback_position: number;
-}
+const bilibiliWork = z.looseObject({
+  aid: z.int().positive(),
+  title: z.string(),
+  desc: z.string().nullish(),
+  pubdate: z.int().nonnegative(),
+  ctime: z.int().nonnegative(),
+  pic: z.string(),
+  bvid: z.string(),
+});
+
+const bilibiliWorksPage = z.object({
+  archives: z.array(bilibiliWork.nullable()).nullish(),
+  page: z.object({
+    num: z.int().positive(),
+    size: z.int().positive(),
+    total: z.int().nonnegative(),
+  }),
+});
 
 export const syncBilibiliCollections = async (
   service: SyncServiceBilibiliCollection,
@@ -168,63 +170,87 @@ export const syncBilibiliCollections = async (
 };
 
 export const syncBilibiliWorks = async (service: SyncServiceBilibiliWork) => {
-  const {
-    id,
-    type,
-    // from,
-    secret,
-    // full,
-    userId,
-  } = service;
+  const { id, type, secret, userId } = service;
+  logger.info(`Syncing Bilibili works of ${userId}...`);
 
-  // const lastExecuteDate = await getSyncTaskLastExecuteTime({
-  //   id,
-  //   from,
-  //   full,
-  // });
-  logger.info(
-    // `Syncing Bilibili works of ${userId} since ${lastExecuteDate.toISOString()}...`,
-    `Syncing Bilibili works of ${userId}...`,
+  const requestOptions = {
+    headers: { "User-Agent": USER_AGENT_DESKTOP },
+    timeout: 10_000,
+    maxRedirects: 0,
+  };
+  const { headers } = await axios.get(
+    "https://www.bilibili.com/",
+    requestOptions,
   );
-
-  const works: BilibiliWork[] = [];
-  let queryFinished = false;
-  let page = 1;
-  while (!queryFinished) {
-    const getWorksRes = await axios.get(
-      "https://api.bilibili.com/x/series/recArchivesByKeywords",
-      {
-        params: {
-          mid: userId,
-          keywords: "",
-          pn: page,
-          ps: 20,
-          orderby: "pubdate",
-        },
-      },
+  const anonymousCookies = (headers["set-cookie"] ?? []).filter((cookie) =>
+    /^(buvid3|b_nut)=[^;]+/.test(cookie),
+  );
+  if (!anonymousCookies.some((cookie) => cookie.startsWith("buvid3="))) {
+    throw new Error(
+      `Bilibili did not issue an anonymous session for works of ${userId}.`,
     );
-    const queriedWorks: BilibiliWork[] = getWorksRes.data.data.archives ?? [];
-    const filteredWorks = queriedWorks.filter(
-      // (work) => work.ctime * 1000 > lastExecuteDate.getTime(),
-      (work) => !!work,
-    );
-    works.push(...filteredWorks);
-
-    if (filteredWorks.length > 0) {
-      page += 1;
-    } else {
-      queryFinished = true;
-    }
   }
-  logger.info(`Synced ${works.length} Bilibili works of ${userId}.`);
+  const cookie = anonymousCookies
+    .map((value) => value.split(";", 1)[0])
+    .join("; ");
+
+  const works = new Map<number, z.infer<typeof bilibiliWork>>();
+  let lastPage = 1;
+  for (let page = 1; page <= lastPage; page += 1) {
+    const fetchPage = () =>
+      axios.get<{ code?: number; data?: unknown }>(
+        "https://api.bilibili.com/x/series/recArchivesByKeywords",
+        {
+          ...requestOptions,
+          headers: {
+            ...requestOptions.headers,
+            Cookie: cookie,
+            Referer: `https://space.bilibili.com/${userId}/video`,
+          },
+          params: {
+            mid: userId,
+            keywords: "",
+            pn: page,
+            ps: 100,
+            orderby: "pubdate",
+          },
+          validateStatus: () => true,
+        },
+      );
+    let response = await fetchPage();
+    if (response.status === 412 || response.data?.code === -412) {
+      logger.warn(
+        `Bilibili blocked works of ${userId} on page ${page}. Retrying once.`,
+      );
+      await Bun.sleep(3_000);
+      response = await fetchPage();
+    }
+    const code = response.data?.code;
+    if (response.status !== 200 || code !== 0) {
+      throw new Error(
+        `Bilibili works request for ${userId} on page ${page} failed (HTTP ${response.status}, API code ${code ?? "unknown"}).`,
+      );
+    }
+
+    const result = bilibiliWorksPage.safeParse(response.data.data);
+    if (!result.success || result.data.page.num !== page) {
+      throw new Error(`Invalid Bilibili works page ${page} for ${userId}.`);
+    }
+    const { archives, page: pageInfo } = result.data;
+    for (const work of archives ?? []) {
+      if (work) works.set(work.aid, work);
+    }
+    lastPage = Math.ceil(pageInfo.total / pageInfo.size);
+  }
+  logger.info(`Synced ${works.size} Bilibili works of ${userId}.`);
 
   const itemCount = await insertOrUpdateTimelineItems(
-    works.map((work) => ({
+    Array.from(works.values(), (work) => ({
       sync_service_id: id,
       sync_service_type: type,
       content_id: String(work.aid),
       title: work.title,
-      // content: work.description,
+      content: work.desc ?? null,
       url: `https://www.bilibili.com/video/${work.bvid}`,
       attachments: [
         {
