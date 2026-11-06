@@ -15,3 +15,12 @@
 .fade-y-exit-active {
   @apply transition-[opacity,translate] duration-150 ease-[ease];
 }
+
+@keyframes achievement-shine {
+  from {
+    translate: -100%;
+  }
+  to {
+    translate: 100%;
+  }
+}
