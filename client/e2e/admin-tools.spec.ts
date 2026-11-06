@@ -8,6 +8,8 @@ import clientConfig from "../configs/client";
 test.use({ timezoneId: "UTC" });
 const COVER_URL =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360'%3E%3Crect width='640' height='360' fill='tomato'/%3E%3C/svg%3E";
+const STEAM_COVER_URL =
+  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/400/library_600x900.jpg";
 
 async function backend(page: Page) {
   page.on("pageerror", (error) =>
@@ -245,6 +247,184 @@ async function showToolbarControls(page: Page) {
   if (await theme.isHidden())
     await page.getByRole("button", { name: "时间线菜单" }).click();
 }
+
+test("achievement cards and Steam portrait covers fit both themes and viewports", async ({
+  page,
+}, testInfo) => {
+  if (testInfo.project.name === "mobile")
+    await page.setViewportSize({ width: 360, height: 800 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const state = await backend(page);
+  const longTitle =
+    "同名游戏与很长的追加内容标题 Long Game Achievement Title ".repeat(3);
+  const definitions = [
+    {
+      platform: "psn",
+      type: SyncServiceType.PSN_GAME_ACHIEVEMENT,
+      kind: "platinum",
+      label: "PSN",
+      title: longTitle,
+    },
+    {
+      platform: "psn",
+      type: SyncServiceType.PSN_GAME_ACHIEVEMENT,
+      kind: "all_achievements",
+      label: "PSN",
+      title: longTitle,
+    },
+    {
+      platform: "xbox",
+      type: SyncServiceType.XBOX_GAME_ACHIEVEMENT,
+      kind: "mythic",
+      label: "Xbox",
+      title: "Xbox game",
+    },
+    {
+      platform: "steam",
+      type: SyncServiceType.STEAM_GAME_ACHIEVEMENT,
+      kind: "all_achievements",
+      label: "Steam",
+      title: "Steam game",
+    },
+  ] as const;
+  state.archiveItems = definitions.map((d, index) => ({
+    id: `10000000-0000-4000-8000-00000000000${index}`,
+    content_id: `${d.platform}:${d.kind}`,
+    sync_service_id: d.label,
+    sync_service_type: d.type,
+    title: d.title,
+    label: d.label,
+    content: d.kind,
+    url:
+      d.platform === "steam"
+        ? "https://steamcommunity.com/stats/400/achievements/"
+        : undefined,
+    attachments: [
+      {
+        filename: "cover",
+        url:
+          d.platform === "steam"
+            ? STEAM_COVER_URL
+            : index === 0
+              ? "https://example.com/missing-achievement-cover.jpg"
+              : COVER_URL,
+      },
+    ],
+    achievement: {
+      platform: d.platform,
+      gameId: "game",
+      kind: d.kind,
+      earnedCount: 54,
+      totalCount: 54,
+    },
+    created_at: `2021-01-0${index + 1}T00:00:00Z`,
+    updated_at:
+      d.platform === "steam"
+        ? "2021-02-01T00:00:00Z"
+        : `2021-01-0${index + 1}T00:00:00Z`,
+    is_secret: false,
+  }));
+  state.archiveItems.push({
+    id: "10000000-0000-4000-8000-000000000004",
+    content_id: "400",
+    sync_service_id: "Steam reviews",
+    sync_service_type: SyncServiceType.STEAM_GAME_REVIEW,
+    title: "推荐",
+    content: "<p>Steam 评测正文</p>",
+    attachments: [{ filename: "cover.jpg", url: STEAM_COVER_URL }],
+    url: "https://steamcommunity.com/id/fixture/recommended/400/",
+    created_at: "2021-01-05T00:00:00Z",
+    updated_at: "2021-01-05T00:00:00Z",
+  });
+  await page.route(STEAM_COVER_URL, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="600" height="900" fill="steelblue"/></svg>',
+    }),
+  );
+  await page.route("**/missing-achievement-cover.jpg", (route) =>
+    route.fulfill({ status: 404 }),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("article")).toHaveCount(5);
+  await expect(page.getByText("白金奖杯", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mythic", { exact: true })).toBeVisible();
+  await expect(page.getByText("全成就", { exact: true })).toHaveCount(2);
+  await expect(page.getByText(/达成时 54\/54/)).toHaveCount(4);
+  await expect(page.getByRole("img", { name: "暂无游戏封面" })).toBeVisible();
+  const link = page.getByRole("link", { name: "Steam game · Steam 成就页面" });
+  const steamCard = page.getByRole("article").filter({ has: link });
+  const reviewCover = page.locator(
+    'a[href="https://steamcommunity.com/app/400"] img',
+  );
+  for (const cover of [steamCard.locator("img"), reviewCover]) {
+    await expect(cover).toHaveAttribute("src", STEAM_COVER_URL);
+    await expect(cover).toHaveCSS("object-fit", "contain");
+    await expect
+      .poll(() => cover.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBe(600);
+    const box = await cover.boundingBox();
+    expect(box && box.height / box.width).toBeCloseTo(1.5);
+  }
+  const reviewText = page.getByText("Steam 评测正文");
+  const textBox = await reviewText.boundingBox();
+  const coverBox = await reviewCover.boundingBox();
+  if (!textBox || !coverBox) throw new Error("Steam review is missing content");
+  if (testInfo.project.name === "mobile")
+    expect(textBox.y).toBeGreaterThanOrEqual(coverBox.y + coverBox.height);
+  else expect(textBox.x).toBeGreaterThanOrEqual(coverBox.x + coverBox.width);
+  await link.focus();
+  await expect(link).toBeFocused();
+  expect(
+    await link.evaluate((node) => getComputedStyle(node).outlineStyle),
+  ).not.toBe("none");
+  for (const theme of ["dark", "paper"]) {
+    await showToolbarControls(page);
+    if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+      await page.getByRole("button", { name: "纸张浅色主题" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const menu = page.getByRole("button", { name: "时间线菜单" });
+    if (
+      (await menu.isVisible()) &&
+      (await menu.getAttribute("aria-expanded")) === "true"
+    )
+      await menu.click();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`achievements-${theme}.png`),
+      fullPage: true,
+    });
+  }
+  await page.goto("/?orderBy=updated_at");
+  await expect(steamCard.locator("time")).toHaveAttribute(
+    "datetime",
+    "2021-01-04T00:00:00Z",
+  );
+  await page.goto("/?search=" + encodeURIComponent("同名游戏 type:PSN"));
+  await expect(page.getByRole("article")).toHaveCount(2);
+  state.archiveItems[0]!.is_secret = true;
+  state.loggedIn = false;
+  await page.goto(
+    "/?search=" + encodeURIComponent("id:" + state.archiveItems[0]!.id),
+  );
+  await expect
+    .poll(() =>
+      state.requests.some(
+        (r) =>
+          r.path === "/timeline-items" && r.id === state.archiveItems![0]!.id,
+      ),
+    )
+    .toBe(true);
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: longTitle })).toHaveCount(0);
+});
 
 const searchFixture = (): TimelineItemClient[] => [
   {
@@ -949,7 +1129,7 @@ test("archive joins pages within a month and follows the sorted reading position
   const coverBackground = (locator: Locator) =>
     locator.evaluate((element) => getComputedStyle(element).backgroundColor);
   const darkCoverBackground = await coverBackground(coverTitle);
-  await expect(coverTitle).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(coverTitle).toHaveCSS("color", "rgb(231, 236, 234)");
   await expect(coverTitle).toHaveCSS("border-bottom-width", "0px");
   const article = page
     .getByRole("region", { name: "02 月", exact: true })

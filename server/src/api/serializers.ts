@@ -41,6 +41,16 @@ export const serializeTimelineItem = (
     title: item.title,
     content: item.content,
     url: item.url,
+    achievement:
+      item.achievement == null
+        ? item.achievement
+        : {
+            platform: item.achievement.platform,
+            gameId: item.achievement.gameId,
+            kind: item.achievement.kind,
+            earnedCount: item.achievement.earnedCount,
+            totalCount: item.achievement.totalCount,
+          },
     attachments:
       item.attachments == null
         ? item.attachments

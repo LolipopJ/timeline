@@ -10,6 +10,7 @@
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/static": "^1.4.10",
+    "@timeline/contracts": "workspace:*",
     "axios": "^1.21.0",
     "cheerio": "^1.2.0",
     "elysia": "^1.4.30",
@@ -20,10 +21,10 @@
     "node-schedule": "^2.1.2",
     "octokit": "^5.0.5",
     "pg": "^8.23.1",
+    "psn-api": "^2.18.1",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^1.1.2",
-    "xml-js": "^1.6.11",
-    "@timeline/contracts": "workspace:*"
+    "xml-js": "^1.6.11"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

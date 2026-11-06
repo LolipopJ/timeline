@@ -1,0 +1,2 @@
+xbox-webapi==2.1.0
+httpx[socks]==0.28.1

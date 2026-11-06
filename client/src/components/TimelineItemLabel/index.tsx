@@ -6,8 +6,10 @@ import {
   mdiEyeOutline,
   mdiFilterOutline,
   mdiLinkVariant,
+  mdiMicrosoftXbox,
   mdiOpenInNew,
   mdiRssBox,
+  mdiSonyPlaystation,
   mdiStarShooting,
   mdiSteam,
   mdiTrashCanOutline,
@@ -47,6 +49,9 @@ const LABEL_ICON_PATH: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.GITHUB_ISSUE_COMMENT]: mdiCommentText,
   [SyncServiceType.QZONE_TALK]: mdiStarShooting,
   [SyncServiceType.STEAM_GAME_REVIEW]: mdiSteam,
+  [SyncServiceType.PSN_GAME_ACHIEVEMENT]: mdiSonyPlaystation,
+  [SyncServiceType.XBOX_GAME_ACHIEVEMENT]: mdiMicrosoftXbox,
+  [SyncServiceType.STEAM_GAME_ACHIEVEMENT]: mdiSteam,
 };
 
 const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {

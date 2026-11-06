@@ -43,8 +43,17 @@ export interface TimelineItemClient {
   content?: string | null;
   url?: string | null;
   attachments?: TimelineItemAttachmentDto[] | null;
+  achievement?: GameAchievementDto | null;
   version?: number;
   created_at: string;
   updated_at: string;
   is_secret?: boolean | null;
+}
+
+export interface GameAchievementDto {
+  platform: "psn" | "xbox" | "steam";
+  gameId: string;
+  kind: "platinum" | "mythic" | "base_completion" | "all_achievements";
+  earnedCount?: number;
+  totalCount?: number;
 }

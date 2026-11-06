@@ -6,6 +6,7 @@ import ExpandableContainer, {
 } from "@/components/ExpandableContainer";
 import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-collection";
 import TimelineItemFeed from "@/components/TimelineItem/feed";
+import TimelineItemGameAchievement from "@/components/TimelineItem/game-achievement";
 import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
 import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
 import TimelineItemSteamGameReview from "@/components/TimelineItem/steam-game-review";
@@ -37,6 +38,19 @@ function TimelineItem(props: TimelineItemProps) {
   };
 
   switch (sync_service_type) {
+    case SyncServiceType.PSN_GAME_ACHIEVEMENT:
+    case SyncServiceType.XBOX_GAME_ACHIEVEMENT:
+    case SyncServiceType.STEAM_GAME_ACHIEVEMENT:
+      element = (
+        <TimelineItemGameAchievement
+          item={item}
+          showCompletionDate={
+            displayedDateTime === "updated_at" &&
+            item.created_at !== item.updated_at
+          }
+        />
+      );
+      break;
     case SyncServiceType.BILIBILI_COLLECTION:
     case SyncServiceType.BILIBILI_WORK:
       element = (

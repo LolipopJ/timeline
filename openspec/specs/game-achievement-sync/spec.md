@@ -1,10 +1,10 @@
-# Spec Delta
+# game-achievement-sync Specification
 
 ## Purpose
 
 将 PSN、Xbox 与 Steam 的游戏完成里程碑可靠地同步到个人时间线，以接口证据和实际解锁时间表达本体与全成就完成情况，并通过独立、可恢复的同步状态减少重复请求，保持不同平台、账号与游戏记录互不干扰。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 三个平台可独立配置游戏完成同步
 
@@ -20,9 +20,29 @@
 - **WHEN** 平台以不同游戏、奖杯集合或账号标识返回同名作品的完成记录
 - **THEN** 系统按这些稳定标识分别同步，不按显示名称合并
 
+#### Scenario: PSN 或 Xbox 任务省略目标账号
+
+- **WHEN** PSN 任务省略 `accountId` 或 Xbox 任务省略 `xuid`
+- **THEN** 系统使用该任务凭据所属账号的数字 ID 查询，并以该 ID 标识检查点和里程碑
+
+#### Scenario: Steam 任务配置目标账号
+
+- **WHEN** 配置 Steam 成就任务
+- **THEN** 配置必须同时提供目标账号的 SteamID64 与该任务的 Web API Key
+
+#### Scenario: Steam 游戏不在拥有目录中
+
+- **WHEN** Steam 任务在 `gameOverrides` 中配置额外 AppID
+- **THEN** 系统将这些 AppID 与 `GetOwnedGames` 的结果合并去重，并使用相同的成就定义与解锁时间校验
+
 ### Requirement: 授权材料仅保留在服务端
 
-系统 SHALL 支持 PSN 首次授权材料、Xbox 可刷新的持久化会话和 Steam Web API Key。令牌刷新结果 MUST 持久保存；实际凭据 MUST NOT 出现在客户端响应、公开构建、日志或提交记录中。授权失败 MUST 提供不含凭据的来源上下文。
+每个成就同步任务 SHALL 配置自己的凭据，包括 PSN 首次授权材料、Xbox 自有 OAuth 应用及持久化会话，或 Steam Web API Key。Xbox 会话 MUST 与配置的 OAuth 应用匹配。令牌刷新结果 MUST 持久保存；实际凭据 MUST NOT 出现在客户端响应、公开构建、日志、进程命令行或提交记录中。授权失败 MUST 提供不含凭据的来源上下文。
+
+#### Scenario: 两个 PSN 任务使用不同的凭据
+
+- **WHEN** 两个任务使用不同的 `psnNpsso` 并发同步
+- **THEN** 每个任务只使用其凭据对应的授权会话
 
 #### Scenario: 使用刷新后的会话重启
 
@@ -34,9 +54,28 @@
 - **WHEN** 某来源的会话无法刷新
 - **THEN** 该来源报告需要重新授权，保留已有记录与成功检查点，其他来源仍可执行
 
+#### Scenario: Xbox 应用与会话不匹配
+
+- **WHEN** 配置的 OAuth 应用无法刷新所提供的 Xbox 会话
+- **THEN** 来源明确报告需要使用匹配应用重新授权，不自动切换其他应用或尝试兼容另一种会话格式
+
+### Requirement: Python 运行依赖按 Xbox 来源隔离
+
+启用 Xbox 成就来源的部署 SHALL 提供其所需的 Python 运行环境与依赖。环境缺失或不可用 MUST 使该来源明确失败，而不是作为没有新成就的成功结果。未启用 Xbox 时 MUST NOT 要求安装 Python，也 MUST NOT 影响其他已启用来源的同步。
+
+#### Scenario: Xbox 缺少运行环境
+
+- **WHEN** 已启用 Xbox 成就来源但其 Python 环境或依赖不可用
+- **THEN** 本轮 Xbox 来源返回可定位的环境错误，保留成功检查点，其他来源仍可执行
+
+#### Scenario: 仅使用其他平台
+
+- **WHEN** 部署未启用 Xbox 成就来源
+- **THEN** PSN、Steam 及其他既有来源不依赖 Python 环境即可正常运行
+
 ### Requirement: 本体里程碑必须具有接口证据
 
-系统 SHALL 仅在平台接口能证明真实白金事件或明确的本体成就集合，且能确定完成时间时生成本体里程碑。系统 MUST 使用平台实际名称；无法证明本体范围的游戏 MUST 只参与全成就判定，不根据分数、成就名称或首次同步快照推测本体范围。
+系统 SHALL 仅在有真实白金事件、明确的本体成就集合或经过核验的 Steam 本体 API ID 清单，且能确定完成时间时生成本体里程碑。系统 MUST 使用平台实际名称；无法证明本体范围的游戏 MUST 只参与全成就判定，不根据分数、成就名称或首次同步快照推测本体范围。
 
 #### Scenario: PSN 返回已解锁的真实白金奖杯
 
@@ -47,6 +86,11 @@
 
 - **WHEN** 接口明确区分本体集合，集合全部完成且实际完成时间可确定
 - **THEN** 系统生成对应的 Mythic 或本体全成就里程碑
+
+#### Scenario: Steam 仅返回未区分本体与追加内容的默认集合
+
+- **WHEN** Steam 没有明确区分本体集合，但该 AppID 配置了经核验的 `baseAchievementIds`
+- **THEN** 系统逐项核验 API ID 存在且唯一，再按这些成就的实际解锁时间判定本体完成，全成就仍核验完整定义
 
 #### Scenario: 游戏没有可验证的本体范围
 
@@ -155,6 +199,11 @@
 
 - **WHEN** 里程碑与对应同步状态未能完整写入
 - **THEN** 系统不发布一个声称已成功处理这些数据的新检查点
+
+#### Scenario: Xbox 采集异常退出或结果不完整
+
+- **WHEN** Xbox 采集超时、异常退出或返回无法验证的结果
+- **THEN** 系统记录本轮来源失败并回收采集资源，不使用部分结果推进成功检查点，也不将其视为零事件成功
 
 ### Requirement: 常规同步避免全库成就详情重拉
 

@@ -3,7 +3,6 @@ import { sleep } from "bun";
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
-import config from "../../configs/server";
 import { insertOrUpdateTimelineItems } from "../database/controller/timeline-item";
 import type {
   SyncServiceSteamGameReview,
@@ -13,27 +12,6 @@ import { createLogger, formatError } from "../utils/logger";
 import { withRetry } from "../utils/promise";
 
 const logger = createLogger("Steam");
-
-interface SteamUserSummary {
-  steamid: string;
-  communityvisibilitystate: number;
-  profilestate: number;
-  personaname: string;
-  profileurl: string;
-  avatar: string;
-  avatarmedium: string;
-  avatarfull: string;
-  avatarhash: string;
-  lastlogoff: number;
-  personastate: number;
-  realname: string;
-  primaryclanid: string;
-  timecreated: number;
-  personastateflags: number;
-  loccountrycode: string;
-  locstatecode: string;
-  loccityid: number;
-}
 
 interface SteamGamePlaytime {
   appid: number;
@@ -48,42 +26,75 @@ interface SteamGamePlaytime {
   playtime_deck_forever: number;
 }
 
-let steamAccountDetails: SteamUserSummary;
-export const getSteamAccountDetails = async (steamId: string) => {
-  if (!steamAccountDetails) {
-    const getSteamAccountDetailsRes = await axios.get(
-      "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002",
-      {
+const STEAM_APP_ASSETS_URL =
+  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps";
+
+export const getSteamGameCover = (appId: number, publishedUrl?: string) => ({
+  filename: "cover.jpg",
+  url: publishedUrl ?? `${STEAM_APP_ASSETS_URL}/${appId}/library_600x900.jpg`,
+});
+
+interface SteamStoreItem {
+  appid: number;
+  assets?: {
+    library_capsule?: string;
+    library_capsule_2x?: string;
+  };
+}
+
+export const fetchSteamGameCoverUrls = async (appIds: number[]) => {
+  const unique = [...new Set(appIds)];
+  const covers = new Map<number, string>();
+  for (let offset = 0; offset < unique.length; offset += 40) {
+    const batch = unique.slice(offset, offset + 40);
+    try {
+      const { data } = await axios.get<{
+        response?: { store_items?: SteamStoreItem[] };
+      }>("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/", {
         params: {
-          key: config.steamWebAPIKey,
-          steamids: steamId,
+          input_json: JSON.stringify({
+            ids: batch.map((appid) => ({ appid })),
+            context: { language: "english", country_code: "US" },
+            data_request: { include_assets: true },
+          }),
         },
-      },
-    );
-    const accountDetails = getSteamAccountDetailsRes.data.response
-      .players[0] as SteamUserSummary;
-    logger.success(
-      `Auth to Steam successfully! You are logged as ${accountDetails.personaname}.`,
-    );
-
-    steamAccountDetails = accountDetails;
+        timeout: 10_000,
+      });
+      const items = data?.response?.store_items;
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        if (!item || !batch.includes(item.appid)) continue;
+        const capsule = item.assets?.library_capsule;
+        const asset =
+          typeof capsule === "string" && capsule.endsWith("library_600x900.jpg")
+            ? capsule
+            : item.assets?.library_capsule_2x || capsule;
+        if (
+          typeof asset === "string" &&
+          /^(?:[a-f0-9]{40}\/)?library_(?:600x900|capsule)(?:_2x)?\.jpg$/.test(
+            asset,
+          )
+        )
+          covers.set(
+            item.appid,
+            `${STEAM_APP_ASSETS_URL}/${item.appid}/${asset}`,
+          );
+      }
+    } catch {
+      logger.warn("Could not load Steam store library covers.");
+    }
   }
-
-  return steamAccountDetails;
-};
-
-const getSteamGameHeaderImage = (appId: number) => {
-  return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
-};
-
-const getSteamGameCapsuleImage = (appId: number) => {
-  return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/capsule_184x69.jpg`;
+  return covers;
 };
 
 export const syncSteamRecentlyPlayedGames = async (
   service: SyncServiceSteamRecentlyPlayedTime,
 ) => {
-  const { id, type, secret, steamId } = service;
+  const { id, type, secret, steamId, steamWebAPIKey } = service;
+  if (!steamWebAPIKey)
+    throw new Error(
+      "STEAM_API_KEY_REQUIRED: configure steamWebAPIKey on this service.",
+    );
   const currentDate = new Date();
 
   logger.info(`Syncing Steam recently played games for player ${steamId}...`);
@@ -91,7 +102,7 @@ export const syncSteamRecentlyPlayedGames = async (
     "https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v0001",
     {
       params: {
-        key: config.steamWebAPIKey,
+        key: steamWebAPIKey,
         steamid: steamId,
         format: "json",
       },
@@ -104,15 +115,15 @@ export const syncSteamRecentlyPlayedGames = async (
     `Synced ${recentlyPlayedGames.length} records of Steam recently played games for player ${steamId}.`,
   );
 
+  const covers = await fetchSteamGameCoverUrls(
+    recentlyPlayedGames.map((game) => game.appid),
+  );
   const itemCount = await insertOrUpdateTimelineItems(
     recentlyPlayedGames.map((game) => ({
       sync_service_id: id,
       sync_service_type: type,
       content_id: currentDate.toLocaleDateString(),
-      attachments: [
-        { filename: "header.jpg", url: getSteamGameHeaderImage(game.appid) },
-        { filename: "capsule.jpg", url: getSteamGameCapsuleImage(game.appid) },
-      ],
+      attachments: [getSteamGameCover(game.appid, covers.get(game.appid))],
       metadata: JSON.stringify(game),
       is_secret: secret,
       created_at: currentDate,
@@ -128,7 +139,6 @@ export const syncSteamRecentlyPlayedGames = async (
 interface SteamGameReview {
   appId: number;
   reviewUrl: string;
-  coverImageUrl: string;
   recommended: boolean;
   /** 总时数（小时） */
   hoursOnRecord: number;
@@ -208,13 +218,6 @@ const fetchSteamReviewDetail = async (reviewUrl: string) => {
     });
     const $ = cheerio.load(res.data);
 
-    const coverImageUrl = $("#rightContents img.game_capsule").attr("src");
-    if (!coverImageUrl) {
-      throw new Error(
-        `Failed to find cover image. Page structure may have changed.`,
-      );
-    }
-
     const recommendationDateHtml = $(".recommendation_date").html() || "";
     const postedMatch = recommendationDateHtml.match(
       /Posted:\s*(.+?)(?:<br|$)/i,
@@ -225,7 +228,7 @@ const fetchSteamReviewDetail = async (reviewUrl: string) => {
       );
     }
     const postedAt = parseSteamReviewDetailDateText(postedMatch[1].trim());
-    if (!postedMatch || !postedAt) {
+    if (!postedAt) {
       throw new Error(
         `Failed to parse posted date, original posted date text: ${postedMatch[1]}`,
       );
@@ -237,12 +240,12 @@ const fetchSteamReviewDetail = async (reviewUrl: string) => {
       ? parseSteamReviewDetailDateText(updatedMatch[1].trim())
       : null;
 
-    return { coverImageUrl, postedAt, editedAt };
+    return { postedAt, editedAt };
   } catch (error) {
     logger.warn(
       `Failed to fetch review detail for ${reviewUrl}:\n${formatError(error)}`,
     );
-    return { coverImageUrl: null, postedAt: null, editedAt: null };
+    return { postedAt: null, editedAt: null };
   }
 };
 
@@ -260,13 +263,9 @@ const parseSteamGameReviewElement = async (
     );
   }
 
-  const detail = await fetchSteamReviewDetail(reviewUrl);
-  const { coverImageUrl, postedAt, editedAt } = detail;
-  if (!coverImageUrl || !postedAt) {
-    throw new Error(
-      "Parse steam review element failed: missing coverImageUrl or postedAt",
-    );
-  }
+  const { postedAt, editedAt } = await fetchSteamReviewDetail(reviewUrl);
+  if (!postedAt)
+    throw new Error("Parse steam review element failed: missing postedAt");
 
   const hoursText = $reviewBox.find(".hours").text();
   const hoursOnRecord = parseFloat(
@@ -293,7 +292,6 @@ const parseSteamGameReviewElement = async (
   return {
     appId,
     reviewUrl,
-    coverImageUrl,
     recommended,
     hoursOnRecord,
     hoursAtReviewTime,
@@ -358,6 +356,9 @@ export const syncSteamGameReviews = async (
   }
   logger.info(`Synced ${reviews.length} Steam game reviews of ${userId}.`);
 
+  const covers = await fetchSteamGameCoverUrls(
+    reviews.map(({ appId }) => appId),
+  );
   const itemCount = await insertOrUpdateTimelineItems(
     reviews.map((review) => ({
       sync_service_id: id,
@@ -366,7 +367,7 @@ export const syncSteamGameReviews = async (
       title: review.recommended ? "推荐" : "不推荐",
       content: review.content,
       url: review.reviewUrl,
-      attachments: [{ filename: "capsule.jpg", url: review.coverImageUrl }],
+      attachments: [getSteamGameCover(review.appId, covers.get(review.appId))],
       metadata: JSON.stringify(review),
       is_secret: secret,
       created_at: review.postedAt,

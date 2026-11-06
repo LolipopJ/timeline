@@ -54,6 +54,7 @@ const items: TimelineItem[] = Array.from({ length: 12 }, (_, index) => ({
   title: index % 3 === 0 ? "public fixture" : "private-only fixture",
   content: "searchable body",
   is_secret: index % 3 !== 0,
+  achievement_merged: false,
   created_at: new Date(2026, 0, 12 - index),
   updated_at: new Date(2026, 0, 12 - index),
 }));

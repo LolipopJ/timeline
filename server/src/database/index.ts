@@ -2,6 +2,10 @@ import { DataSource } from "typeorm";
 
 import config from "../../configs/server";
 import { createLogger, formatError } from "../utils/logger";
+import {
+  AchievementGameSnapshot,
+  AchievementSourceState,
+} from "./entity/achievement-state";
 import TimelineItem from "./entity/timeline-item";
 
 const logger = createLogger("Database");
@@ -57,7 +61,7 @@ export const AppDataSource = new DataSource({
   username: config.database.user,
   password: config.database.password,
   database: DATABASE_NAME,
-  entities: [TimelineItem],
+  entities: [TimelineItem, AchievementSourceState, AchievementGameSnapshot],
   synchronize: true,
   invalidWhereValuesBehavior: {
     undefined: "ignore",

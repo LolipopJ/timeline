@@ -22,6 +22,7 @@ export const getTimelineWhere = (
   isAdmin: boolean,
 ): FindOptionsWhere<TimelineItem> | FindOptionsWhere<TimelineItem>[] => {
   const base = {
+    achievement_merged: false,
     ...(id === undefined ? {} : { id }),
     ...(serviceId === undefined ? {} : { sync_service_id: serviceId }),
     ...(serviceType === undefined ? {} : { sync_service_type: serviceType }),

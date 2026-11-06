@@ -1,3 +1,4 @@
+import type { GameAchievementDto } from "@timeline/contracts";
 import { SyncServiceType } from "@timeline/contracts";
 import {
   Column,
@@ -45,6 +46,12 @@ export class TimelineItem {
 
   @Column({ type: "text", nullable: true })
   metadata?: string;
+
+  @Column({ type: "json", nullable: true })
+  achievement?: GameAchievementDto | null;
+
+  @Column({ type: "boolean", default: false })
+  achievement_merged?: boolean;
 
   @Column({ type: "boolean", nullable: true, default: false })
   is_secret?: boolean | null;

@@ -1,10 +1,10 @@
-# Spec Delta
+# game-achievement-display Specification
 
 ## Purpose
 
 让读者在现有个人时间线中清楚辨认不同平台的游戏完成里程碑，通过游戏封面、准确的奖杯名称与实际完成日期获得一致的阅读体验，同时确保合并后的列表、数量、搜索和隐私结果一致，并适配现有主题及移动视口。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 客户端只接收明确的成就展示数据
 
@@ -52,6 +52,11 @@
 
 - **WHEN** 来源没有可用封面或图片加载失败
 - **THEN** 卡片保留稳定的封面占位、可读游戏名、平台及里程碑信息
+
+#### Scenario: Steam 游戏库竖封面
+
+- **WHEN** Steam 成就同步写入游戏的库封面
+- **THEN** 卡片使用 2:3 的封面区域，在桌面与窄屏完整显示图片
 
 ### Requirement: 卡片适配现有主题与窄屏
 

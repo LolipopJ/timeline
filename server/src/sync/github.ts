@@ -1,7 +1,6 @@
 import type { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import { Octokit } from "octokit";
 
-import config from "../../configs/server";
 import {
   getSyncTaskLastExecuteTime,
   insertOrUpdateTimelineItems,
@@ -11,39 +10,41 @@ import { createLogger } from "../utils/logger";
 
 const logger = createLogger("GitHub");
 
-const octokit = new Octokit({
-  auth: config.githubPersonalAccessToken,
-});
-
-let githubAccountDetails: RestEndpointMethodTypes["users"]["getAuthenticated"]["response"]["data"];
-export const getGithubAccountDetails = async () => {
-  if (!githubAccountDetails) {
-    try {
-      const { data } = await octokit.rest.users.getAuthenticated();
-      logger.success(
-        `Auth to Github successfully! You are logged as ${data.login}.`,
-      );
-
-      githubAccountDetails = data;
-    } catch (error) {
-      // 保留 cause，由日志层统一展开，不要在消息中重复格式化
-      throw new Error(
-        `Auth to Github failed: please check \`githubPersonalAccessToken\` in \`server/configs/server.ts\`.`,
-        { cause: error },
-      );
-    }
+const getGithubAccountId = async (octokit: Octokit) => {
+  try {
+    const { data } = await octokit.rest.users.getAuthenticated();
+    logger.success(
+      `Auth to Github successfully! You are logged as ${data.login}.`,
+    );
+    return data.id;
+  } catch (error) {
+    throw new Error(
+      "Auth to Github failed: check githubPersonalAccessToken on this service.",
+      { cause: error },
+    );
   }
-
-  return githubAccountDetails;
 };
 
 export const syncGithubIssueComments = async (
   service: SyncServiceGithubIssueComment,
 ) => {
-  const { id, type, from, secret, owner, repo, issueNumber, full } = service;
+  const {
+    id,
+    type,
+    from,
+    secret,
+    owner,
+    repo,
+    issueNumber,
+    full,
+    githubPersonalAccessToken,
+  } = service;
   const PER_PAGE = 30;
 
-  const { id: currentUserId } = await getGithubAccountDetails();
+  if (!githubPersonalAccessToken)
+    throw new Error("Configure githubPersonalAccessToken on this service.");
+  const octokit = new Octokit({ auth: githubPersonalAccessToken });
+  const currentUserId = await getGithubAccountId(octokit);
 
   const lastExecuteDate = await getSyncTaskLastExecuteTime({
     id,

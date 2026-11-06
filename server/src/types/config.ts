@@ -25,28 +25,6 @@ export interface ServerConfig {
    * @default *\/30 * * * *
    */
   syncInterval?: string;
-  /**
-   * 访问 Github 的个人令牌。同步包含 Github 相关的服务时需要提供
-   * @link https://github.com/settings/tokens/new?scopes=repo
-   */
-  githubPersonalAccessToken?: string;
-  /**
-   * 预留：PSN 奖杯同步首次授权的 NPSSO，仅保留在服务端配置中。
-   * 当前尚未接入授权或同步，填写不会触发请求。
-   * @link https://psn-api.achievements.app/authentication/authenticating-manually
-   */
-  psnNpsso?: string;
-  /**
-   * 预留：Xbox 可刷新 TokenStore 文件的绝对路径，由 xal-node 登录生成。
-   * 当前尚未读取会话文件或启用同步。
-   * @link https://unknownskl.github.io/xal-node/docs/cli
-   */
-  xboxTokenStorePath?: string;
-  /**
-   * 访问 Steam API 的令牌。同步包含 Steam 相关的服务时需要提供
-   * @link https://steamcommunity.com/dev/apikey
-   */
-  steamWebAPIKey?: string;
 }
 
 export interface LoginAccount {
@@ -73,7 +51,10 @@ export type SyncService =
   | SyncServiceGithubIssueComment
   | SyncServiceQzoneTalk
   | SyncServiceSteamRecentlyPlayedTime
-  | SyncServiceSteamGameReview;
+  | SyncServiceSteamGameReview
+  | SyncServicePsnGameAchievement
+  | SyncServiceXboxGameAchievement
+  | SyncServiceSteamGameAchievement;
 
 export interface SyncServiceBase {
   id: string;
@@ -90,6 +71,34 @@ export interface SyncServiceBase {
   secret?: boolean;
   /** 是否执行全量同步，忽略上次同步时间，仅受 `from` 字段约束 */
   full?: boolean;
+}
+
+export interface SyncServicePsnGameAchievement extends SyncServiceBase {
+  type: SyncServiceType.PSN_GAME_ACHIEVEMENT;
+  /** @link https://psn-api.achievements.app/authentication/authenticating-manually */
+  psnNpsso: string;
+  /** PSN 数字账号 ID，省略时使用 NPSSO 对应的账号 */
+  accountId?: string;
+}
+
+export interface SyncServiceXboxGameAchievement extends SyncServiceBase {
+  type: SyncServiceType.XBOX_GAME_ACHIEVEMENT;
+  /** 自有 OAuth Web 应用的 ID 和 secret，须与会话文件匹配 */
+  xboxClientId: string;
+  xboxClientSecret: string;
+  /** xbox-webapi OAuth2TokenResponse JSON 会话文件的绝对路径 */
+  xboxTokenStorePath: string;
+  /** Xbox 数字用户 ID，省略时使用 OAuth 会话对应的账号 */
+  xuid?: string;
+}
+
+export interface SyncServiceSteamGameAchievement extends SyncServiceBase {
+  type: SyncServiceType.STEAM_GAME_ACHIEVEMENT;
+  steamWebAPIKey: string;
+  /** SteamID64，不是社区自定义地址 */
+  steamId: string;
+  /** 按 AppID 补充同步游戏，或为尚未分组的游戏指定已核验的本体成就 API ID */
+  gameOverrides?: Record<number, { baseAchievementIds?: string[] }>;
 }
 
 export interface SyncServiceBilibiliCollection extends SyncServiceBase {
@@ -117,6 +126,8 @@ export interface SyncServiceFeed extends SyncServiceBase {
 
 export interface SyncServiceGithubIssueComment extends SyncServiceBase {
   type: SyncServiceType.GITHUB_ISSUE_COMMENT;
+  /** 可访问目标仓库的个人令牌，同步该令牌所属账号的评论 */
+  githubPersonalAccessToken: string;
   owner: string;
   repo: string;
   issueNumber: number;
@@ -129,6 +140,7 @@ export interface SyncServiceQzoneTalk extends SyncServiceBase {
 
 export interface SyncServiceSteamRecentlyPlayedTime extends SyncServiceBase {
   type: SyncServiceType.STEAM_RECENTLY_PLAYED_TIME;
+  steamWebAPIKey: string;
   /** https://help.steampowered.com/zh-cn/faqs/view/2816-BE67-5B69-0FEC */
   steamId: string;
 }

@@ -26,6 +26,7 @@ export const serverConfig: ServerConfig = {
     //   type: SyncServiceType.GITHUB_ISSUE_COMMENT,
     //   id: "GithubIssueComments",
     //   label: "My Github Issue Comments",
+    //   githubPersonalAccessToken: "ghp_yourGithubPersonalAccessToken",
     //   owner: "github_repo_owner",
     //   repo: "github_repo_name",
     //   issueNumber: 1,
@@ -36,6 +37,36 @@ export const serverConfig: ServerConfig = {
     //   label: "My QQ Zone",
     //   qqNumber: "408550000",
     //   from: new Date("2018-01-01"),
+    // },
+    // {
+    //   type: SyncServiceType.PSN_GAME_ACHIEVEMENT,
+    //   id: "MyPsnAchievements",
+    //   psnNpsso: "your_psn_npsso",
+    //   // accountId: "your_numeric_psn_account_id", // 默认同步授权账号
+    // },
+    // {
+    //   type: SyncServiceType.XBOX_GAME_ACHIEVEMENT,
+    //   id: "MyXboxAchievements",
+    //   xboxClientId: "your_oauth_application_id",
+    //   xboxClientSecret: "your_oauth_application_secret",
+    //   xboxTokenStorePath: "/absolute/path/to/timeline/server/.temporary/xbox.oauth.json",
+    //   // xuid: "your_numeric_xbox_user_id", // 默认同步授权账号
+    // },
+    // {
+    //   type: SyncServiceType.STEAM_GAME_ACHIEVEMENT,
+    //   id: "MySteamAchievements",
+    //   steamWebAPIKey: "your_steam_web_api_key",
+    //   steamId: "your_steam_id64",
+    //   // gameOverrides: {
+    //   //   123456: {},
+    //   //   234567: { baseAchievementIds: ["ACH_STORY", "ACH_FINAL"] },
+    //   // },
+    // },
+    // {
+    //   type: SyncServiceType.STEAM_RECENTLY_PLAYED_TIME,
+    //   id: "MySteamRecentlyPlayedTime",
+    //   steamWebAPIKey: "your_steam_web_api_key",
+    //   steamId: "your_steam_id64",
     // },
   ],
   database: {
@@ -56,11 +87,6 @@ export const serverConfig: ServerConfig = {
   },
   listeningPort: 4000,
   syncInterval: "*/30 * * * *", // 未单独配置的来源每 30 分钟同步一次
-  // githubPersonalAccessToken: "ghp_yourGithubPersonalAccessToken",
-  // PSN、Xbox 仅预留凭据，填写后尚不会启用奖杯同步。
-  // psnNpsso: "your_psn_npsso",
-  // xboxTokenStorePath: "C:/path/to/timeline/server/.temporary/xbox.tokens.json",
-  // steamWebAPIKey: "your_steam_web_api_key",
 };
 
 export default serverConfig;

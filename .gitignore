@@ -44,6 +44,8 @@ next-env.d.ts
 
 # server static files
 /server/.static
+/server/.venv/
+__pycache__/
 
 # AI
 .serena/

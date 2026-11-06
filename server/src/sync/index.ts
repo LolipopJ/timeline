@@ -6,11 +6,20 @@ import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { createSyncCoordinator } from "./coordinator";
 import { syncFeed } from "./feed";
 import { syncGithubIssueComments } from "./github";
+import { syncPsnGameAchievements } from "./psn";
 import { syncQQZoneTalks } from "./qzone";
 import { syncSteamGameReviews, syncSteamRecentlyPlayedGames } from "./steam";
+import { syncSteamGameAchievements } from "./steam-achievement";
+import { syncXboxGameAchievements } from "./xbox";
 
 const executeService = (service: SyncService) => {
   switch (service.type) {
+    case SyncServiceType.PSN_GAME_ACHIEVEMENT:
+      return syncPsnGameAchievements(service);
+    case SyncServiceType.XBOX_GAME_ACHIEVEMENT:
+      return syncXboxGameAchievements(service);
+    case SyncServiceType.STEAM_GAME_ACHIEVEMENT:
+      return syncSteamGameAchievements(service);
     case SyncServiceType.BILIBILI_COLLECTION:
       return syncBilibiliCollections(service);
     case SyncServiceType.BILIBILI_WORK:
