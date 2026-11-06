@@ -241,7 +241,7 @@ export const getSteamAchievementSummaries = async ({
     }),
   );
   const byId = new Map(summaries.map((summary) => [summary.gameId, summary]));
-  for (const [id, { baseAchievementIds }] of Object.entries(
+  for (const [id, { baseAchievementCount }] of Object.entries(
     gameOverrides ?? {},
   )) {
     if (!/^[1-9]\d*$/.test(id) || Number(id) > 0xffffffff)
@@ -260,10 +260,10 @@ export const getSteamAchievementSummaries = async ({
       );
       summaries.push(summary);
     }
-    if (baseAchievementIds !== undefined)
+    if (baseAchievementCount !== undefined)
       summary.signature = achievementFingerprint([
         summary.signature,
-        baseAchievementIds,
+        baseAchievementCount,
       ]);
   }
   return summaries;
@@ -297,20 +297,23 @@ export const getSteamAchievementDetails = async (
     )
       ? await getSteamBaseSet(game)
       : undefined;
-    const configuredBase =
-      gameOverrides?.[Number(summary.gameId)]?.baseAchievementIds;
+    const configuredBaseCount =
+      gameOverrides?.[summary.gameId]?.baseAchievementCount;
     if (nativeBase) {
       game.base = { kind: "base_completion", achievementIds: nativeBase };
-    } else if (configuredBase !== undefined) {
-      const known = new Set(game.achievements.map(({ id }) => id));
+    } else if (configuredBaseCount !== undefined) {
       if (
-        !Array.isArray(configuredBase) ||
-        !configuredBase.length ||
-        new Set(configuredBase).size !== configuredBase.length ||
-        configuredBase.some((id) => !known.has(id))
+        !Number.isInteger(configuredBaseCount) ||
+        configuredBaseCount <= 0 ||
+        configuredBaseCount > game.achievements.length
       )
         throw new Error(`STEAM_INVALID_CONFIGURED_BASE_SET: ${summary.gameId}`);
-      game.base = { kind: "base_completion", achievementIds: configuredBase };
+      game.base = {
+        kind: "base_completion",
+        achievementIds: game.achievements
+          .slice(0, configuredBaseCount)
+          .map(({ id }) => id),
+      };
     }
     games.push(game);
   }

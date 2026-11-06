@@ -89,4 +89,4 @@ server:
   #     # gameOverrides:
   #     #   123456: {}
   #     #   234567:
-  #     #     baseAchievementIds: ["ACH_STORY", "ACH_FINAL"]
+  #     #     baseAchievementCount: 54

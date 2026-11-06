@@ -101,7 +101,7 @@ test("Steam collects unlisted apps and distinguishes base completion from DLC", 
     type: SyncServiceType.STEAM_GAME_ACHIEVEMENT,
     steamId: "1",
     steamWebAPIKey: "fixture",
-    gameOverrides: { 10: {}, 30: { baseAchievementIds: ["original"] } },
+    gameOverrides: { 10: {}, 30: { baseAchievementCount: 1 } },
   };
   try {
     const summaries = await getSteamAchievementSummaries(service);
@@ -128,7 +128,7 @@ test("Steam collects unlisted apps and distinguishes base completion from DLC", 
       getSteamAchievementDetails(
         {
           ...service,
-          gameOverrides: { 30: { baseAchievementIds: ["unknown"] } },
+          gameOverrides: { 30: { baseAchievementCount: 3 } },
         },
         summaries.filter(({ gameId }) => gameId === "30"),
       ),

@@ -101,13 +101,13 @@ Linux 使用 `server/.venv/bin/python` 和 `server/.venv/bin/xbox-authenticate`�
 
 目标账号的游戏详情必须允许 Web API 读取，`steamId` 使用 SteamID64。同步范围包括 `GetOwnedGames` 返回的游戏，以及本任务 `gameOverrides` 中显式填写的 AppID。目录缺少曾经玩过的游戏时，可以用空对象补充该 AppID。私密或不完整的 Web API 解锁数据会使本轮失败并保留上次成功检查点。 [官方 Web API](https://partner.steamgames.com/doc/webapi/ISteamUserStats)
 
-本体成就优先使用 Steam 公开成就页上明确分组的本体集合，按 API ID 与 Web API 的完整定义核对。Steam 将所有成就放在同一个默认组时，可在 `gameOverrides` 为该游戏提供经过核验的 `baseAchievementIds`。使用 `GetSchemaForGame` 中的 `name` 字段，保留大小写和前导零。全成就始终按 Web API 的完整定义与实际解锁时间计算。 [Steam 成就集](https://partner.steamgames.com/doc/features/achievements/ach_guide?l=english#achievement_sets)
+本体成就优先使用 Steam 公开成就页上明确分组的本体集合，按 API ID 与 Web API 的完整定义核对。Steam 将所有成就放在同一个默认组时，可在 `gameOverrides` 为该游戏提供经过核验的本体成就数量 `baseAchievementCount`，按 `GetSchemaForGame` 定义顺序取前 N 项作为本体集合。全成就始终按 Web API 的完整定义与实际解锁时间计算。 [Steam 成就集](https://partner.steamgames.com/doc/features/achievements/ach_guide?l=english#achievement_sets)
 
 ```yaml
 gameOverrides:
   123456: {}
   234567:
-    baseAchievementIds: ["ACH_STORY", "ACH_FINAL"]
+    baseAchievementCount: 54
 ```
 
 ### 范围、重查与历史

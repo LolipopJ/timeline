@@ -79,7 +79,7 @@ const steamGameAchievement = syncServiceBase.extend({
   gameOverrides: z
     .record(
       z.string().regex(/^[1-9]\d*$/),
-      z.strictObject({ baseAchievementIds: z.array(text).optional() }),
+      z.strictObject({ baseAchievementCount: z.int().positive().optional() }),
     )
     .optional(),
 });
