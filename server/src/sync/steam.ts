@@ -39,6 +39,7 @@ interface SteamStoreItem {
   assets?: {
     library_capsule?: string;
     library_capsule_2x?: string;
+    hero_capsule?: string;
   };
 }
 
@@ -68,7 +69,9 @@ export const fetchSteamGameCoverUrls = async (appIds: number[]) => {
         const asset =
           typeof capsule === "string" && capsule.endsWith("library_600x900.jpg")
             ? capsule
-            : item.assets?.library_capsule_2x || capsule;
+            : item.assets?.library_capsule_2x ||
+              item.assets?.hero_capsule ||
+              capsule;
         if (
           typeof asset === "string" &&
           /^(?:[a-f0-9]{40}\/)?library_(?:600x900|capsule)(?:_2x)?\.jpg$/.test(

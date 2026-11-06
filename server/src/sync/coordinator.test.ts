@@ -80,7 +80,7 @@ describe("sync coordination", () => {
     },
   );
 
-  test("retains only the 10 most recent completed runs in reverse order", async () => {
+  test("retains the 10 newest runs globally and independently for each service", async () => {
     const coordinator = createSyncCoordinator(
       () => services,
       async () => 0,
@@ -88,12 +88,14 @@ describe("sync coordination", () => {
     coordinator.ready();
     const runIds: string[] = [];
 
-    for (let index = 0; index < 11; index++) {
-      const result = coordinator.start("manual");
+    for (let index = 0; index < 21; index++) {
+      const result = coordinator.start("scheduled", {
+        services: index < 11 ? services : [services[1]],
+      });
       if ("reason" in result) throw new Error(result.reason);
       expect(coordinator.snapshot()).toMatchObject({
         current: { id: result.runId },
-        history: runIds.map((id) => ({ id })),
+        history: runIds.slice(0, 10).map((id) => ({ id })),
       });
       await coordinator.wait();
       runIds.unshift(result.runId);
@@ -103,6 +105,16 @@ describe("sync coordination", () => {
     expect(snapshot.history.map(({ id }) => id)).toEqual(runIds.slice(0, 10));
     snapshot.history.pop();
     expect(coordinator.snapshot().history).toHaveLength(10);
+    const feedHistory = coordinator.snapshot("feed").history;
+    expect(feedHistory.map(({ id }) => id)).toEqual(runIds.slice(10, 20));
+    expect(
+      feedHistory.every(
+        (run) => run.services.length === 1 && run.services[0].id === "feed",
+      ),
+    ).toBe(true);
+    expect(coordinator.snapshot("other").history.map(({ id }) => id)).toEqual(
+      runIds.slice(0, 10),
+    );
   });
 
   test("does not create a run when there are no enabled services", () => {

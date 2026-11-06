@@ -21,7 +21,7 @@ async function backend(page: Page) {
     loggedIn: true,
     failLogout: false,
     failServices: false,
-    serviceIds: ["feed", "github"],
+    serviceLabels: ["feed", "github"],
     expireLogs: false,
     expireSync: false,
     loseAcceptance: false,
@@ -40,7 +40,7 @@ async function backend(page: Page) {
       view: string | null;
       page: string | null;
       search: string | null;
-      serviceId: string | null;
+      serviceLabel: string | null;
       id: string | null;
       orderBy: string | null;
     }[],
@@ -68,7 +68,7 @@ async function backend(page: Page) {
       view: url.searchParams.get("view"),
       page: url.searchParams.get("page"),
       search: url.searchParams.get("search"),
-      serviceId: url.searchParams.get("serviceId"),
+      serviceLabel: url.searchParams.get("serviceLabel"),
       id: url.searchParams.get("id"),
       orderBy: url.searchParams.get("orderBy"),
     });
@@ -87,7 +87,7 @@ async function backend(page: Page) {
         : route.fulfill({
             json: [
               ...new Set([
-                ...state.serviceIds,
+                ...state.serviceLabels,
                 ...(state.archiveItems ?? [])
                   .filter(
                     (item) =>
@@ -95,7 +95,7 @@ async function backend(page: Page) {
                         url.searchParams.get("view") !== "public") ||
                       !item.is_secret,
                   )
-                  .map((item) => item.sync_service_id),
+                  .map((item) => item.label || item.sync_service_id),
               ]),
             ],
             headers,
@@ -140,15 +140,32 @@ async function backend(page: Page) {
           headers,
         });
       }
+      const serviceId = url.searchParams.get("serviceId");
+      const current = state.run?.status === "running" ? state.run : null;
+      const history = [
+        ...(state.run?.finishedAt ? [state.run] : []),
+        ...state.history,
+      ];
+      const filterRun = (run: SyncRunDto) => {
+        if (!serviceId) return [run];
+        const result = run.services.find(({ id }) => id === serviceId);
+        return result
+          ? [{ ...run, status: result.status, services: [result] }]
+          : [];
+      };
       return route.fulfill({
         json: {
-          available: state.run?.status !== "running",
-          reason: state.run?.status === "running" ? "busy" : null,
-          current: state.run?.status === "running" ? state.run : null,
-          history: [
-            ...(state.run?.finishedAt ? [state.run] : []),
-            ...state.history,
+          available: !current,
+          reason: current ? "busy" : null,
+          serviceId,
+          services: [
+            { id: "feed", label: "博客" },
+            { id: "empty", label: "博客" },
           ],
+          activeRunId: current?.id ?? null,
+          completedRunIds: history.map(({ id }) => id),
+          current: current ? (filterRun(current)[0] ?? null) : null,
+          history: history.flatMap(filterRun),
         },
         headers,
       });
@@ -213,8 +230,9 @@ async function backend(page: Page) {
               (isAdmin || !item.is_secret) &&
               (!url.searchParams.has("id") ||
                 item.id === url.searchParams.get("id")) &&
-              (!url.searchParams.has("serviceId") ||
-                item.sync_service_id === url.searchParams.get("serviceId")) &&
+              (!url.searchParams.has("serviceLabel") ||
+                (item.label || item.sync_service_id) ===
+                  url.searchParams.get("serviceLabel")) &&
               item.title?.includes(url.searchParams.get("search") ?? ""),
           )
           .sort((a, b) => {
@@ -462,6 +480,82 @@ const searchFixture = (): TimelineItemClient[] => [
   },
 ];
 
+test("search offers a unique label and shows entries from all its sources", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  const fixtures = searchFixture();
+  state.archiveItems = [
+    ...["psn", "xbox", "steam"].map((id, index) => ({
+      ...fixtures[index],
+      sync_service_id: id,
+      label: "成就奖杯",
+      title: ["旅行成就", "Xbox 成就", "Steam 成就"][index],
+      is_secret: false,
+    })),
+    {
+      ...fixtures[0],
+      id: "6f1e6c1a-6a1f-4b0e-8f3f-2a1e3f6c9d13",
+      title: "普通文章",
+    },
+  ];
+  await page.goto("/?search=旅行");
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  await expect(input).toHaveValue("旅行");
+  await input.click();
+  const choice = page
+    .getByRole("list", { name: "按类型筛选" })
+    .getByRole("button", { name: "成就奖杯", exact: true });
+  await expect(choice).toHaveCount(1);
+  await choice.click();
+  await expect(input).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "移除 类型: 成就奖杯" }),
+  ).toBeVisible();
+  await expect(choice).toHaveCount(0);
+  for (const title of ["旅行成就", "Xbox 成就", "Steam 成就"]) {
+    await expect(page.getByText(title, { exact: true })).toBeVisible();
+  }
+  await expect(page.getByText("普通文章", { exact: true })).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("search")).toBe("type:成就奖杯");
+});
+
+test("the reading month stays visible until search results arrive", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = searchFixture();
+  await page.goto("/");
+  const month = page
+    .getByRole("group", { name: "当前阅读年月" })
+    .locator("time");
+  await expect(month).toHaveAttribute("datetime", "2026-02");
+  let release = () => {};
+  state.timelineGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  const input = page.getByRole("textbox", { name: "搜索时间线" });
+  try {
+    await input.fill("旅行文章");
+    await input.press("Enter");
+    await expect(page.getByText("读书评论", { exact: true })).toHaveCount(0);
+    await expect(month).toHaveAttribute("datetime", "2026-02");
+  } finally {
+    release();
+    state.timelineGate = null;
+  }
+
+  await expect(month).toHaveAttribute("datetime", "2025-01");
+  await input.fill("找不到的内容");
+  await input.press("Enter");
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await expect(month).toHaveCount(0);
+});
+
 test("structured timeline filters restore URL history and cancel pending keywords", async ({
   page,
 }) => {
@@ -472,7 +566,7 @@ test("structured timeline filters restore URL history and cancel pending keyword
   const input = page.getByRole("textbox", { name: "搜索时间线" });
   await expect(input).toHaveValue("旅行");
   await expect(
-    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+    page.getByRole("button", { name: "移除 类型: feed", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
   await expect(page.getByText("读书评论", { exact: true })).toHaveCount(0);
@@ -541,12 +635,12 @@ test("structured conditions are removable, exclusive, and invalid syntax stays s
     page.getByRole("button", { name: `移除 id:${id}`, exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "移除 type:github", exact: true }),
+    page.getByRole("button", { name: "移除 类型: github", exact: true }),
   ).toBeVisible();
   await expect(input).toHaveValue("读书");
   await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
   await page
-    .getByRole("button", { name: "移除 type:github", exact: true })
+    .getByRole("button", { name: "移除 类型: github", exact: true })
     .click();
   await expect(page).toHaveURL(/search=%E8%AF%BB%E4%B9%A6$/);
   const historyLength = await page.evaluate(() => window.history.length);
@@ -563,7 +657,7 @@ test("structured conditions are removable, exclusive, and invalid syntax stays s
   ).toBeNull();
   expect(
     state.requests.filter((r) => r.path === "/timeline-items").at(-1)
-      ?.serviceId,
+      ?.serviceLabel,
   ).toBeNull();
   expect(await page.evaluate(() => window.history.length)).toBe(historyLength);
   await expect(input).toHaveValue("id:hello type:unknown");
@@ -609,7 +703,7 @@ test("source menus share single items and filter types without changing state on
     .click();
   await page.getByRole("button", { name: "只看当前类型", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+    page.getByRole("button", { name: "移除 类型: feed", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("读书评论", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "feed", exact: true }).click();
@@ -621,7 +715,7 @@ test("source menus share single items and filter types without changing state on
   expect(new URL(copied).searchParams.get("search")).toBe(`id:${id}`);
   await expect(page).toHaveURL(beforeCopy);
   await expect(
-    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+    page.getByRole("button", { name: "移除 类型: feed", exact: true }),
   ).toBeVisible();
   await page.goto(copied);
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
@@ -653,13 +747,13 @@ test("source menus share single items and filter types without changing state on
   await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
 });
 
-test("source IDs with spaces and apostrophes restore and filter every matching item", async ({
+test("source labels with spaces and apostrophes restore and filter every matching item", async ({
   page,
 }) => {
   const state = await backend(page);
   state.loggedIn = false;
   const source = "Lolipop's Thoughts";
-  state.serviceIds.push("Lolipop's", source);
+  state.serviceLabels.push("Lolipop's", source);
   state.archiveItems = searchFixture().map((item, index) => ({
     ...item,
     sync_service_id: index < 2 ? source : "other",
@@ -668,7 +762,7 @@ test("source IDs with spaces and apostrophes restore and filter every matching i
   }));
   await page.goto("/?search=type%3ALolipop%27s+Thoughts");
   const tag = page.getByRole("button", {
-    name: `移除 type:${source}`,
+    name: `移除 类型: ${source}`,
     exact: true,
   });
   await expect(tag).toBeVisible();
@@ -681,7 +775,7 @@ test("source IDs with spaces and apostrophes restore and filter every matching i
   expect(
     state.requests
       .filter((request) => request.path === "/timeline-items")
-      .at(-1)?.serviceId,
+      .at(-1)?.serviceLabel,
   ).toBe(source);
   expect(
     state.requests
@@ -745,12 +839,12 @@ test("service catalog failure gates structured requests and can be retried", asy
   await page.getByRole("button", { name: "重试加载", exact: true }).click();
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "移除 type:feed", exact: true }),
+    page.getByRole("button", { name: "移除 类型: feed", exact: true }),
   ).toBeVisible();
   expect(
     state.requests
       .filter((request) => request.path === "/timeline-items")
-      .at(-1)?.serviceId,
+      .at(-1)?.serviceLabel,
   ).toBe("feed");
 });
 
@@ -797,7 +891,7 @@ test("typed conditions preserve service prefixes and unknown suffixes until conf
 }) => {
   const state = await backend(page);
   state.loggedIn = false;
-  state.serviceIds.push("feedExtra");
+  state.serviceLabels.push("feedExtra");
   state.archiveItems = searchFixture();
   state.archiveItems[1].sync_service_id = "feedExtra";
   await page.goto("/");
@@ -805,15 +899,15 @@ test("typed conditions preserve service prefixes and unknown suffixes until conf
   await input.pressSequentially("type:feedExtra", { delay: 25 });
   await input.press("Enter");
   await expect(
-    page.getByRole("button", { name: "移除 type:feedExtra", exact: true }),
+    page.getByRole("button", { name: "移除 类型: feedExtra", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
   await page
-    .getByRole("button", { name: "移除 type:feedExtra", exact: true })
+    .getByRole("button", { name: "移除 类型: feedExtra", exact: true })
     .click();
   await expect(page).toHaveURL("/");
   await expect(
-    page.getByRole("button", { name: "移除 type:feedExtra", exact: true }),
+    page.getByRole("button", { name: "移除 类型: feedExtra", exact: true }),
   ).toHaveCount(0);
   await input.pressSequentially("type:feedUnknown", { delay: 25 });
   await input.press("Enter");
@@ -826,7 +920,7 @@ test("typed conditions preserve service prefixes and unknown suffixes until conf
     .toBe("type:feedUnknown");
   expect(
     state.requests.filter((r) => r.path === "/timeline-items").at(-1)
-      ?.serviceId,
+      ?.serviceLabel,
   ).toBeNull();
   await expect(input).toHaveValue("type:feedUnknown");
 });
@@ -919,7 +1013,7 @@ test("IME composition stays in the input until its condition is confirmed", asyn
 }) => {
   const state = await backend(page);
   state.loggedIn = false;
-  state.serviceIds.push("日志");
+  state.serviceLabels.push("日志");
   state.archiveItems = searchFixture();
   state.archiveItems[0].sync_service_id = "日志";
   await page.goto("/");
@@ -955,7 +1049,7 @@ test("IME composition stays in the input until its condition is confirmed", asyn
   );
   await input.press("Enter");
   await expect(
-    page.getByRole("button", { name: "移除 type:日志", exact: true }),
+    page.getByRole("button", { name: "移除 类型: 日志", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
 });
@@ -970,11 +1064,11 @@ test("stored source links still work after their configuration is removed", asyn
   await page.goto("/?search=type:retired-feed");
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "移除 type:retired-feed", exact: true }),
+    page.getByRole("button", { name: "移除 类型: retired-feed", exact: true }),
   ).toBeVisible();
   expect(
     state.requests.filter((r) => r.path === "/timeline-items").at(-1)
-      ?.serviceId,
+      ?.serviceLabel,
   ).toBe("retired-feed");
 });
 
@@ -1571,12 +1665,24 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
   await expect(panel.getByRole("status")).toContainText("本轮同步已结束");
   await expect.poll(itemReads).toBe(before + 1);
 
+  const filter = panel.getByRole("combobox", { name: "同步任务" });
+  await filter.selectOption({ label: "博客(feed)" });
+  await expect(panel.getByText("新增或更新 3 条")).toBeVisible();
+  await expect(panel.getByText("新增或更新 0 条")).toHaveCount(0);
+  await filter.selectOption({ label: "博客(empty)" });
+  await expect(panel.getByText("新增或更新 0 条")).toBeVisible();
+  await expect(panel.getByText("新增或更新 3 条")).toHaveCount(0);
+  expect(timelineReads()).toBe(initialReads + 1);
+
   const scheduled = state.run!;
   state.run = null;
   state.history = Array.from({ length: 10 }, (_, index) => ({
     ...scheduled,
     id: `scheduled-${index}`,
   }));
+  await expect(panel.getByText("当前任务尚无同步记录。")).toBeVisible();
+  await expect.poll(itemReads).toBe(before + 2);
+  await filter.selectOption({ label: "全部任务" });
   await expect(panel.getByText("运行 scheduled-0")).toBeVisible();
   await expect(panel.getByRole("status")).toHaveText(
     "同步已受理（test-run）。",
@@ -1762,7 +1868,7 @@ test("guest preview preserves login and filters while replacing cached private d
     request.path.startsWith("/timeline-items"),
   )) {
     expect(request.search).toBe("fixture");
-    expect(request.serviceId).toBe("feed");
+    expect(request.serviceLabel).toBe("feed");
     expect(request.orderBy).toBe("updated_at");
   }
   await showToolbarControls(page);

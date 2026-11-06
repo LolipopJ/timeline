@@ -84,7 +84,7 @@ databaseTest(
       ).toEqual(zeroSuccess.successful_at);
       expect(await run([summary], [game])).toBe(2);
       const repo = dataSource.getRepository(TimelineItem);
-      const where = getTimelineWhere({ serviceId: service.id }, false);
+      const where = getTimelineWhere({ serviceLabel: service.id }, false);
       expect(await repo.count({ where })).toBe(1);
       const visible = await repo.find({ where });
       expect(visible).toHaveLength(1);

@@ -2,6 +2,7 @@ import type {
   SyncAcceptedDto,
   SyncRejectedDto,
   SyncRunDto,
+  SyncServiceResultDto,
   SyncStatusDto,
   SyncTrigger,
   SyncUnavailableReason,
@@ -12,6 +13,19 @@ import { createLogger, formatError } from "../utils/logger";
 import { truncateLogMessage } from "../utils/runtime-logs";
 
 const logger = createLogger("Sync");
+const HISTORY_LIMIT = 10;
+
+function rememberRun(history: SyncRunDto[], run: SyncRunDto) {
+  history.unshift(run);
+  if (history.length > HISTORY_LIMIT) history.pop();
+}
+
+function getServiceRun(
+  run: SyncRunDto,
+  result: SyncServiceResultDto,
+): SyncRunDto {
+  return { ...run, status: result.status, services: [result] };
+}
 
 export const createSyncCoordinator = (
   getServices: () => readonly SyncService[],
@@ -20,6 +34,7 @@ export const createSyncCoordinator = (
   let phase: "initializing" | "ready" | "stopping" = "initializing";
   let current: SyncRunDto | null = null;
   const history: SyncRunDto[] = [];
+  const serviceHistory = new Map<string, SyncRunDto[]>();
   let inFlight: Promise<void> | null = null;
 
   const unavailableReason = (
@@ -39,13 +54,27 @@ export const createSyncCoordinator = (
     stop() {
       phase = "stopping";
     },
-    snapshot(): SyncStatusDto {
-      const reason = unavailableReason();
+    snapshot(serviceId?: string): SyncStatusDto {
+      const services = getServices();
+      const reason = unavailableReason(services);
+      const result = current?.services.find(({ id }) => id === serviceId);
       return structuredClone({
         available: reason === null,
         reason,
-        current,
-        history,
+        serviceId: serviceId ?? null,
+        services: services.map(({ id, label }) => ({ id, label })),
+        activeRunId: current?.id ?? null,
+        completedRunIds: history.map(({ id }) => id),
+        current:
+          serviceId === undefined
+            ? current
+            : current && result
+              ? getServiceRun(current, result)
+              : null,
+        history:
+          serviceId === undefined
+            ? history
+            : (serviceHistory.get(serviceId) ?? []),
       });
     },
     wait() {
@@ -139,8 +168,12 @@ export const createSyncCoordinator = (
         })
         .finally(() => {
           run.finishedAt = new Date().toISOString();
-          history.unshift(run);
-          if (history.length > 10) history.pop();
+          rememberRun(history, run);
+          for (const result of run.services) {
+            const recent = serviceHistory.get(result.id) ?? [];
+            rememberRun(recent, getServiceRun(run, result));
+            serviceHistory.set(result.id, recent);
+          }
           current = null;
           inFlight = null;
         });

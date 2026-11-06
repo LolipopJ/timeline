@@ -16,6 +16,20 @@ const adminEnabled = process.env["ADMIN_TOOLS_DISABLED"] !== "1";
 const config: ServerConfig = {
   services: [
     { id: "feed", type: SyncServiceType.FEED, url: "https://example.com" },
+    ...["psn", "xbox", "steam"].map((id): SyncService => ({
+      id,
+      type: SyncServiceType.FEED,
+      label: "成就奖杯",
+      url: "https://example.com",
+      enabled: false,
+    })),
+    {
+      id: "成就奖杯",
+      type: SyncServiceType.FEED,
+      label: "其它标签",
+      url: "https://example.com",
+      enabled: false,
+    },
   ],
   database: {
     user: "test",
@@ -65,9 +79,13 @@ const matches = (
   Object.entries(condition).every(([key, value]) => {
     if (value === undefined) return true;
     const field = Object.entries(item).find(([name]) => name === key)?.[1];
-    return value instanceof FindOperator
-      ? String(field ?? "").includes(String(value.value).replaceAll("%", ""))
-      : field === value;
+    if (value instanceof FindOperator) {
+      if (value.type === "in") return value.value.includes(field);
+      return String(field ?? "").includes(
+        String(value.value).replaceAll("%", ""),
+      );
+    }
+    return field === value;
   });
 const selectItems = (options: FindManyOptions<TimelineItem>) => {
   const conditions = Array.isArray(options.where)
@@ -141,7 +159,7 @@ test("public reads filter before search, paging and counts, and admin view never
   expect(await count.json()).toBe(4);
   for (const suffix of ["", "/count"]) {
     const secretSearch = await request(
-      `/timeline-items${suffix}?view=public&search=private-only&serviceId=feed`,
+      `/timeline-items${suffix}?view=public&search=private-only&serviceLabel=feed`,
     );
     expect(await secretSearch.json()).toEqual(suffix ? 0 : []);
     expect(
@@ -186,7 +204,7 @@ test("ID filtering preserves visibility and intersects both keyword branches bef
     expect(
       await (await request(`${path}&search=does-not-match`)).json(),
     ).toEqual(suffix ? 0 : []);
-    expect(await (await request(`${path}&serviceId=other`)).json()).toEqual(
+    expect(await (await request(`${path}&serviceLabel=other`)).json()).toEqual(
       suffix ? 0 : [],
     );
     const missing = await request(
@@ -202,11 +220,39 @@ test("ID filtering preserves visibility and intersects both keyword branches bef
   }
 });
 
-test("the public service catalog exposes only IDs even without administrator access", async () => {
+test("the public service catalog exposes unique labels without administrator access", async () => {
   const response = await request("/timeline-services", "GET", false);
   expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("private, no-store");
-  expect(await response.json()).toEqual(["feed"]);
+  expect(await response.json()).toEqual(["feed", "成就奖杯", "其它标签"]);
+});
+
+test("shared labels filter every matching service before pagination and counts", async () => {
+  const sources = ["psn", "xbox", "steam", "成就奖杯", "psn"];
+  const fixtures = [items[0], items[3], items[6], items[9], items[1]];
+  const originalIds = fixtures.map(({ sync_service_id }) => sync_service_id);
+  for (const [index, item] of fixtures.entries()) {
+    item.sync_service_id = sources[index];
+  }
+  try {
+    const query =
+      "view=public&search=searchable&serviceLabel=" +
+      encodeURIComponent("成就奖杯");
+    const response = await request("/timeline-items?" + query, "GET", false);
+    expect(await response.json()).toMatchObject([
+      { id: "item-0", sync_service_id: "psn", label: "成就奖杯" },
+      { id: "item-3", sync_service_id: "xbox", label: "成就奖杯" },
+      { id: "item-6", sync_service_id: "steam", label: "成就奖杯" },
+    ]);
+    const page = await request("/timeline-items?page=1&limit=2&" + query);
+    expect(await page.json()).toMatchObject([{ id: "item-6" }]);
+    const count = await request("/timeline-items/count?" + query);
+    expect(await count.json()).toBe(3);
+  } finally {
+    for (const [index, item] of fixtures.entries()) {
+      item.sync_service_id = originalIds[index];
+    }
+  }
 });
 
 test("service catalog includes stored sources within the same visibility and soft-delete boundary", async () => {
@@ -232,9 +278,11 @@ test("service catalog includes stored sources within the same visibility and sof
       );
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
-      const ids = await response.json();
-      expect(ids).toEqual([
+      const labels = await response.json();
+      expect(labels).toEqual([
         "feed",
+        "成就奖杯",
+        "其它标签",
         "retired-public",
         ...(adminEnabled && loggedIn && view === "admin"
           ? ["retired-private"]
@@ -337,12 +385,31 @@ if (adminEnabled) {
       "current.id",
       runId,
     );
+    const filtered = await (await request("/admin/sync?serviceId=psn")).json();
+    expect(filtered).toMatchObject({
+      current: null,
+      activeRunId: runId,
+      history: [],
+      services: expect.arrayContaining([{ id: "psn", label: "成就奖杯" }]),
+    });
     expect(executions).toHaveLength(1);
     finish();
     await coordinator.wait();
     const status = await (await request("/admin/sync")).json();
     expect(status).toHaveProperty("history.0.status", "succeeded");
     expect(status).toHaveProperty("history.0.services.0.itemCount", 3);
+    expect(
+      await (await request("/admin/sync?serviceId=feed")).json(),
+    ).toMatchObject({
+      history: [
+        {
+          id: runId,
+          status: "succeeded",
+          services: [{ id: "feed", itemCount: 3 }],
+        },
+      ],
+      completedRunIds: [runId],
+    });
   });
 
   test("startup full sync, scheduling and shutdown share the coordinator", async () => {

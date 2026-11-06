@@ -1,6 +1,6 @@
 import { mdiCloseThick, mdiCommentSearch } from "@mdi/js";
 import Icon from "@mdi/react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import {
   parseTimelineSearch,
@@ -13,7 +13,7 @@ export interface TimelineSearchProps extends Omit<
   "value" | "onChange"
 > {
   value: TimelineFilters;
-  serviceIds: string[];
+  serviceLabels: string[];
   searchKey: string;
   onChange: TimelineFiltersChange;
 }
@@ -22,24 +22,25 @@ export default function TimelineSearch(props: TimelineSearchProps) {
   const {
     className = "",
     value,
-    serviceIds,
+    serviceLabels,
     searchKey,
     onChange,
     ...rest
   } = props;
   const [draft, setDraft] = useState({ key: searchKey, text: value.search });
   if (draft.key !== searchKey) {
-    const parsed = parseTimelineSearch(draft.text, serviceIds);
+    const parsed = parseTimelineSearch(draft.text, serviceLabels);
     setDraft({
       key: searchKey,
       text:
-        !parsed.id && !parsed.serviceId && parsed.search === value.search
+        !parsed.id && !parsed.serviceLabel && parsed.search === value.search
           ? draft.text
           : value.search,
     });
   }
   const draftSearch = draft.key === searchKey ? draft.text : value.search;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<"sort" | "labels" | null>(null);
+  const labelsId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sortRef = useRef<HTMLButtonElement>(null);
@@ -49,7 +50,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
       if (e.target instanceof Node && !rootRef.current?.contains(e.target)) {
-        setOpen(false);
+        setOpen(null);
       }
     }
     document.addEventListener("click", onDocClick);
@@ -57,33 +58,44 @@ export default function TimelineSearch(props: TimelineSearchProps) {
   }, [open]);
 
   function handleSelect(orderBy: TimelineFilters["orderBy"]) {
-    setOpen(false);
+    setOpen(null);
     sortRef.current?.focus({ preventScroll: true });
     onChange({ ...filtersForInput(draftSearch), orderBy });
   }
 
+  function selectLabel(serviceLabel: string) {
+    inputRef.current?.focus({ preventScroll: true });
+    setOpen(null);
+    setDraft({ key: searchKey, text: "" });
+    onChange({ search: "", serviceLabel, orderBy: value.orderBy });
+  }
+
   function filtersForInput(text: string): TimelineFilters {
     if (text === value.search) return value;
-    const parsed = parseTimelineSearch(text, serviceIds);
+    const parsed = parseTimelineSearch(text, serviceLabels);
     return {
       ...parsed,
       orderBy: value.orderBy,
-      serviceId: parsed.id ? undefined : (parsed.serviceId ?? value.serviceId),
+      serviceLabel: parsed.id
+        ? undefined
+        : (parsed.serviceLabel ?? value.serviceLabel),
     };
   }
 
   function changeInput(text: string, confirm = false) {
-    const parsed = parseTimelineSearch(text, serviceIds);
-    const structured = Boolean(parsed.id || parsed.serviceId);
-    const sourceStart = parsed.serviceId
-      ? text.lastIndexOf(`type:${parsed.serviceId}`)
+    setOpen(null);
+    const parsed = parseTimelineSearch(text, serviceLabels);
+    const structured = Boolean(parsed.id || parsed.serviceLabel);
+    const sourceStart = parsed.serviceLabel
+      ? text.lastIndexOf(`type:${parsed.serviceLabel}`)
       : -1;
     const sourcePrefix =
       sourceStart < 0 ? undefined : text.slice(sourceStart + 5);
     const continuesSource =
       sourcePrefix !== undefined &&
-      serviceIds.some(
-        (id) => id.length > sourcePrefix.length && id.startsWith(sourcePrefix),
+      serviceLabels.some(
+        (label) =>
+          label.length > sourcePrefix.length && label.startsWith(sourcePrefix),
       );
     const confirmed =
       !composing.current && (confirm || (/\s$/.test(text) && !continuesSource));
@@ -104,8 +116,8 @@ export default function TimelineSearch(props: TimelineSearchProps) {
   const current = value.orderBy;
   const condition = value.id
     ? `id:${value.id}`
-    : value.serviceId
-      ? `type:${value.serviceId}`
+    : value.serviceLabel
+      ? `类型: ${value.serviceLabel}`
       : undefined;
 
   return (
@@ -113,13 +125,14 @@ export default function TimelineSearch(props: TimelineSearchProps) {
       ref={rootRef}
       className={`${className} relative`}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(null);
       }}
       onKeyDown={(event) => {
         if (open && event.key === "Escape") {
           event.stopPropagation();
-          setOpen(false);
-          sortRef.current?.focus({ preventScroll: true });
+          const trigger = open === "sort" ? sortRef : inputRef;
+          trigger.current?.focus({ preventScroll: true });
+          setOpen(null);
         }
       }}
     >
@@ -127,6 +140,8 @@ export default function TimelineSearch(props: TimelineSearchProps) {
         <input
           ref={inputRef}
           value={draftSearch}
+          onFocus={() => setOpen("labels")}
+          onClick={() => setOpen("labels")}
           onChange={(event) => {
             changeInput(event.target.value);
           }}
@@ -155,13 +170,16 @@ export default function TimelineSearch(props: TimelineSearchProps) {
               draftSearch.slice(0, input.selectionStart ?? 0) +
               event.clipboardData.getData("text") +
               draftSearch.slice(input.selectionEnd ?? draftSearch.length);
-            const parsed = parseTimelineSearch(text, serviceIds);
-            if (parsed.id || parsed.serviceId) {
+            const parsed = parseTimelineSearch(text, serviceLabels);
+            if (parsed.id || parsed.serviceLabel) {
               event.preventDefault();
               changeInput(text, true);
             }
           }}
           aria-label="搜索时间线"
+          aria-controls={
+            open === "labels" && serviceLabels.length ? labelsId : undefined
+          }
           placeholder="搜索"
           className="h-11 w-full rounded-md border border-control bg-background-lighter pr-8 pl-10 text-sm placeholder:text-foreground-dark"
           {...rest}
@@ -170,15 +188,15 @@ export default function TimelineSearch(props: TimelineSearchProps) {
         <button
           ref={sortRef}
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(open === "sort" ? null : "sort")}
           aria-label="搜索排序"
-          aria-expanded={open}
+          aria-expanded={open === "sort"}
           className="absolute inset-y-px left-px grid w-9 cursor-pointer place-items-center rounded-l-md border-r border-control bg-background-light hover:bg-background-lighter"
         >
           <Icon path={mdiCommentSearch} className="size-5" aria-hidden="true" />
         </button>
 
-        {open && (
+        {open === "sort" && (
           <div className="absolute inset-e-0 z-50 mt-2 w-max rounded-md border border-control bg-background-light shadow-lg lg:inset-s-0">
             <ul className="p-1">
               <li>
@@ -213,6 +231,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
             aria-label="清空搜索"
             onClick={() => {
               inputRef.current?.focus({ preventScroll: true });
+              setOpen(null);
               setDraft({ key: searchKey, text: "" });
               onChange({ ...value, search: "", id: undefined });
             }}
@@ -225,6 +244,25 @@ export default function TimelineSearch(props: TimelineSearchProps) {
             />
           </button>
         )}
+        {open === "labels" && serviceLabels.length > 0 && (
+          <ul
+            id={labelsId}
+            aria-label="按类型筛选"
+            className="absolute inset-x-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md border border-control bg-background-light p-1 text-sm shadow-lg"
+          >
+            {serviceLabels.map((label) => (
+              <li key={label}>
+                <button
+                  type="button"
+                  onClick={() => selectLabel(label)}
+                  className="min-h-11 w-full cursor-pointer rounded-md px-3 py-2 text-left wrap-anywhere hover:bg-background-lighter focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+                >
+                  {label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {condition && (
         <div className="mt-1 flex min-w-0 flex-wrap gap-1">
@@ -234,11 +272,12 @@ export default function TimelineSearch(props: TimelineSearchProps) {
             title={`移除 ${condition}`}
             onClick={() => {
               inputRef.current?.focus({ preventScroll: true });
+              setOpen(null);
               onChange({
                 ...value,
                 search: draftSearch,
                 id: undefined,
-                serviceId: undefined,
+                serviceLabel: undefined,
               });
             }}
             className="flex max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border border-control bg-background-lighter px-2 py-1 text-left text-xs hover:bg-background-light"

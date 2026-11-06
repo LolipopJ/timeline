@@ -28,11 +28,20 @@ const MONTHS = [
   ["歲末十二", "text-yellow-50 paper:text-yellow-900"],
 ];
 
-export default function TimelineCurrentDate({ month }: { month?: string }) {
+export default function TimelineCurrentDate({
+  month,
+  isLoading,
+}: {
+  month?: string;
+  isLoading: boolean;
+}) {
+  const [displayedMonth, setDisplayedMonth] = useState(month);
+  if (!isLoading && displayedMonth !== month) setDisplayedMonth(month);
+
   const [monthRefs] = useState(() =>
     MONTHS.map(() => createRef<HTMLSpanElement>()),
   );
-  const [year, number] = (month ?? "").split("-");
+  const [year, number] = (displayedMonth ?? "").split("-");
   const index = Number(number) - 1;
   const details = MONTHS[index];
   const monthRef = monthRefs[index];
@@ -43,8 +52,8 @@ export default function TimelineCurrentDate({ month }: { month?: string }) {
       aria-label="当前阅读年月"
       className="min-w-16 shrink-0 whitespace-nowrap select-none"
     >
-      {month && details && (
-        <time dateTime={month} className="block">
+      {displayedMonth && details && (
+        <time dateTime={displayedMonth} className="block">
           <span className="sr-only">
             {year} 年 {number} 月
           </span>

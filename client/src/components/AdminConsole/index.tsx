@@ -13,6 +13,7 @@ import useSWR from "swr";
 import GlobalContext from "@/contexts/GlobalContext";
 import usePageVisible from "@/hooks/usePageVisible";
 import { fetcherGET, fetcherPOST } from "@/services/axios";
+import { getSearchParamsFromObject } from "@/utils/searchParams";
 
 import AdminLogs from "./logs";
 
@@ -111,16 +112,36 @@ export default function AdminConsole({
   const [notice, setNotice] = useState("");
   const [acceptedRunId, setAcceptedRunId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("sync");
+  const [serviceId, setServiceId] = useState("");
   const canRead = open && canManageItems && visible;
-  const syncKey = canRead && tab === "sync" ? "/admin/sync" : null;
-  const { data, error, mutate } = useSWR<SyncStatusDto>(syncKey, fetcherGET, {
+  const syncKey =
+    canRead && tab === "sync"
+      ? serviceId
+        ? `/admin/sync?${getSearchParamsFromObject({ serviceId })}`
+        : "/admin/sync"
+      : null;
+  const {
+    data: snapshot,
+    error,
+    mutate,
+  } = useSWR<SyncStatusDto>(syncKey, fetcherGET, {
     refreshInterval: 2000,
     refreshWhenHidden: false,
     revalidateOnFocus: false,
     shouldRetryOnError: false,
-    keepPreviousData: false,
+    keepPreviousData: true,
     dedupingInterval: 0,
+    onSuccess({ completedRunIds }) {
+      const previous = latestCompletedRun.current;
+      const latest = completedRunIds[0] ?? null;
+      latestCompletedRun.current = latest;
+      if (previous !== undefined && latest !== null && latest !== previous) {
+        onSyncCompleted();
+      }
+    },
   });
+  const data =
+    snapshot?.serviceId === (serviceId || null) ? snapshot : undefined;
 
   useEffect(() => {
     active.current = Boolean(syncKey);
@@ -136,16 +157,6 @@ export default function AdminConsole({
     else dialog.close();
     return () => dialog.close();
   }, [open]);
-
-  useEffect(() => {
-    if (!syncKey || !data) return;
-    const previous = latestCompletedRun.current;
-    const latest = data.history[0]?.id ?? null;
-    latestCompletedRun.current = latest;
-    if (previous !== undefined && latest !== null && latest !== previous) {
-      onSyncCompleted();
-    }
-  }, [syncKey, data, onSyncCompleted]);
 
   const closeDialog = () => {
     dialogRef.current?.close();
@@ -313,7 +324,8 @@ export default function AdminConsole({
         >
           <h2 className="text-base font-semibold">来源同步</h2>
           <p className="mt-1 text-sm leading-relaxed text-foreground-dark">
-            手动同步所有已启用来源。当前进程保留最近 10 次已结束的同步记录。
+            手动同步所有已启用来源。全部任务和每个来源各保留最近 10
+            次已结束的运行记录。
           </p>
           <div className="my-4 flex flex-wrap gap-3">
             <button
@@ -332,12 +344,29 @@ export default function AdminConsole({
               刷新状态
             </button>
           </div>
+          <label className="mb-4 block text-sm font-medium">
+            同步任务
+            <select
+              className="mt-1 block min-h-11 w-full rounded-lg border border-control bg-background px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary sm:max-w-sm"
+              value={serviceId}
+              onChange={(event) => setServiceId(event.currentTarget.value)}
+            >
+              <option value="">全部任务</option>
+              {snapshot?.services.map(({ id, label }) => (
+                <option key={id} value={id}>
+                  {label ? `${label}(${id})` : id}
+                </option>
+              ))}
+            </select>
+          </label>
           {notice && (
             <p role="status" className="mb-4 text-primary-light">
-              {data?.history.some(({ id }) => id === acceptedRunId)
+              {acceptedRunId && data?.completedRunIds.includes(acceptedRunId)
                 ? "本轮同步已结束，请查看执行结果。"
                 : notice}
-              {data?.current?.id === acceptedRunId && "正在等待执行结果。"}
+              {acceptedRunId &&
+                data?.activeRunId === acceptedRunId &&
+                "正在等待执行结果。"}
             </p>
           )}
           {error && (
@@ -369,7 +398,9 @@ export default function AdminConsole({
             )}
             {data && !data.current && data.history.length === 0 && (
               <p className="rounded-xl border border-binding bg-background p-4 text-sm text-foreground-dark">
-                当前进程尚无同步记录。
+                {serviceId
+                  ? "当前任务尚无同步记录。"
+                  : "当前进程尚无同步记录。"}
               </p>
             )}
           </div>

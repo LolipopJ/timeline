@@ -285,7 +285,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                     onFiltersChange((current) => ({
                       ...current,
                       id: undefined,
-                      serviceId: sync_service_id,
+                      serviceLabel: label || sync_service_id,
                     }));
                   }}
                   className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter"

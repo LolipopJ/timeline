@@ -3,7 +3,8 @@ import type { RuntimeLogLevel } from "@timeline/contracts";
 import { syncCoordinator } from "./sync";
 import { runtimeLogs } from "./utils/runtime-logs";
 
-export const getAdminSyncStatus = () => syncCoordinator.snapshot();
+export const getAdminSyncStatus = (serviceId?: string) =>
+  syncCoordinator.snapshot(serviceId);
 
 export const requestAdminSync = () => {
   const body = syncCoordinator.start("manual");

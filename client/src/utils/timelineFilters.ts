@@ -4,7 +4,7 @@ import { validate as isUuid } from "uuid";
 export interface TimelineSearchConditions {
   search: string;
   id?: string;
-  serviceId?: string;
+  serviceLabel?: string;
 }
 
 export interface TimelineFilters extends TimelineSearchConditions {
@@ -18,31 +18,31 @@ export type TimelineFiltersChange = (
 
 export function parseTimelineSearch(
   text: string,
-  serviceIds: readonly string[],
+  serviceLabels: readonly string[],
 ): TimelineSearchConditions {
   let conditions: TimelineSearchConditions = { search: "" };
-  const sources = [...serviceIds].sort(
+  const sources = [...serviceLabels].sort(
     (left, right) => right.length - left.length,
   );
   let consumedUntil = 0;
   for (const match of text.matchAll(/\S+/g)) {
     if (match.index < consumedUntil) continue;
     const token = match[0];
-    const serviceId = token.startsWith("type:")
-      ? sources.find((id) => {
+    const serviceLabel = token.startsWith("type:")
+      ? sources.find((label) => {
           const start = match.index + 5;
-          const end = start + id.length;
+          const end = start + label.length;
           return (
-            text.startsWith(id, start) &&
+            text.startsWith(label, start) &&
             (end === text.length || /\s/.test(text[end]))
           );
         })
       : undefined;
     if (token.startsWith("id:") && isUuid(token.slice(3))) {
       conditions = { search: "", id: token.slice(3).toLowerCase() };
-    } else if (serviceId !== undefined) {
-      conditions = { ...conditions, id: undefined, serviceId };
-      consumedUntil = match.index + 5 + serviceId.length;
+    } else if (serviceLabel !== undefined) {
+      conditions = { ...conditions, id: undefined, serviceLabel };
+      consumedUntil = match.index + 5 + serviceLabel.length;
     } else {
       conditions = {
         ...conditions,
@@ -58,7 +58,7 @@ export function serializeTimelineSearch(conditions: TimelineSearchConditions) {
   if (conditions.id) return `id:${conditions.id}`;
   return [
     conditions.search,
-    conditions.serviceId ? `type:${conditions.serviceId}` : "",
+    conditions.serviceLabel ? `type:${conditions.serviceLabel}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -73,7 +73,9 @@ export function getTimelineRequestParams(
       ? { id: filters.id }
       : {
           ...(filters.search ? { search: filters.search } : {}),
-          ...(filters.serviceId ? { serviceId: filters.serviceId } : {}),
+          ...(filters.serviceLabel
+            ? { serviceLabel: filters.serviceLabel }
+            : {}),
         }),
   };
 }

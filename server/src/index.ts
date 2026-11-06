@@ -18,8 +18,11 @@ import schedule from "node-schedule";
 import { getAdminLogs, getAdminSyncStatus, requestAdminSync } from "./admin";
 import { serializeTimelineItem } from "./api/serializers";
 import {
+  getTimelineServiceLabel,
+  getTimelineServiceLabels,
   getTimelineWhere,
   isTimelineItemId,
+  isTimelineServiceLabel,
   isTimelineView,
 } from "./api/timeline-query";
 import config from "./config";
@@ -49,10 +52,6 @@ const logger = createLogger("Server");
 const PORT = Number(config.listeningPort ?? 4000);
 
 const ALLOWED_ORIGIN = config.allowedOrigin ?? true;
-
-const SERVICE_LABEL_MAP = new Map(
-  config.services.map((service) => [service.id, service.label]),
-);
 
 const SYNC_INTERVAL = config.syncInterval ?? "*/30 * * * *";
 
@@ -287,7 +286,14 @@ export const app = new Elysia()
       }
     },
   )
-  .get("/admin/sync", getAdminSyncStatus)
+  .get("/admin/sync", ({ query, set }) => {
+    const { serviceId } = query;
+    if (serviceId !== undefined && typeof serviceId !== "string") {
+      set.status = 400;
+      return "同步任务筛选参数无效";
+    }
+    return getAdminSyncStatus(serviceId);
+  })
   .get("/admin/logs", ({ query, set }) => {
     const result = getAdminLogs(query);
     set.status = result.status;
@@ -313,7 +319,7 @@ export const app = new Elysia()
           Boolean(IS_ADMIN_ENABLED && cookieToken.value),
         ),
       });
-      return [...new Set([...config.services.map(({ id }) => id), ...ids])];
+      return getTimelineServiceLabels(ids);
     },
   )
   .get(
@@ -324,7 +330,7 @@ export const app = new Elysia()
         page = "0",
         limit = "20",
         orderBy = "created_at",
-        serviceId,
+        serviceLabel,
         serviceType,
         search,
         view,
@@ -333,6 +339,10 @@ export const app = new Elysia()
       if (!isTimelineItemId(id)) {
         set.status = 400;
         return "时间线 ID 参数无效";
+      }
+      if (!isTimelineServiceLabel(serviceLabel)) {
+        set.status = 400;
+        return "时间线来源标签参数无效";
       }
 
       if (!isTimelineView(view)) {
@@ -356,7 +366,7 @@ export const app = new Elysia()
       }
 
       const where = getTimelineWhere(
-        { id, serviceId, serviceType, search, view },
+        { id, serviceLabel, serviceType, search, view },
         Boolean(IS_ADMIN_ENABLED && cookieToken.value),
       );
 
@@ -372,7 +382,7 @@ export const app = new Elysia()
       const resolvedTimelineItems = timelineItems.map((item) =>
         serializeTimelineItem(
           item,
-          SERVICE_LABEL_MAP.get(item.sync_service_id),
+          getTimelineServiceLabel(item.sync_service_id),
         ),
       );
 
@@ -382,18 +392,22 @@ export const app = new Elysia()
   .get(
     "/timeline-items/count",
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
-      const { id, serviceId, serviceType, search, view } =
+      const { id, serviceLabel, serviceType, search, view } =
         query as CountTimelineItemsParams;
       if (!isTimelineItemId(id)) {
         set.status = 400;
         return "时间线 ID 参数无效";
+      }
+      if (!isTimelineServiceLabel(serviceLabel)) {
+        set.status = 400;
+        return "时间线来源标签参数无效";
       }
       if (!isTimelineView(view)) {
         set.status = 400;
         return "时间线视角参数无效";
       }
       const where = getTimelineWhere(
-        { id, serviceId, serviceType, search, view },
+        { id, serviceLabel, serviceType, search, view },
         Boolean(IS_ADMIN_ENABLED && cookieToken.value),
       );
       const timelineItemsCount = await countTimelineItems({ where });

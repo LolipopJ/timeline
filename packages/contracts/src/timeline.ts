@@ -8,7 +8,7 @@ export type GetTimelineItemsParams = {
   page?: string;
   limit?: string;
   orderBy?: "created_at" | "updated_at";
-  serviceId?: string;
+  serviceLabel?: string;
   serviceType?: SyncServiceType;
   search?: string;
 };
@@ -16,7 +16,7 @@ export type GetTimelineItemsParams = {
 export interface CountTimelineItemsParams {
   id?: string;
   view?: TimelineView;
-  serviceId?: string;
+  serviceLabel?: string;
   serviceType?: SyncServiceType;
   search?: string;
 }

@@ -28,6 +28,10 @@ export interface SyncRunDto {
 export interface SyncStatusDto {
   available: boolean;
   reason: SyncUnavailableReason | null;
+  serviceId: string | null;
+  services: Pick<SyncServiceResultDto, "id" | "label">[];
+  activeRunId: string | null;
+  completedRunIds: string[];
   current: SyncRunDto | null;
   history: SyncRunDto[];
 }

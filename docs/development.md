@@ -38,11 +38,18 @@ Xbox 使用 Python 3.12+，从仓库根目录通过 `uv` 准备本机环境，�
 
 ```powershell
 uv venv --python 3.12 server/.venv
+
+# Windows
 uv pip install --python server/.venv/Scripts/python.exe -r server/python/requirements.txt
 uv pip check --python server/.venv/Scripts/python.exe
 server/.venv/Scripts/python.exe -m unittest discover -s server/python -p "test_*.py"
+
+# Linux
+uv pip install --python server/.venv/bin/python -r server/python/requirements.txt
+uv pip check --python server/.venv/bin/python
+server/.venv/bin/python -m unittest discover -s server/python -p "test_*.py"
 ```
 
-Linux 将解释器路径换成 `server/.venv/bin/python`。`requirements.txt` 固定 Xbox 库和 HTTP 代理支持，Python 不新增包管理器锁文件。首次 OAuth 授权参见[配置指南](configuration.md#xbox)。
+`requirements.txt` 固定 Xbox 库和 HTTP 代理支持，Python 不新增包管理器锁文件。首次 OAuth 授权参见[配置指南](configuration.md#xbox)。
 
 在 `server/` 运行 `bun test src/sync/achievement.test.ts src/sync/psn.test.ts src/sync/xbox.test.ts src/sync/steam-achievement.test.ts`。数据库回归使用开发库，PowerShell 先设置 `$env:NODE_ENV = "development"`，再执行 `bun test src/database/game-achievement.test.ts`；该用例只创建并清理带随机测试标识的记录，不启动服务端同步。浏览器回归在根目录先执行 `bun run build:client`，再执行 `node node_modules/@playwright/test/cli.js test`。

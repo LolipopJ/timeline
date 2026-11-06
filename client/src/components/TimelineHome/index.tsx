@@ -90,7 +90,7 @@ export default function TimelineHome() {
   >(undefined);
 
   const {
-    data: serviceIds,
+    data: serviceLabels,
     error: servicesError,
     mutate: reloadServices,
   } = useSWR<string[]>(
@@ -104,14 +104,14 @@ export default function TimelineHome() {
     () => ({
       ...parseTimelineSearch(
         urlSearchParams.get("search") ?? "",
-        serviceIds ?? [],
+        serviceLabels ?? [],
       ),
       orderBy:
         urlSearchParams.get("orderBy") === "updated_at"
           ? "updated_at"
           : "created_at",
     }),
-    [urlSearchParams, serviceIds],
+    [urlSearchParams, serviceLabels],
   );
   const changeFilters = useCallback<TimelineFiltersChange>(
     (update, mode) => {
@@ -151,7 +151,7 @@ export default function TimelineHome() {
     [urlSearchParams],
   );
 
-  if (!serviceIds)
+  if (!serviceLabels)
     return (
       <div className="my-12 text-center text-foreground-dark">
         {servicesError ? (
@@ -178,7 +178,7 @@ export default function TimelineHome() {
     >
       <TimelineData
         filters={filters}
-        serviceIds={serviceIds}
+        serviceLabels={serviceLabels}
         onFiltersChange={changeFilters}
         searchKey={urlSearchParams.toString()}
         previewFocusRef={previewFocusRef}
@@ -189,13 +189,13 @@ export default function TimelineHome() {
 
 function TimelineData({
   filters,
-  serviceIds,
+  serviceLabels,
   onFiltersChange,
   searchKey,
   previewFocusRef,
 }: {
   filters: TimelineFilters;
-  serviceIds: string[];
+  serviceLabels: string[];
   onFiltersChange: TimelineFiltersChange;
   searchKey: string;
   previewFocusRef: React.RefObject<boolean>;
@@ -362,11 +362,14 @@ function TimelineData({
           ref={toolbarRef}
           className="flex min-w-0 flex-1 items-center gap-2 self-stretch sm:gap-3 lg:flex-none lg:flex-col lg:items-stretch lg:gap-5"
         >
-          <TimelineCurrentDate month={currentMonth} />
+          <TimelineCurrentDate
+            month={currentMonth}
+            isLoading={isLoadingTimelineItems}
+          />
           <TimelineSearch
             searchKey={searchKey}
             value={filters}
-            serviceIds={serviceIds}
+            serviceLabels={serviceLabels}
             onChange={onFiltersChange}
             className="min-w-0 flex-1"
           />
