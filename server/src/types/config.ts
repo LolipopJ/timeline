@@ -84,6 +84,11 @@ const steamGameAchievement = syncServiceBase.extend({
     .optional(),
 });
 
+const ffxivUltimateAchievement = syncServiceBase.extend({
+  type: z.literal(SyncServiceType.FFXIV_ULTIMATE_ACHIEVEMENT),
+  characterId: z.string().regex(/^[1-9]\d*$/),
+});
+
 const syncService = z.discriminatedUnion("type", [
   bilibiliCollection,
   bilibiliWork,
@@ -95,6 +100,7 @@ const syncService = z.discriminatedUnion("type", [
   psnGameAchievement,
   xboxGameAchievement,
   steamGameAchievement,
+  ffxivUltimateAchievement,
 ]);
 
 const allowedOrigin = z
@@ -162,6 +168,10 @@ export type SyncServiceXboxGameAchievement = z.infer<
 >;
 export type SyncServiceSteamGameAchievement = z.infer<
   typeof steamGameAchievement
+>;
+
+export type SyncServiceFfxivUltimateAchievement = z.infer<
+  typeof ffxivUltimateAchievement
 >;
 
 export interface TimelineItemAttachment {

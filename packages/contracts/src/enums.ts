@@ -9,6 +9,7 @@ export enum SyncServiceType {
   PSN_GAME_ACHIEVEMENT = "PsnGameAchievement",
   XBOX_GAME_ACHIEVEMENT = "XboxGameAchievement",
   STEAM_GAME_ACHIEVEMENT = "SteamGameAchievement",
+  FFXIV_ULTIMATE_ACHIEVEMENT = "FfxivUltimateAchievement",
   TELEGRAM_CHAT = "TelegramChat",
   WEIBO = "Weibo",
   X = "X",

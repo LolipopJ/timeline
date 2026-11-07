@@ -79,7 +79,6 @@ export default function TimelineItemGameAchievement({
   showCompletionDate,
   ...rest
 }: TimelineComponent & { showCompletionDate?: boolean }) {
-  const shineRef = useRef<HTMLSpanElement>(null);
   const trophyRef = useRef<HTMLSpanElement>(null);
   const achievement = item.achievement;
   if (!achievement) return null;
@@ -89,22 +88,16 @@ export default function TimelineItemGameAchievement({
   const title = item.title ?? achievement.gameId;
 
   function playAnimation() {
-    const shine = shineRef.current;
     const trophy = trophyRef.current;
     if (
-      !shine ||
       !trophy ||
       matchMedia("(prefers-reduced-motion: reduce)").matches ||
-      shine.getAnimations().length > 0
+      trophy.getAnimations().length > 0
     ) {
       return;
     }
 
     const duration = 720;
-    shine.animate(
-      { translate: ["-100%", "100%"] },
-      { duration, easing: "ease-out" },
-    );
     trophy.animate(
       [
         { translate: "0 0", easing: "ease-out" },
@@ -117,7 +110,7 @@ export default function TimelineItemGameAchievement({
 
   return (
     <article
-      className={`relative isolate flex min-w-0 gap-4 overflow-hidden rounded-lg bg-background-light bg-linear-to-bl from-(--achievement-accent)/15 to-transparent to-65% p-4 sm:gap-6 sm:p-6 paper:from-(--achievement-accent)/10 ${platform.accent} ${className}`}
+      className={`group/achievement relative isolate flex min-w-0 gap-4 overflow-hidden rounded-lg bg-background-light bg-linear-to-bl from-(--achievement-accent)/15 to-transparent to-65% p-4 sm:gap-6 sm:p-6 paper:from-(--achievement-accent)/10 ${platform.accent} ${className}`}
       {...rest}
       onPointerEnter={(event) => {
         if (event.pointerType === "mouse") playAnimation();
@@ -131,9 +124,8 @@ export default function TimelineItemGameAchievement({
         className={`pointer-events-none absolute inset-0 -z-10 mask-[linear-gradient(90deg,transparent_15%,black_90%)] text-(--achievement-accent) opacity-25 paper:opacity-15 ${platform.texture}`}
       />
       <span
-        ref={shineRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 -translate-x-full bg-linear-[112deg,transparent_36%,currentColor_50%,transparent_64%] text-(--achievement-accent) opacity-15"
+        className="pointer-events-none absolute inset-0 -z-10 -translate-x-full bg-linear-[110deg,transparent_35%,currentColor_50%,transparent_65%] text-(--achievement-accent) opacity-10 motion-safe:transition-transform motion-safe:duration-1000 motion-safe:group-focus-within/achievement:translate-x-full motion-safe:group-hover/achievement:translate-x-full"
       />
       <GameCover
         src={item.attachments?.[0]?.url}

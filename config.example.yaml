@@ -70,6 +70,11 @@ server:
   #     steamId: "your_steam_id64"
   #     steamWebAPIKey: "your_steam_web_api_key"
   #
+  #   - type: "FfxivUltimateAchievement"
+  #     id: "MyFfxivUltimateAchievements"
+  #     label: "FF14 绝境战"
+  #     characterId: "your_lodestone_account_id"
+  #
   #   - type: "PsnGameAchievement"
   #     id: "MyPsnAchievements"
   #     psnNpsso: "your_psn_npsso"

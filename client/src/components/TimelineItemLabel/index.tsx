@@ -10,6 +10,7 @@ import {
   mdiRssBox,
   mdiStarShooting,
   mdiSteam,
+  mdiSwordCross,
   mdiTrashCanOutline,
   mdiTrophyVariant,
   mdiVideoVintage,
@@ -51,6 +52,7 @@ const LABEL_ICON_PATH: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.PSN_GAME_ACHIEVEMENT]: mdiTrophyVariant,
   [SyncServiceType.XBOX_GAME_ACHIEVEMENT]: mdiTrophyVariant,
   [SyncServiceType.STEAM_GAME_ACHIEVEMENT]: mdiTrophyVariant,
+  [SyncServiceType.FFXIV_ULTIMATE_ACHIEVEMENT]: mdiSwordCross,
 };
 
 const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {
@@ -63,6 +65,7 @@ const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.PSN_GAME_ACHIEVEMENT]: "oklch(85.2% 0.199 91.936)",
   [SyncServiceType.XBOX_GAME_ACHIEVEMENT]: "oklch(85.2% 0.199 91.936)",
   [SyncServiceType.STEAM_GAME_ACHIEVEMENT]: "oklch(85.2% 0.199 91.936)",
+  [SyncServiceType.FFXIV_ULTIMATE_ACHIEVEMENT]: "oklch(82.8% 0.189 84.429)",
 };
 
 const twoDigits = (value: number) => String(value).padStart(2, "0");

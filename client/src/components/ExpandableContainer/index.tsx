@@ -5,18 +5,22 @@ import { useEffect, useRef, useState } from "react";
 export interface ExpandableContainerProps
   extends React.PropsWithChildren, React.HTMLAttributes<HTMLDivElement> {
   expandableHeightThresholdRatio: number;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
 }
 
 export default function ExpandableContainer(props: ExpandableContainerProps) {
   const {
     children,
     expandableHeightThresholdRatio,
+    expanded,
+    onExpandedChange,
     className = "",
     style,
     ...rest
   } = props;
   const [collapsedHeight, setCollapsedHeight] = useState<number>();
-  const [expanded, setExpanded] = useState(false);
+  const [hasToggled, setHasToggled] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +49,8 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
     if (!container) return;
 
     container.focus({ preventScroll: true });
-    setExpanded(!expanded);
+    setHasToggled(true);
+    onExpandedChange(!expanded);
     if (expanded && container.getBoundingClientRect().top < 0) {
       const reduceMotion = matchMedia(
         "(prefers-reduced-motion: reduce)",
@@ -61,10 +66,17 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
     <div
       ref={containerRef}
       tabIndex={-1}
-      className={`${className} relative overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-safe:transition-[height] motion-safe:duration-200 motion-safe:[interpolate-size:allow-keywords]`}
+      className={`${className} relative overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${hasToggled ? "motion-safe:transition-[height] motion-safe:duration-200 motion-safe:[interpolate-size:allow-keywords]" : ""}`}
       style={{
         ...style,
         height: expanded ? style?.height : (collapsedHeight ?? style?.height),
+        // Keep the first virtual-row measurement at the collapsed height.
+        maxHeight:
+          !hasToggled &&
+          !expanded &&
+          Number.isFinite(expandableHeightThresholdRatio)
+            ? `${expandableHeightThresholdRatio * 100}dvh`
+            : style?.maxHeight,
       }}
       {...rest}
     >

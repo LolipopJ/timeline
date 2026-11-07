@@ -13,6 +13,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,7 +28,10 @@ import TimelineArchive, {
   TimelineArchiveLoading,
 } from "@/components/TimelineArchive";
 import TimelineCurrentDate from "@/components/TimelineCurrentDate";
-import TimelineItem from "@/components/TimelineItem";
+import TimelineVirtualList, {
+  getTimelineRows,
+  type TimelineVirtualListHandle,
+} from "@/components/TimelineHome/VirtualList";
 import TimelineSearch from "@/components/TimelineSearch";
 import TimelineTools from "@/components/TimelineTools";
 import GlobalContext from "@/contexts/GlobalContext";
@@ -45,40 +49,8 @@ import {
 const PAGE_LIMIT = 20;
 const EMPTY_PAGES: TimelineItemClient[][] = [[]];
 const DATA_CACHE = { provider: () => new Map(), keepPreviousData: false };
-const archiveTickClass =
-  "relative before:absolute before:top-1/2 before:-left-(--archive-gutter) before:-translate-1/2";
 const floatingButtonClass =
   "size-12 cursor-pointer place-items-center rounded-full border border-control bg-background-light text-foreground shadow-lg hover:bg-background-lighter active:bg-background-lighter";
-
-function groupByMonth(
-  pages: TimelineItemClient[][],
-  orderBy: "created_at" | "updated_at",
-) {
-  const years: {
-    year: number;
-    months: { key: string; number: string; items: TimelineItemClient[] }[];
-  }[] = [];
-  for (const page of pages) {
-    for (const item of page) {
-      const date = new Date(item[orderBy]);
-      const year = date.getFullYear();
-      const number = String(date.getMonth() + 1).padStart(2, "0");
-      const key = `${year}-${number}`;
-      let chapter = years.at(-1);
-      if (chapter?.year !== year) {
-        chapter = { year, months: [] };
-        years.push(chapter);
-      }
-      let month = chapter.months.at(-1);
-      if (month?.key !== key) {
-        month = { key, number, items: [] };
-        chapter.months.push(month);
-      }
-      month.items.push(item);
-    }
-  }
-  return years;
-}
 
 export default function TimelineHome() {
   const router = useRouter();
@@ -204,10 +176,13 @@ function TimelineData({
   const [adminOpen, setAdminOpen] = useState(false);
   const closeAdmin = useCallback(() => setAdminOpen(false), []);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const virtualListRef = useRef<TimelineVirtualListHandle>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const archiveRef = useRef<HTMLDivElement>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [readingMonth, setReadingMonth] = useState<string>();
+  const [readingPosition, setReadingPosition] = useState<{
+    query: string;
+    month: string;
+  }>();
 
   useEffect(() => {
     const update = () => setShowBackToTop(window.scrollY > window.innerHeight);
@@ -220,9 +195,10 @@ function TimelineData({
     };
   }, []);
 
-  const queryParams = useMemo(
-    () => getTimelineRequestParams(filters),
-    [filters],
+  const query = useMemo(
+    () =>
+      getSearchParamsFromObject({ ...getTimelineRequestParams(filters), view }),
+    [filters, view],
   );
   const orderBy = filters.orderBy;
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
@@ -230,20 +206,16 @@ function TimelineData({
   const getTimelineItemsKey = useCallback<NonNullable<KeyLoader>>(
     (pageIndex, previousPageData) => {
       if (previousPageData?.length < PAGE_LIMIT) return null;
-      return `/timeline-items?${getSearchParamsFromObject({
-        ...queryParams,
-        view,
-        page: pageIndex,
-        limit: PAGE_LIMIT,
-      })}`;
+      return `/timeline-items?${query}&page=${pageIndex}&limit=${PAGE_LIMIT}`;
     },
-    [queryParams, view],
+    [query],
   );
   const {
     data: timelineItems = EMPTY_PAGES,
     mutate: mutateTimelineItems,
     isLoading: isLoadingTimelineItems,
     isValidating: isValidatingTimelineItems,
+    size,
     setSize: setQueryTimelineItemsPage,
     error: queryTimelineItemsError,
   } = useSWRInfinite<TimelineItemClient[]>(getTimelineItemsKey, fetcherGET);
@@ -252,111 +224,65 @@ function TimelineData({
     !isLoadingTimelineItems &&
     !isValidatingTimelineItems &&
     (timelineItems.at(-1)?.length ?? 0) < PAGE_LIMIT;
-  const years = useMemo(
-    () => groupByMonth(timelineItems, orderBy),
+  const rows = useMemo(
+    () => getTimelineRows(timelineItems, orderBy),
     [timelineItems, orderBy],
   );
   const showInitialStatus =
-    !years.length &&
+    !rows.length &&
     (isLoadingTimelineItems || Boolean(queryTimelineItemsError));
-  const currentMonth = years.some(({ months }) =>
-    months.some(({ key }) => key === readingMonth),
-  )
-    ? readingMonth
-    : years[0]?.months[0].key;
+  const currentMonth =
+    (rows.length && readingPosition?.query === query
+      ? readingPosition.month
+      : undefined) ?? rows[0]?.month;
+  const reportReadingMonth = useCallback(
+    (month: string) => {
+      setReadingPosition((previous) =>
+        previous?.query === query && previous.month === month
+          ? previous
+          : { query, month },
+      );
+    },
+    [query],
+  );
 
   const refreshTimeline = useCallback(() => {
     void mutateTimelineItems();
   }, [mutateTimelineItems]);
 
-  useEffect(() => {
-    if (isLoadingTimelineItems) {
-      window.scrollTo({ top: 0 });
-    }
-  }, [isLoadingTimelineItems]);
+  const loadMore = useCallback(() => {
+    void setQueryTimelineItemsPage(size + 1);
+  }, [setQueryTimelineItemsPage, size]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     window.scrollTo({ top: 0 });
-  }, [queryParams]);
+  }, [query]);
 
   useEffect(() => {
     if (isFullyLoaded || isValidatingTimelineItems || queryTimelineItemsError)
       return;
 
     const loadMoreButton = loadMoreButtonRef.current;
-    if (loadMoreButton) {
-      const loadMoreObserver = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            setQueryTimelineItemsPage((prev) => prev + 1);
-            loadMoreObserver.unobserve(loadMoreButton);
-          }
-        },
-        { threshold: 0 },
-      );
-      loadMoreObserver.observe(loadMoreButton);
-      return () => {
-        loadMoreObserver.unobserve(loadMoreButton);
-      };
-    }
+    if (!loadMoreButton) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      loadMore();
+    });
+    observer.observe(loadMoreButton);
+    return () => observer.disconnect();
   }, [
     isFullyLoaded,
     isValidatingTimelineItems,
+    loadMore,
     queryTimelineItemsError,
-    setQueryTimelineItemsPage,
   ]);
-
-  useEffect(() => {
-    const toolbar = toolbarRef.current;
-    const archive = archiveRef.current;
-    if (!toolbar || !archive || !years.length) return;
-
-    const starts = Array.from(
-      archive.querySelectorAll<HTMLElement>("[data-month-start]"),
-    );
-    let frame = 0;
-    const update = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        const { scrollHeight, scrollTop, clientHeight } =
-          document.documentElement;
-        const atEnd =
-          scrollHeight > clientHeight &&
-          scrollHeight - scrollTop - clientHeight <= 1;
-        const readingLine = toolbar.getBoundingClientRect().bottom + 12;
-        // The last month may be too short to reach the reading line.
-        const entry = atEnd
-          ? starts.at(-1)
-          : starts.findLast(
-              (start) => start.getBoundingClientRect().top <= readingLine,
-            );
-        setReadingMonth((entry ?? starts[0])?.dataset.monthStart);
-      });
-    };
-    const resize = new ResizeObserver(update);
-    resize.observe(toolbar);
-    resize.observe(archive);
-    archive
-      .querySelectorAll("[data-archive-month]")
-      .forEach((month) => resize.observe(month));
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    update();
-    return () => {
-      resize.disconnect();
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, [years]);
 
   return (
     <>
       <TimelineArchive
         ref={timelineRef}
         toolbarRef={toolbarRef}
-        archiveRef={archiveRef}
         toolbar={
           <>
             <TimelineCurrentDate
@@ -381,7 +307,7 @@ function TimelineData({
                   时间线加载失败
                 </p>
               )}
-              {isFullyLoaded && !years.length ? (
+              {isFullyLoaded && !rows.length ? (
                 <p role="status" className="text-foreground-dark">
                   没有找到相关内容
                 </p>
@@ -400,7 +326,7 @@ function TimelineData({
                   className="cursor-pointer rounded-md border border-control bg-background-light px-3 py-2 hover:bg-background-lighter disabled:cursor-default disabled:opacity-70"
                   onClick={() => {
                     if (queryTimelineItemsError) refreshTimeline();
-                    else void setQueryTimelineItemsPage((prev) => prev + 1);
+                    else loadMore();
                   }}
                   disabled={isValidatingTimelineItems}
                 >
@@ -432,48 +358,18 @@ function TimelineData({
           ) : (
             <TimelineArchiveLoading label="正在加载时间线" />
           )
-        ) : (
-          years.map(({ year, months }) => (
-            <section
-              key={year}
-              aria-labelledby={`archive-${year}`}
-              className="not-first:mt-12"
-            >
-              <h2
-                id={`archive-${year}`}
-                className={`${archiveTickClass} border-b border-binding pb-2 text-4xl font-semibold tracking-tight tabular-nums before:size-2.5 before:rotate-45 before:bg-foreground-dark sm:text-5xl`}
-              >
-                {year}
-              </h2>
-              {months.map(({ key, number, items }) => (
-                <section
-                  key={key}
-                  aria-labelledby={`archive-${key}`}
-                  data-archive-month
-                >
-                  <h3
-                    id={`archive-${key}`}
-                    className={`${archiveTickClass} mt-5 mb-3 text-base font-semibold text-foreground-dark tabular-nums before:h-px before:w-2 before:bg-control lg:text-lg`}
-                  >
-                    {number} 月
-                  </h3>
-                  {items.map((item, index) => (
-                    <TimelineItem
-                      key={item.id}
-                      id={item.id}
-                      item={item}
-                      displayedDateTime={orderBy}
-                      mutateTimelineItems={mutateTimelineItems}
-                      filters={filters}
-                      onFiltersChange={onFiltersChange}
-                      data-month-start={index === 0 ? key : undefined}
-                    />
-                  ))}
-                </section>
-              ))}
-            </section>
-          ))
-        )}
+        ) : rows.length ? (
+          <TimelineVirtualList
+            key={query}
+            ref={virtualListRef}
+            rows={rows}
+            toolbarRef={toolbarRef}
+            onReadingMonthChange={reportReadingMonth}
+            filters={filters}
+            onFiltersChange={onFiltersChange}
+            mutateTimelineItems={mutateTimelineItems}
+          />
+        ) : null}
       </TimelineArchive>
       <div className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 lg:bottom-10">
         <button
@@ -488,10 +384,9 @@ function TimelineData({
             const reduceMotion = window.matchMedia(
               "(prefers-reduced-motion: reduce)",
             ).matches;
-            window.scrollTo({
-              top: 0,
-              behavior: reduceMotion ? "instant" : "smooth",
-            });
+            virtualListRef.current?.scrollToTop(
+              reduceMotion ? "auto" : "smooth",
+            );
           }}
         >
           <Icon path={mdiArrowUp} size={1} aria-hidden="true" />

@@ -4,14 +4,12 @@ export default function TimelineArchive({
   ref,
   toolbar,
   toolbarRef,
-  archiveRef,
   footer,
   children,
 }: {
   ref?: Ref<HTMLDivElement>;
   toolbar?: ReactNode;
   toolbarRef?: Ref<HTMLDivElement>;
-  archiveRef?: Ref<HTMLDivElement>;
   footer?: ReactNode;
   children: ReactNode;
 }) {
@@ -43,7 +41,6 @@ export default function TimelineArchive({
       </aside>
       <div className="min-w-0 px-4 pt-6 pb-12 sm:px-6 lg:px-0 lg:pt-8">
         <div
-          ref={archiveRef}
           data-timeline-archive
           className="ml-1 border-l border-binding pl-(--archive-gutter) [--archive-gutter:1.125rem] lg:ml-24 lg:[--archive-gutter:1.75rem]"
         >

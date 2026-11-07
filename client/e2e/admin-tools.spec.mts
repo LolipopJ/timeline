@@ -397,6 +397,7 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
   await expect(page.getByRole("img", { name: "暂无游戏封面" })).toBeVisible();
   const link = page.getByRole("link", { name: "Steam game · Steam 成就页面" });
   const steamCard = page.getByRole("article").filter({ has: link });
+  const shine = steamCard.locator("span.-translate-x-full");
   const reviewCover = page.locator(
     'a[href="https://steamcommunity.com/app/400"] img',
   );
@@ -417,11 +418,14 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
     expect(textBox.y).toBeGreaterThanOrEqual(coverBox.y + coverBox.height);
   else expect(textBox.x).toBeGreaterThanOrEqual(coverBox.x + coverBox.width);
   if (testInfo.project.name === "desktop") {
-    await test.step("achievement animation finishes through pointer exit and re-entry", async () => {
+    await test.step("trophy animation finishes through pointer exit and re-entry", async () => {
       await page.emulateMedia({ reducedMotion: "no-preference" });
-      const shine = steamCard.locator("span.-translate-x-full");
+      const trophy = steamCard
+        .getByText("全成就", { exact: true })
+        .locator("..")
+        .locator("span[aria-hidden=true]");
       await steamCard.hover();
-      const playback = await shine.evaluateHandle((element) => {
+      const playback = await trophy.evaluateHandle((element) => {
         const [animation] = element.getAnimations();
         if (!animation) throw new Error("Hover did not start the animation");
         // Slow playback so the pointer moves cannot race the end of the animation.
@@ -435,7 +439,7 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
       );
       await steamCard.hover();
       expect(
-        await shine.evaluate(
+        await trophy.evaluate(
           (element, animation) => element.getAnimations()[0] === animation,
           playback,
         ),
@@ -448,16 +452,50 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
       });
       await steamCard.hover();
       expect(
-        await shine.evaluate(
+        await trophy.evaluate(
           (element) => element.getAnimations()[0]?.playState,
         ),
       ).toBe("running");
       await page.mouse.move(0, 0);
       await page.emulateMedia({ reducedMotion: "reduce" });
     });
+    await test.step("achievement shine returns smoothly after hover", async () => {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await steamCard.hover();
+      await expect(shine).toHaveCSS("translate", "100%");
+
+      await page.mouse.move(0, 0);
+      const returning = await shine.evaluateHandle((element) => {
+        const [animation] = element.getAnimations();
+        if (!animation)
+          throw new Error("Pointer exit did not start the return transition");
+        animation.pause();
+        animation.currentTime =
+          Number(animation.effect?.getTiming().duration) / 2;
+        return animation;
+      });
+      const halfway = await shine.evaluate((element) =>
+        parseFloat(getComputedStyle(element).translate),
+      );
+      expect(halfway).toBeGreaterThan(-100);
+      expect(halfway).toBeLessThan(100);
+      await returning.evaluate((animation) => animation.play());
+      await expect(shine).toHaveCSS("translate", "-100%");
+      await page.emulateMedia({ reducedMotion: "reduce" });
+    });
   }
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await link.focus();
   await expect(link).toBeFocused();
+  await expect(shine).toHaveCSS("translate", "100%");
+  await link.evaluate((element) => element.blur());
+  await expect(shine).toHaveCSS("translate", "-100%");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await link.focus();
+  await expect(shine).toHaveCSS("translate", "-100%");
+  expect(
+    await shine.evaluate((element) => element.getAnimations().length),
+  ).toBe(0);
   expect(
     await link.evaluate((node) => getComputedStyle(node).outlineStyle),
   ).not.toBe("none");
@@ -1242,6 +1280,293 @@ test("the archive date and site links fit the responsive toolbar", async ({
   expect(await searchWidth()).toBeGreaterThan(narrowWidth);
 });
 
+test("the timeline mounts only nearby cards after loading several pages", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.archiveItems = Array.from({ length: 77 }, (_, index) => {
+    const date = new Date(Date.UTC(2026, 1, 20 - index)).toISOString();
+    return {
+      id: `virtual-${index}`,
+      content_id: `virtual-${index}`,
+      sync_service_id: "feed",
+      sync_service_type: SyncServiceType.FEED,
+      title: `Virtual entry ${index + 1}`,
+      content: "Timeline content\n\n".repeat(
+        index === 0 ? 80 : (index % 5) + 1,
+      ),
+      url: "https://example.com/item",
+      created_at: date,
+      updated_at: date,
+    };
+  });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const first = page.getByRole("link", { name: /Virtual entry 1\b/ });
+  const last = page.getByRole("link", { name: /Virtual entry 77\b/ });
+  const scrollToEnd = () =>
+    page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight),
+    );
+  await expect(first).toBeInViewport();
+  await page.getByRole("button", { name: "展开全文" }).click();
+  await page.getByRole("textbox", { name: "搜索时间线" }).focus();
+  for (const index of [1, 2, 3]) {
+    await expect
+      .poll(async () => {
+        await scrollToEnd();
+        return state.requests.some(
+          (request) =>
+            request.path === "/timeline-items" &&
+            request.page === String(index),
+        );
+      })
+      .toBe(true);
+  }
+  await expect(page.getByText("没有更多噜")).toBeVisible();
+  await scrollToEnd();
+  await expect(last).toBeInViewport();
+  await expect
+    .poll(() => page.locator(".timeline-item").count())
+    .toBeLessThan(30);
+  await expect(first).toHaveCount(0);
+  const reading = page.getByRole("group", { name: "当前阅读年月" });
+  await expect(reading).toContainText("2025 年 12 月");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("button", { name: "回到顶部" }).click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(first).toBeInViewport();
+  await expect(page.getByRole("button", { name: "收起全文" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(last).toHaveCount(0);
+  await expect(reading).toContainText("2026 年 02 月");
+
+  await first.focus();
+  await scrollToEnd();
+  await expect(last).toBeInViewport();
+  await expect(first).toBeFocused();
+});
+
+test("remounted image rows reserve their previously measured height", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  const imageUrl = "https://example.com/remembered-height.svg";
+  state.archiveItems = Array.from({ length: 18 }, (_, index) => ({
+    id: `image-row-${index}`,
+    content_id: `image-row-${index}`,
+    sync_service_id: "github",
+    sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+    title: `Image row ${index}`,
+    content:
+      index === 0
+        ? `# Remembered image\n\n![remembered](${imageUrl})`
+        : `# Comment ${index}\n\n${"Other comment content.\n\n".repeat(12)}`,
+    created_at: new Date(Date.UTC(2026, 1, 20 - index)).toISOString(),
+    updated_at: new Date(Date.UTC(2026, 1, 20 - index)).toISOString(),
+  }));
+  let holdImage = false;
+  let failImage = false;
+  let imageRequests = 0;
+  const { promise: imageGate, resolve: releaseImage } =
+    Promise.withResolvers<void>();
+  await page.route("**/remembered-height.svg*", async (route) => {
+    imageRequests += 1;
+    if (holdImage) await imageGate;
+    if (failImage) return route.fulfill({ status: 404, body: "missing image" });
+    await route.fulfill({
+      contentType: "image/svg+xml",
+      headers: { "cache-control": "no-store" },
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><rect width="640" height="640" fill="tomato"/></svg>',
+    });
+  });
+  await page.addInitScript((url) => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      HTMLImageElement.prototype,
+      "src",
+    );
+    if (!descriptor?.set) throw new Error("Image src setter is unavailable");
+    const setSrc = descriptor.set;
+    let imageVersion = 0;
+    // Give remounts fresh requests instead of Chromium's decoded image cache.
+    Object.defineProperty(HTMLImageElement.prototype, "src", {
+      ...descriptor,
+      set(value: string) {
+        if (value === url) value = `${value}?mount=${++imageVersion}`;
+        setSrc.call(this, value);
+      },
+    });
+  }, imageUrl);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const row = page.locator('[data-timeline-row="image-row-0"]');
+  const image = row.locator("img");
+  await expect
+    .poll(() =>
+      image.evaluate(
+        (element) =>
+          element instanceof HTMLImageElement && element.naturalWidth,
+      ),
+    )
+    .toBe(640);
+  const measuredHeight = await row.evaluate(
+    (element) => element.getBoundingClientRect().height,
+  );
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  );
+  await expect(row).toHaveCount(0);
+  holdImage = true;
+  try {
+    await page.mouse.wheel(0, -100_000);
+    await expect(image).toBeAttached();
+    await expect.poll(() => imageRequests).toBeGreaterThan(1);
+    expect(
+      await image.evaluate(
+        (element) => element instanceof HTMLImageElement && element.complete,
+      ),
+    ).toBe(false);
+    await expect
+      .poll(() =>
+        row.evaluate((element) => element.getBoundingClientRect().height),
+      )
+      .toBeCloseTo(measuredHeight, 0);
+    const viewport = await page.evaluate(() => ({
+      width: innerWidth,
+      height: innerHeight,
+    }));
+    await page.setViewportSize({
+      ...viewport,
+      width: viewport.width >= 1024 ? 900 : viewport.width - 40,
+    });
+    await expect
+      .poll(() =>
+        row.evaluate((element) => element.getBoundingClientRect().height),
+      )
+      .toBeLessThan(measuredHeight - 50);
+    await page.setViewportSize(viewport);
+    releaseImage();
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement && element.naturalWidth,
+        ),
+      )
+      .toBe(640);
+    await expect
+      .poll(() =>
+        row.evaluate((element) => element.getBoundingClientRect().height),
+      )
+      .toBeCloseTo(measuredHeight, 0);
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight),
+    );
+    await expect(row).toHaveCount(0);
+    failImage = true;
+    await page.mouse.wheel(0, -100_000);
+    await expect(image).toBeAttached();
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (element) => element instanceof HTMLImageElement && element.complete,
+        ),
+      )
+      .toBe(true);
+    expect(
+      await image.evaluate(
+        (element) =>
+          element instanceof HTMLImageElement && element.naturalWidth,
+      ),
+    ).toBe(0);
+    await expect
+      .poll(() =>
+        row.evaluate((element) => element.getBoundingClientRect().height),
+      )
+      .toBeLessThan(measuredHeight - 50);
+  } finally {
+    releaseImage();
+  }
+});
+
+test("remounted GitHub comments start collapsed without a height transition", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.loggedIn = false;
+  state.archiveItems = Array.from({ length: 18 }, (_, index) => ({
+    id: `comment-${index}`,
+    content_id: `comment-${index}`,
+    sync_service_id: "github",
+    sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+    title: `Comment ${index}`,
+    content: `# Comment ${index}\n\n${"Long comment paragraph.\n\n".repeat(80)}`,
+    created_at: new Date(Date.UTC(2026, 1, 20 - index)).toISOString(),
+    updated_at: new Date(Date.UTC(2026, 1, 20 - index)).toISOString(),
+  }));
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.addInitScript(() => {
+    new MutationObserver(() => {
+      const card = document.querySelector<HTMLElement>(
+        "#comment-0 div[tabindex='-1']",
+      );
+      if (card && !card.dataset.initialHeight) {
+        card.dataset.initialHeight = String(
+          card.getBoundingClientRect().height,
+        );
+      }
+    }).observe(document, { childList: true, subtree: true });
+    document.addEventListener("transitionrun", (event) => {
+      const card = event.target;
+      if (
+        event.propertyName === "height" &&
+        card instanceof HTMLElement &&
+        card.matches("#comment-0 div[tabindex='-1']")
+      ) {
+        card.dataset.heightTransitions = String(
+          Number(card.dataset.heightTransitions ?? 0) + 1,
+        );
+      }
+    });
+  });
+  await page.goto("/");
+  const card = page.locator("#comment-0 div[tabindex='-1']");
+  await expect(card.getByRole("button", { name: "展开全文" })).toBeAttached();
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  );
+  await expect(card).toHaveCount(0);
+  await page.mouse.wheel(0, -100_000);
+  await expect(card.getByRole("button", { name: "展开全文" })).toBeAttached();
+  const initialHeight = Number(await card.getAttribute("data-initial-height"));
+  const collapsedHeight = await page.evaluate(() => window.innerHeight * 0.8);
+  expect(initialHeight).toBeLessThanOrEqual(collapsedHeight + 1);
+  const initialTransitions = await card.evaluate(
+    (element) =>
+      new Promise<number>((resolve) => {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve(
+              Number(element.getAttribute("data-height-transitions") ?? 0),
+            );
+          }),
+        );
+      }),
+  );
+  expect(initialTransitions).toBe(0);
+  await card.getByRole("button", { name: "展开全文" }).click();
+  await expect(card).toHaveAttribute("data-height-transitions", "1");
+  await expect
+    .poll(() =>
+      card.evaluate((element) => element.getBoundingClientRect().height),
+    )
+    .toBeGreaterThan(collapsedHeight);
+});
+
 test("archive joins pages within a month and follows the sorted reading position", async ({
   page,
 }) => {
@@ -1338,7 +1663,7 @@ test("archive joins pages within a month and follows the sorted reading position
         (element) => getComputedStyle(element).marginInlineStart,
       ),
     )
-    .toBe("-8px");
+    .toBe("-10px");
   const overlay = coverTitle.locator("..");
   const gradient = () =>
     overlay.evaluate((element) => getComputedStyle(element).backgroundImage);
@@ -1364,7 +1689,6 @@ test("archive joins pages within a month and follows the sorted reading position
       const style = getComputedStyle(element, "::before");
       return { color: style.backgroundColor, scale: style.scale };
     });
-  const highlightedTick = { color: "rgb(115, 205, 185)", scale: "1.25" };
   const idleTick = { color: "rgb(11, 13, 14)", scale: "none" };
   const isDesktop = page.viewportSize()!.width >= 1024;
   const hoverSupported = await page.evaluate(
@@ -1377,7 +1701,9 @@ test("archive joins pages within a month and follows the sorted reading position
     await title.hover();
     await expect(title).toHaveCSS("background-size", "100% 100%");
     await expect(title).toHaveCSS("text-decoration-line", "none");
-    await expect.poll(tick).toEqual(highlightedTick);
+    await expect
+      .poll(tick)
+      .toEqual({ color: "rgb(231, 236, 234)", scale: "1.25" });
     if (isDesktop)
       await expect(timestamp).toHaveCSS("color", "rgb(231, 236, 234)");
     await page.mouse.move(0, 0);
@@ -1385,9 +1711,11 @@ test("archive joins pages within a month and follows the sorted reading position
   }
   await title.focus();
   await expect(title).toBeFocused();
-  await expect.poll(tick).toEqual(highlightedTick);
+  await expect
+    .poll(tick)
+    .toEqual({ color: "rgb(168, 182, 178)", scale: "1.25" });
   if (isDesktop)
-    await expect(timestamp).toHaveCSS("color", "rgb(231, 236, 234)");
+    await expect(timestamp).toHaveCSS("color", "rgb(168, 182, 178)");
   await expect(article.locator("blockquote")).toHaveCSS(
     "color",
     "rgb(168, 182, 178)",
@@ -1503,7 +1831,7 @@ test("archive joins pages within a month and follows the sorted reading position
   );
   await expect(decemberTick).toHaveCSS("color", inactiveTickColor);
   await coverLink.focus();
-  await expect(cover).toHaveCSS("scale", "1.02");
+  await expect(cover).toHaveCSS("scale", "1.01");
   const more = page.getByRole("button", { name: "加载更多" });
   await more.scrollIntoViewIfNeeded();
   await expect(december.getByText("Archive 20", { exact: true })).toBeVisible();
@@ -1675,11 +2003,13 @@ test("timeline requests can be retried without replacing loaded entries", async 
   state.failTimelinePage = 1;
   await page.getByRole("button", { name: "加载更多" }).scrollIntoViewIfNeeded();
   await expect(failure).toBeVisible();
-  await expect(page.getByText("PUBLIC", { exact: true })).toBeVisible();
+  await expect(page.getByText("PUBLIC-19", { exact: true })).toBeVisible();
   state.failTimelinePage = null;
   await retry.click();
   await expect(page.getByText("PUBLIC-24", { exact: true })).toBeVisible();
   await expect(failure).toBeHidden();
+  await page.getByRole("button", { name: "回到顶部" }).click();
+  await expect(page.getByText("PUBLIC", { exact: true })).toBeInViewport();
 });
 
 test("timeline disclosures preserve keyboard focus", async ({ page }) => {

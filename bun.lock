@@ -31,6 +31,7 @@
         "@fancyapps/ui": "^6.1.15",
         "@mdi/js": "^7.4.47",
         "@mdi/react": "^1.6.1",
+        "@tanstack/react-virtual": "3.14.26",
         "@timeline/contracts": "workspace:*",
         "axios": "^1.21.0",
         "github-markdown-css": "^5.9.0",
@@ -370,6 +371,10 @@
     "@tailwindcss/oxide-win32-x64-msvc": ["@tailwindcss/oxide-win32-x64-msvc@4.3.4", "https://registry.npmmirror.com/@tailwindcss/oxide-win32-x64-msvc/-/oxide-win32-x64-msvc-4.3.4.tgz", { "os": "win32", "cpu": "x64" }, "sha512-cge1wcedn1FrRSXL22lF5sNDYr8c9+VImk7zFYLPs12jkDmchSrZNfzWqOKub+5Hb/aYRdDEqERGGDKONBlOzQ=="],
 
     "@tailwindcss/postcss": ["@tailwindcss/postcss@4.3.4", "https://registry.npmmirror.com/@tailwindcss/postcss/-/postcss-4.3.4.tgz", { "dependencies": { "@alloc/quick-lru": "^5.2.0", "@tailwindcss/node": "4.3.4", "@tailwindcss/oxide": "4.3.4", "postcss": "^8.5.25", "tailwindcss": "4.3.4" } }, "sha512-6O0QLY+1CseO8ivlYK2Y7IxNPaQ8D5ypxrV+ws34mbxknWH824J+gEWtJ0gyFiYAudmdEeXdF8kqwgXIaZRyHw=="],
+
+    "@tanstack/react-virtual": ["@tanstack/react-virtual@3.14.26", "https://registry.npmmirror.com/@tanstack/react-virtual/-/react-virtual-3.14.26.tgz", { "dependencies": { "@tanstack/virtual-core": "3.19.11" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-HUDlfsrYH6ko5xH56L62Mcl/uzT+AGVNMHFuDNqDJMdZWc1AQa2oeVKNUvZ/RWBZQ4TYtyQerFrNvLnp39h65A=="],
+
+    "@tanstack/virtual-core": ["@tanstack/virtual-core@3.19.11", "https://registry.npmmirror.com/@tanstack/virtual-core/-/virtual-core-3.19.11.tgz", {}, "sha512-/5iHb0RHBvj8Di59FDs4ESNm45jls33aZAi4zccVXZjc/6ZvwQP6nzEYeT6weXjTf9E6/vrp2JhYWRyO+ZP13A=="],
 
     "@timeline/client": ["@timeline/client@workspace:client"],
 

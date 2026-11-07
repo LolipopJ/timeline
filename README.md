@@ -1,6 +1,6 @@
 # Timeline
 
-Timeline 将不同平台的内容同步到一条个人时间线，支持搜索和按来源筛选。可同步 Bilibili 收藏和作品、RSS 与 Atom 订阅、GitHub Issue 评论、QQ 空间说说、Steam 评测，以及 PSN 白金和 PSN、Xbox、Steam 的全成就里程碑。
+Timeline 将不同平台的内容同步到一条个人时间线，支持搜索和按来源筛选。可同步 Bilibili 收藏和作品、RSS 与 Atom 订阅、GitHub Issue 评论、QQ 空间说说、Steam 评测，PSN 白金和 PSN、Xbox、Steam 的全成就里程碑，以及 FF14 绝境战踏破成就。
 
 ## 快速开始
 

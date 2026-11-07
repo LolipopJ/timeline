@@ -1,11 +1,11 @@
 import { SyncServiceType } from "@timeline/contracts";
 import React from "react";
 
-import ExpandableContainer, {
-  ExpandableContainerProps,
-} from "@/components/ExpandableContainer";
+import type { ExpandableContainerProps } from "@/components/ExpandableContainer";
+import ExpandableContainer from "@/components/ExpandableContainer";
 import TimelineItemBilibiliCollection from "@/components/TimelineItem/bilibili-collection";
 import TimelineItemFeed from "@/components/TimelineItem/feed";
+import TimelineItemFfxivUltimate from "@/components/TimelineItem/ffxiv-ultimate";
 import TimelineItemGameAchievement from "@/components/TimelineItem/game-achievement";
 import TimelineItemGithubIssueComment from "@/components/TimelineItem/github-issue-comment";
 import TimelineItemQQZoneTalk from "@/components/TimelineItem/qq-zone-talk";
@@ -17,7 +17,10 @@ import TimelineItemLabel, {
 export interface TimelineItemProps
   extends
     React.HTMLAttributes<HTMLDivElement>,
-    Omit<TimelineItemLabelProps, "className"> {}
+    Omit<TimelineItemLabelProps, "className"> {
+  expanded: boolean;
+  onItemExpandedChange: (id: string, expanded: boolean) => void;
+}
 
 const cardOutlineClass =
   "after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-[inherit] after:ring-1 after:ring-binding/60 after:ring-inset";
@@ -29,6 +32,8 @@ function TimelineItem(props: TimelineItemProps) {
     mutateTimelineItems,
     filters,
     onFiltersChange,
+    expanded,
+    onItemExpandedChange,
     className,
     ...rest
   } = props;
@@ -37,10 +42,17 @@ function TimelineItem(props: TimelineItemProps) {
   let element = <></>;
   const expandableContainerProps: ExpandableContainerProps = {
     expandableHeightThresholdRatio: 0.8,
+    expanded,
+    onExpandedChange: (expanded) => onItemExpandedChange(item.id, expanded),
     className: `isolate rounded-lg ${cardOutlineClass}`,
   };
 
   switch (sync_service_type) {
+    case SyncServiceType.FFXIV_ULTIMATE_ACHIEVEMENT:
+      element = (
+        <TimelineItemFfxivUltimate item={item} className={cardOutlineClass} />
+      );
+      break;
     case SyncServiceType.PSN_GAME_ACHIEVEMENT:
     case SyncServiceType.XBOX_GAME_ACHIEVEMENT:
     case SyncServiceType.STEAM_GAME_ACHIEVEMENT:

@@ -5,6 +5,7 @@ import type { SyncService } from "../types/config";
 import { syncBilibiliCollections, syncBilibiliWorks } from "./bilibili";
 import { createSyncCoordinator } from "./coordinator";
 import { syncFeed } from "./feed";
+import { syncFfxivUltimateAchievements } from "./ffxiv-ultimate";
 import { syncGithubIssueComments } from "./github";
 import { syncPsnGameAchievements } from "./psn";
 import { syncQQZoneTalks } from "./qzone";
@@ -20,6 +21,8 @@ const executeService = (service: SyncService) => {
       return syncXboxGameAchievements(service);
     case SyncServiceType.STEAM_GAME_ACHIEVEMENT:
       return syncSteamGameAchievements(service);
+    case SyncServiceType.FFXIV_ULTIMATE_ACHIEVEMENT:
+      return syncFfxivUltimateAchievements(service);
     case SyncServiceType.BILIBILI_COLLECTION:
       return syncBilibiliCollections(service);
     case SyncServiceType.BILIBILI_WORK:

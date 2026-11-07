@@ -54,6 +54,7 @@ CREATE DATABASE timeline;
 | PSN 奖杯 | `PsnGameAchievement` | `psnNpsso`、可选的数字账号 ID `accountId` |
 | Xbox 成就 | `XboxGameAchievement` | `xboxClientId`、`xboxClientSecret`、`xboxTokenStorePath`、可选的数字用户 ID `xuid` |
 | Steam 成就 | `SteamGameAchievement` | `steamId`（SteamID64）、`steamWebAPIKey` |
+| FF14 绝境战 | `FfxivUltimateAchievement` | Lodestone 角色 ID `characterId` |
 
 Bilibili 作品同步通过匿名会话读取指定用户的公开投稿和列表简介。Bilibili 的列表接口可能截断较长的简介。
 
@@ -64,6 +65,35 @@ GitHub 令牌需要能访问目标仓库，任务同步该令牌所属账号的�
 Steam 近期游戏时长和 Steam 成就都需要 `steamWebAPIKey` 与目标账号的 SteamID64。 [Steam API 密钥](https://steamcommunity.com/dev/apikey)
 
 QQ 空间来源需要扫码授权。以管理员身份登录客户端后，在同一浏览器访问服务端的 `/qzone-login?qqNumber=<QQ号>`，扫码并确认登录。完成后可手动触发同步，也可等待下一次定时同步。QQ 空间视频切片使用 `ffmpeg-static`。
+
+## FF14 绝境战踏破
+
+在 `server.services` 中添加以下来源，以角色 `36150060` 为例。角色的 Lodestone 成就需要设为公开。
+
+```yaml
+- type: "FfxivUltimateAchievement"
+  id: "MyFfxivUltimateAchievements"
+  label: "FF14 绝境战"
+  characterId: "36150060"
+```
+
+每轮依次检查七个固定成就的公开详情页，读取达成状态、原始完成时间、成就名和报酬称号。七页全部读取成功后，一次写入已踏破且符合 `from` 下限的条目。尚未达成的成就会在后续同步中继续检查。页面不可读、成就非公开或已达成条目缺少有效时间时，本轮任务报告失败。
+
+每项踏破使用角色 ID 与成就 ID 组成唯一内容标识。重复同步保留原条目及管理员调整过的私密、删除状态。时间线按官方完成时间归档，卡片按浏览器时区显示时间，并提供对应的 Lodestone 详情链接。
+
+卡片展示中文绝境战名称、英文缩写、Lodestone 原文成就名、英文报酬称号和踏破时间，使用对应战斗角色的官方艺术图、细线纹理及悬浮和键盘聚焦效果。图片以 WebP 随静态客户端打包。减少动态效果偏好会关闭位移动效。
+
+| 成就 ID | 绝境战 | 官方战斗介绍 |
+| --- | --- | --- |
+| `1993` | 巴哈姆特绝境战 | [官方 4.11 更新说明](https://na.finalfantasyxiv.com/lodestone/topics/detail/aee832c2c57456a26f36531c78380e74202d0d75) |
+| `2107` | 究极神兵绝境战 | [官方 4.31 更新说明](https://na.finalfantasyxiv.com/lodestone/topics/detail/661a0c5168742c1b2c1bacb42af5736902d63c36) |
+| `2444` | 亚历山大绝境战 | [官方 5.11 更新说明](https://na.finalfantasyxiv.com/lodestone/topics/detail/879013bc3883733ae78f8ad1ca6cf3784b6fda9f) |
+| `3074` | 幻想龙诗绝境战 | [官方 6.11 更新说明](https://na.finalfantasyxiv.com/lodestone/topics/detail/f525c780b9abdb74c5b664f799dd16ff9de9c7b1) |
+| `3162` | 欧米茄绝境验证战 | [官方 6.31 更新说明](https://na.finalfantasyxiv.com/lodestone/topics/detail/8eebddf71a43266f45fba4c27b78853be2801343/) |
+| `3617` | 光暗未来绝境战 | [官方 7.1 宣传页](https://na.finalfantasyxiv.com/dawntrail/patch_7_1/) |
+| `4069` | 妖星乱舞绝境战 | [官方 7.5 宣传页](https://na.finalfantasyxiv.com/dawntrail/patch_7_5/) |
+
+七张官方艺术图的出处与静态文件见 [素材说明](ffxiv-ultimate-art.md)。图片归 SQUARE ENIX 所有，卡片保留 `© SQUARE ENIX` 标注。 [FF14 素材使用规范](https://support.na.square-enix.com/rule.php?id=5382&la=1&tag=authc)
 
 ## 游戏完成里程碑
 

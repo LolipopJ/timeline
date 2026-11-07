@@ -38,6 +38,25 @@ export const insertOrUpdateTimelineItems = async (
   return timelineItems.length;
 };
 
+// One-time events keep their original row, including administrator edits and soft deletion.
+export const insertNewTimelineItems = async (
+  timelineItems: TimelineItem[],
+): Promise<number> => {
+  if (timelineItems.length === 0) return 0;
+
+  const result = await dataSource
+    .getRepository(TimelineItem)
+    .createQueryBuilder()
+    .insert()
+    .values(timelineItems)
+    .orIgnore()
+    .returning(["id"])
+    .updateEntity(false)
+    .execute();
+
+  return result.raw.length;
+};
+
 export const updateTimelineItem = async (
   id: string,
   updateData: Partial<TimelineItem>,

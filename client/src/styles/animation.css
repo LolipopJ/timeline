@@ -17,7 +17,7 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .timeline-item {
+  [data-timeline-enter] > .timeline-item {
     animation: timeline-item-enter 200ms ease-out;
   }
 }
