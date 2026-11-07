@@ -1,6 +1,8 @@
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useRef } from "react";
 
+import { getSmallViewportHeight } from "@/utils/viewport";
+
 export type RowHeight = {
   layoutKey: string;
   width: number;
@@ -34,7 +36,7 @@ export default function VirtualRow({
       if (!element || !content) return;
 
       const width = content.getBoundingClientRect().width;
-      const viewportHeight = window.innerHeight;
+      const viewportHeight = getSmallViewportHeight();
       const cached = heightCache.current.get(id);
       let reservedHeight =
         cached?.layoutKey === layoutKey &&
@@ -45,12 +47,13 @@ export default function VirtualRow({
 
       const updateHeight = () => {
         const bounds = content.getBoundingClientRect();
+        const currentViewportHeight = getSmallViewportHeight();
         const waitingForImages = Array.from(
           content.querySelectorAll("img"),
         ).some((image) => !image.complete);
         if (
           bounds.width !== width ||
-          window.innerHeight !== viewportHeight ||
+          currentViewportHeight !== viewportHeight ||
           bounds.height >= reservedHeight ||
           !waitingForImages
         ) {
@@ -60,7 +63,7 @@ export default function VirtualRow({
         heightCache.current.set(id, {
           layoutKey,
           width: bounds.width,
-          viewportHeight: window.innerHeight,
+          viewportHeight: currentViewportHeight,
           height: Math.max(bounds.height, reservedHeight),
         });
       };

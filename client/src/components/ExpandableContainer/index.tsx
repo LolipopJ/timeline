@@ -2,6 +2,8 @@ import { mdiChevronDown, mdiChevronUp } from "@mdi/js";
 import Icon from "@mdi/react";
 import { useEffect, useRef, useState } from "react";
 
+import { getSmallViewportHeight } from "@/utils/viewport";
+
 export interface ExpandableContainerProps
   extends React.PropsWithChildren, React.HTMLAttributes<HTMLDivElement> {
   expandableHeightThresholdRatio: number;
@@ -30,7 +32,7 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
 
     function measure() {
       if (!content) return;
-      const limit = window.innerHeight * expandableHeightThresholdRatio;
+      const limit = getSmallViewportHeight() * expandableHeightThresholdRatio;
       const height = content.getBoundingClientRect().height;
       setCollapsedHeight(height > limit ? limit : undefined);
     }
@@ -75,7 +77,7 @@ export default function ExpandableContainer(props: ExpandableContainerProps) {
           !hasToggled &&
           !expanded &&
           Number.isFinite(expandableHeightThresholdRatio)
-            ? `${expandableHeightThresholdRatio * 100}dvh`
+            ? `${expandableHeightThresholdRatio * 100}svh`
             : style?.maxHeight,
       }}
       {...rest}

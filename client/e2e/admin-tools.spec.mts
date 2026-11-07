@@ -1439,6 +1439,35 @@ test("remounted image rows reserve their previously measured height", async ({
       width: innerWidth,
       height: innerHeight,
     }));
+    await page.evaluate((expandedHeight) => {
+      const descriptor = Object.getOwnPropertyDescriptor(window, "innerHeight");
+      if (!descriptor) throw new Error("window.innerHeight is unavailable");
+      Object.assign(window, { __innerHeightDescriptor: descriptor });
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: expandedHeight,
+      });
+      window.dispatchEvent(new Event("resize"));
+    }, viewport.height + 60);
+    await expect
+      .poll(() =>
+        row.evaluate((element) => element.getBoundingClientRect().height),
+      )
+      .toBeCloseTo(measuredHeight, 0);
+    await page.evaluate(() => {
+      const holder = window as Window & {
+        __innerHeightDescriptor?: PropertyDescriptor;
+      };
+      if (holder.__innerHeightDescriptor) {
+        Object.defineProperty(
+          window,
+          "innerHeight",
+          holder.__innerHeightDescriptor,
+        );
+        delete holder.__innerHeightDescriptor;
+      }
+      window.dispatchEvent(new Event("resize"));
+    });
     await page.setViewportSize({
       ...viewport,
       width: viewport.width >= 1024 ? 900 : viewport.width - 40,
@@ -1558,6 +1587,35 @@ test("remounted GitHub comments start collapsed without a height transition", as
       }),
   );
   expect(initialTransitions).toBe(0);
+  await page.evaluate(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, "innerHeight");
+    if (!descriptor) throw new Error("window.innerHeight is unavailable");
+    Object.assign(window, { __innerHeightDescriptor: descriptor });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: window.innerHeight + 60,
+    });
+    window.dispatchEvent(new Event("resize"));
+  });
+  await expect
+    .poll(() =>
+      card.evaluate((element) => element.getBoundingClientRect().height),
+    )
+    .toBeCloseTo(collapsedHeight, 0);
+  await page.evaluate(() => {
+    const holder = window as Window & {
+      __innerHeightDescriptor?: PropertyDescriptor;
+    };
+    if (holder.__innerHeightDescriptor) {
+      Object.defineProperty(
+        window,
+        "innerHeight",
+        holder.__innerHeightDescriptor,
+      );
+      delete holder.__innerHeightDescriptor;
+    }
+    window.dispatchEvent(new Event("resize"));
+  });
   await card.getByRole("button", { name: "展开全文" }).click();
   await expect(card).toHaveAttribute("data-height-transitions", "1");
   await expect
