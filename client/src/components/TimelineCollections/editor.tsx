@@ -1,5 +1,5 @@
 import type { ItemCollectionsDto } from "@timeline/contracts";
-import { useState } from "react";
+import { useId, useState } from "react";
 import useSWR from "swr";
 
 import useTimelineCollections from "@/hooks/useTimelineCollections";
@@ -17,6 +17,7 @@ export default function CollectionEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const formId = useId();
   const [draft, setDraft] = useState<Set<string>>();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -73,7 +74,41 @@ export default function CollectionEditor({
   }
 
   return (
-    <CollectionDialog title="编辑合集" onClose={onClose} busy={saving}>
+    <CollectionDialog
+      title="编辑合集"
+      onClose={onClose}
+      busy={saving}
+      footer={
+        ready &&
+        !readError && (
+          <>
+            {saveError && (
+              <p role="alert" className="mb-3 text-sm text-danger">
+                保存归属失败，请重试。
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className={dialogActionClass}
+                disabled={saving}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                form={formId}
+                className={`${dialogActionClass} bg-primary text-on-primary hover:bg-primary-light`}
+                disabled={saving}
+              >
+                {saving ? "正在保存…" : "保存"}
+              </button>
+            </div>
+          </>
+        )
+      }
+    >
       {readError ? (
         <div className="space-y-2">
           <p role="alert" className="text-sm text-danger">
@@ -96,6 +131,7 @@ export default function CollectionEditor({
         </p>
       ) : (
         <form
+          id={formId}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
@@ -124,28 +160,6 @@ export default function CollectionEditor({
               <p className="text-sm text-foreground-dark">暂无合集。</p>
             )}
           </fieldset>
-          {saveError && (
-            <p role="alert" className="mt-3 text-sm text-danger">
-              保存归属失败，请重试。
-            </p>
-          )}
-          <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-binding pt-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className={dialogActionClass}
-              disabled={saving}
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className={`${dialogActionClass} bg-primary text-on-primary hover:bg-primary-light`}
-              disabled={saving}
-            >
-              {saving ? "正在保存…" : "保存"}
-            </button>
-          </div>
         </form>
       )}
     </CollectionDialog>

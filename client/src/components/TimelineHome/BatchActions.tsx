@@ -5,7 +5,7 @@ import type {
   BatchTimelineItemsParams,
 } from "@timeline/contracts";
 import { isAxiosError } from "axios";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import message from "@/components/Message";
 import CollectionDialog, {
@@ -95,6 +95,7 @@ function BatchActionDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const formId = useId();
   const [change, setChange] = useState<BatchItemCollectionChange>({
     action: "add-collections",
     collectionIds: [],
@@ -138,8 +139,40 @@ function BatchActionDialog({
   }
 
   return (
-    <CollectionDialog title={action.label} onClose={onClose} busy={saving}>
+    <CollectionDialog
+      title={action.label}
+      onClose={onClose}
+      busy={saving}
+      footer={
+        <>
+          {error && (
+            <p role="alert" className="mb-3 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              className={dialogActionClass}
+              onClick={onClose}
+              disabled={saving}
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              className={`${dialogActionClass} ${action.id === "delete" ? "text-danger" : "bg-primary text-on-primary hover:bg-primary-light"}`}
+              disabled={!canSave}
+            >
+              {saving ? "正在处理…" : editing ? "保存" : "确认"}
+            </button>
+          </div>
+        </>
+      }
+    >
       <form
+        id={formId}
         onSubmit={(event) => {
           event.preventDefault();
           void save();
@@ -227,28 +260,6 @@ function BatchActionDialog({
               : `将选中的 ${itemIds.length} 个条目设为私密？`}
           </p>
         )}
-        {error && (
-          <p role="alert" className="mt-3 text-sm text-danger">
-            {error}
-          </p>
-        )}
-        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-binding pt-3">
-          <button
-            type="button"
-            className={dialogActionClass}
-            onClick={onClose}
-            disabled={saving}
-          >
-            取消
-          </button>
-          <button
-            type="submit"
-            className={`${dialogActionClass} ${action.id === "delete" ? "text-danger" : "bg-primary text-on-primary hover:bg-primary-light"}`}
-            disabled={!canSave}
-          >
-            {saving ? "正在处理…" : editing ? "保存" : "确认"}
-          </button>
-        </div>
       </form>
     </CollectionDialog>
   );

@@ -1345,6 +1345,77 @@ test("returning to cached multi-page root refreshes renamed labels and focus aft
   ).toBeVisible();
 });
 
+test("collection edit dialog keeps cancel and save actions pinned when scrolling", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [item] = searchFixture();
+  state.archiveItems = [item];
+  state.collections = Array.from({ length: 30 }, (_, index) => ({
+    id: `ffd00000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    name: `长列表合集 ${String(index).padStart(2, "0")}`,
+    parentId: null,
+  }));
+
+  await page.goto("/");
+  const card = page.locator(`[id="${item.id}"]`);
+  await card.getByRole("button", { name: "feed", exact: true }).click();
+  await card.getByRole("button", { name: "编辑合集" }).click();
+
+  const editor = page.getByRole("dialog", { name: "编辑合集" });
+  const cancel = editor.getByRole("button", { name: "取消", exact: true });
+  const save = editor.getByRole("button", { name: "保存", exact: true });
+  await expect(
+    editor.getByRole("checkbox", { name: "长列表合集 00" }),
+  ).toBeVisible();
+  await expect(cancel).toBeInViewport();
+  await expect(save).toBeInViewport();
+
+  const scroller = editor.locator("div.overflow-auto");
+  const scrollMetrics = await scroller.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+    scrollTop: element.scrollTop,
+  }));
+  expect(scrollMetrics.scrollHeight).toBeGreaterThan(
+    scrollMetrics.clientHeight,
+  );
+  expect(scrollMetrics.scrollTop).toBe(0);
+
+  await editor.getByRole("checkbox", { name: "长列表合集 00" }).check();
+  await save.click();
+  await expect(editor).toBeHidden();
+  await expect(
+    card.getByRole("list", { name: "归属合集" }).getByText("长列表合集 00"),
+  ).toBeVisible();
+
+  await card.getByRole("button", { name: "feed", exact: true }).click();
+  await card.getByRole("button", { name: "多选", exact: true }).click();
+  await page
+    .getByRole("group", { name: "批量操作" })
+    .getByRole("button", { name: "编辑合集" })
+    .click();
+  await expect(
+    editor.getByRole("checkbox", { name: "长列表合集 01" }),
+  ).toBeVisible();
+  await expect(cancel).toBeInViewport();
+  await expect(save).toBeInViewport();
+  const batchMetrics = await scroller.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+    scrollTop: element.scrollTop,
+  }));
+  expect(batchMetrics.scrollHeight).toBeGreaterThan(batchMetrics.clientHeight);
+  expect(batchMetrics.scrollTop).toBe(0);
+
+  await editor.getByRole("checkbox", { name: "长列表合集 01" }).check();
+  await save.click();
+  await expect(editor).toBeHidden();
+  await expect(
+    card.getByRole("list", { name: "归属合集" }).getByText("长列表合集 01"),
+  ).toBeVisible();
+});
+
 test("an admin timeline fallback removes cached private collections after session expiry", async ({
   page,
 }) => {

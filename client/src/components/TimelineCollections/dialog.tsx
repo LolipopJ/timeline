@@ -11,11 +11,13 @@ export default function CollectionDialog({
   title,
   onClose,
   busy = false,
+  footer,
   children,
 }: {
   title: string;
   onClose: () => void;
   busy?: boolean;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const titleId = useId();
@@ -64,6 +66,11 @@ export default function CollectionDialog({
       <div className="min-h-0 overflow-auto overscroll-contain p-4">
         {children}
       </div>
+      {footer && (
+        <footer className="shrink-0 border-t border-binding px-4 py-3">
+          {footer}
+        </footer>
+      )}
     </dialog>
   );
 }
