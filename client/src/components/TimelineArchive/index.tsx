@@ -4,12 +4,14 @@ export default function TimelineArchive({
   ref,
   toolbar,
   toolbarRef,
+  actions,
   footer,
   children,
 }: {
   ref?: Ref<HTMLDivElement>;
   toolbar?: ReactNode;
   toolbarRef?: Ref<HTMLDivElement>;
+  actions?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
 }) {
@@ -25,7 +27,7 @@ export default function TimelineArchive({
       >
         <div
           ref={toolbarRef}
-          className="flex min-w-0 flex-1 items-center gap-2 self-stretch sm:gap-3 lg:flex-none lg:flex-col lg:items-stretch lg:gap-5"
+          className={`flex min-w-0 flex-1 items-center gap-2 self-stretch sm:gap-3 lg:flex-none lg:flex-col lg:items-stretch lg:gap-5 ${actions ? "flex-wrap lg:flex-nowrap" : ""}`}
         >
           {toolbar ?? (
             <div
@@ -37,6 +39,7 @@ export default function TimelineArchive({
               <div className="size-11 shrink-0 rounded-md bg-background-lighter lg:w-full" />
             </div>
           )}
+          {actions}
         </div>
       </aside>
       <div className="min-w-0 px-4 pt-6 pb-12 sm:px-6 lg:px-0 lg:pt-8">

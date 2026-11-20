@@ -6,6 +6,10 @@ import {
   AchievementGameSnapshot,
   AchievementSourceState,
 } from "./entity/achievement-state";
+import {
+  TimelineCollection,
+  TimelineItemCollection,
+} from "./entity/timeline-collection";
 import TimelineItem from "./entity/timeline-item";
 
 const logger = createLogger("Database");
@@ -61,7 +65,13 @@ export const AppDataSource = new DataSource({
   username: config.database.user,
   password: config.database.password,
   database: DATABASE_NAME,
-  entities: [TimelineItem, AchievementSourceState, AchievementGameSnapshot],
+  entities: [
+    TimelineItem,
+    TimelineCollection,
+    TimelineItemCollection,
+    AchievementSourceState,
+    AchievementGameSnapshot,
+  ],
   synchronize: true,
   invalidWhereValuesBehavior: {
     undefined: "ignore",

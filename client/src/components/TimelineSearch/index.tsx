@@ -69,7 +69,12 @@ export default function TimelineSearch(props: TimelineSearchProps) {
     inputRef.current?.focus({ preventScroll: true });
     setOpen(null);
     setDraft({ key: searchKey, text: "" });
-    onChange({ search: "", serviceLabel, orderBy: value.orderBy });
+    onChange((current) => ({
+      ...current,
+      search: "",
+      id: undefined,
+      serviceLabel,
+    }));
   }
 
   function filtersForInput(text: string): TimelineFilters {
@@ -78,6 +83,7 @@ export default function TimelineSearch(props: TimelineSearchProps) {
     return {
       ...parsed,
       orderBy: value.orderBy,
+      collectionId: parsed.id ? undefined : value.collectionId,
       serviceLabel: parsed.id
         ? undefined
         : (parsed.serviceLabel ?? value.serviceLabel),

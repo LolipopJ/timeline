@@ -29,9 +29,11 @@ function TimelineItem(props: TimelineItemProps) {
   const {
     item,
     displayedDateTime,
-    mutateTimelineItems,
+    onTimelineChanged,
     filters,
     onFiltersChange,
+    selected,
+    onToggleSelection,
     expanded,
     onItemExpandedChange,
     className,
@@ -119,9 +121,11 @@ function TimelineItem(props: TimelineItemProps) {
       <TimelineItemLabel
         item={item}
         displayedDateTime={displayedDateTime}
-        mutateTimelineItems={mutateTimelineItems}
+        onTimelineChanged={onTimelineChanged}
         filters={filters}
         onFiltersChange={onFiltersChange}
+        selected={selected}
+        onToggleSelection={onToggleSelection}
       />
       {element}
     </div>

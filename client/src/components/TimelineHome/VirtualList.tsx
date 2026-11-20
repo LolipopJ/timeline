@@ -68,11 +68,14 @@ export default function TimelineVirtualList({
   onReadingMonthChange,
   filters,
   onFiltersChange,
-  mutateTimelineItems,
+  onTimelineChanged,
+  selectedIds,
+  onToggleSelection,
 }: Pick<
   TimelineItemProps,
-  "filters" | "onFiltersChange" | "mutateTimelineItems"
+  "filters" | "onFiltersChange" | "onTimelineChanged" | "onToggleSelection"
 > & {
+  selectedIds?: ReadonlySet<string>;
   ref?: Ref<TimelineVirtualListHandle>;
   rows: TimelineRow[];
   toolbarRef: RefObject<HTMLDivElement | null>;
@@ -235,6 +238,7 @@ export default function TimelineVirtualList({
                       row.startsYear,
                       row.startsMonth,
                       expanded,
+                      selectedIds !== undefined,
                     ])}
                     heightCache={heightCache}
                     measureElement={measureRow}
@@ -258,9 +262,11 @@ export default function TimelineVirtualList({
                       id={row.item.id}
                       item={row.item}
                       displayedDateTime={filters.orderBy}
-                      mutateTimelineItems={mutateTimelineItems}
+                      onTimelineChanged={onTimelineChanged}
                       filters={filters}
                       onFiltersChange={onFiltersChange}
+                      selected={selectedIds?.has(row.item.id)}
+                      onToggleSelection={onToggleSelection}
                       expanded={expanded}
                       onItemExpandedChange={changeExpanded}
                       data-reading-month={row.month}

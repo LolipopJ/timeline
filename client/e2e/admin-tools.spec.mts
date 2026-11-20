@@ -1,6 +1,15 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
-import type { SyncRunDto, TimelineItemClient } from "@timeline/contracts";
+import type {
+  BatchTimelineItemsParams,
+  CollectionNodeDto,
+  CollectionTreeDto,
+  CreateCollectionParams,
+  ItemCollectionsDto,
+  MoveCollectionParams,
+  SyncRunDto,
+  TimelineItemClient,
+} from "@timeline/contracts";
 import { SyncServiceType } from "@timeline/contracts";
 
 import { readClientConfig } from "../config.mjs";
@@ -28,6 +37,8 @@ async function backend(page: Page) {
     failTimelinePage: null as number | null,
     multiPage: false,
     archiveItems: null as TimelineItemClient[] | null,
+    collections: [] as Omit<CollectionNodeDto, "itemCount">[],
+    memberships: new Map<string, string[]>(),
     logCount: 1,
     loginGate: null as Promise<void> | null,
     servicesGate: null as Promise<void> | null,
@@ -44,6 +55,7 @@ async function backend(page: Page) {
       serviceLabel: string | null;
       id: string | null;
       orderBy: string | null;
+      collectionId: string | null;
     }[],
   };
   await page.route("**/*", async (route) => {
@@ -57,10 +69,12 @@ async function backend(page: Page) {
         "/timeline-items",
         "/timeline-items/count",
         "/timeline-services",
+        "/timeline-collections",
         "/admin/sync",
         "/admin/logs",
       ].includes(path) &&
-      !/^\/timeline-items\/[^/]+$/.test(path)
+      !/^\/timeline-items\/[^/]+(?:\/collections)?$/.test(path) &&
+      !/^\/timeline-collections\/[^/]+\/parent$/.test(path)
     )
       return route.continue();
     state.requests.push({
@@ -72,6 +86,7 @@ async function backend(page: Page) {
       serviceLabel: url.searchParams.get("serviceLabel"),
       id: url.searchParams.get("id"),
       orderBy: url.searchParams.get("orderBy"),
+      collectionId: url.searchParams.get("collectionId"),
     });
     const headers = {
       "access-control-allow-origin": "http://127.0.0.1:3100",
@@ -79,6 +94,12 @@ async function backend(page: Page) {
       "access-control-allow-headers": "content-type",
       "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
       "cache-control": "private, no-store",
+      "access-control-expose-headers": "x-timeline-view",
+      ...(request.method() === "GET" &&
+      url.searchParams.get("view") === "admin" &&
+      !state.loggedIn
+        ? { "x-timeline-view": "public" }
+        : {}),
     };
     if (request.method() === "OPTIONS")
       return route.fulfill({ status: 204, headers });
@@ -103,11 +124,6 @@ async function backend(page: Page) {
             headers,
           });
     }
-    if (
-      ["PATCH", "DELETE"].includes(request.method()) &&
-      path.startsWith("/timeline-items/")
-    )
-      return route.fulfill({ json: {}, headers });
     if (path === "/login") {
       if (request.method() === "POST") {
         state.loggedIn = true;
@@ -202,16 +218,12 @@ async function backend(page: Page) {
       return route.fulfill({ json: { records }, headers });
     }
     const isAdmin = state.loggedIn && url.searchParams.get("view") !== "public";
-    if (path.endsWith("/count") && !state.archiveItems)
-      return route.fulfill({
-        json: state.multiPage ? (isAdmin ? 45 : 25) : isAdmin ? 2 : 1,
-        headers,
-      });
     const item = (id: string, secret: boolean) => ({
       id,
       content_id: id,
       sync_service_id: "feed",
       sync_service_type: SyncServiceType.FEED,
+      collectionLabels: [],
       title: id,
       content: `<p>${id} body</p>`,
       is_secret: secret,
@@ -229,28 +241,166 @@ async function backend(page: Page) {
           item(index ? `PRIVATE-${index}` : "PRIVATE", true),
         )
       : [item("PRIVATE", true)];
-    const allItems = state.archiveItems
-      ? state.archiveItems
-          .filter(
-            (item) =>
-              (isAdmin || !item.is_secret) &&
-              (!url.searchParams.has("id") ||
-                item.id === url.searchParams.get("id")) &&
-              (!url.searchParams.has("serviceLabel") ||
-                (item.label || item.sync_service_id) ===
-                  url.searchParams.get("serviceLabel")) &&
-              item.title?.includes(url.searchParams.get("search") ?? ""),
-          )
-          .sort((a, b) => {
-            const field =
-              url.searchParams.get("orderBy") === "updated_at"
-                ? "updated_at"
-                : "created_at";
-            return b[field].localeCompare(a[field]);
-          })
-      : isAdmin
-        ? [...privateItems, ...publicItems]
-        : publicItems;
+    const knownItems = state.archiveItems ?? [...privateItems, ...publicItems];
+    const visibleItems = knownItems.filter(
+      (item) => isAdmin || !item.is_secret,
+    );
+    const ancestors = (id: string) => {
+      const path: string[] = [];
+      for (
+        let node = state.collections.find((node) => node.id === id);
+        node;
+        node = state.collections.find(({ id }) => id === node?.parentId)
+      ) {
+        path.push(node.id);
+      }
+      return path;
+    };
+    const method = request.method();
+    const itemId = path.split("/")[2];
+    if (path === "/timeline-collections") {
+      if (method === "POST") {
+        const input: CreateCollectionParams = request.postDataJSON();
+        const node = { ...input, id: crypto.randomUUID() };
+        state.collections.push(node);
+        return route.fulfill({
+          status: 201,
+          json: { ...node, itemCount: 0 },
+          headers,
+        });
+      }
+      const counts = new Map<string, number>();
+      for (const { id } of visibleItems) {
+        const scoped = new Set(
+          (state.memberships.get(id) ?? []).flatMap(ancestors),
+        );
+        for (const collectionId of scoped) {
+          counts.set(collectionId, (counts.get(collectionId) ?? 0) + 1);
+        }
+      }
+      const nodes = state.collections
+        .map((node) => ({ ...node, itemCount: counts.get(node.id) ?? 0 }))
+        .filter(({ itemCount }) => isAdmin || itemCount > 0)
+        .sort(
+          (a, b) =>
+            b.itemCount - a.itemCount ||
+            a.name.localeCompare(b.name) ||
+            a.id.localeCompare(b.id),
+        );
+      return route.fulfill({
+        json: {
+          totalCount: visibleItems.length,
+          nodes,
+        } satisfies CollectionTreeDto,
+        headers,
+      });
+    }
+    if (path.startsWith("/timeline-collections/")) {
+      const { parentId }: MoveCollectionParams = request.postDataJSON();
+      const node = state.collections.find(({ id }) => id === itemId);
+      if (!node || (parentId && ancestors(parentId).includes(node.id))) {
+        return route.fulfill({
+          status: 400,
+          body: "不能将合集移到自身或后代下",
+          headers,
+        });
+      }
+      node.parentId = parentId;
+      return route.fulfill({ status: 204, headers });
+    }
+    if (path === "/timeline-items/batch" && method === "POST") {
+      const payload: BatchTimelineItemsParams = request.postDataJSON();
+      const { action, itemIds } = payload;
+      if (action === "delete") {
+        state.archiveItems = knownItems.filter(
+          ({ id }) => !itemIds.includes(id),
+        );
+      } else if (action === "make-private") {
+        state.archiveItems = knownItems.map((item) =>
+          itemIds.includes(item.id) ? { ...item, is_secret: true } : item,
+        );
+      } else {
+        const { collectionIds } = payload;
+        for (const id of itemIds) {
+          const memberships = state.memberships.get(id) ?? [];
+          state.memberships.set(
+            id,
+            action === "add-collections"
+              ? [...new Set([...memberships, ...collectionIds])]
+              : memberships.filter((membership) =>
+                  ancestors(membership).every(
+                    (parent) => !collectionIds.includes(parent),
+                  ),
+                ),
+          );
+        }
+      }
+      return route.fulfill({ status: 204, headers });
+    }
+    if (path.endsWith("/collections")) {
+      if (method === "PATCH") {
+        const { collectionIds }: ItemCollectionsDto = request.postDataJSON();
+        state.memberships.set(itemId, collectionIds);
+        return route.fulfill({ status: 204, headers });
+      }
+      return route.fulfill({
+        json: { collectionIds: state.memberships.get(itemId) ?? [] },
+        headers,
+      });
+    }
+    if (itemId && (method === "PATCH" || method === "DELETE")) {
+      state.archiveItems =
+        method === "DELETE"
+          ? knownItems.filter(({ id }) => id !== itemId)
+          : knownItems.map((item) =>
+              item.id === itemId
+                ? { ...item, is_secret: request.postDataJSON().is_secret }
+                : item,
+            );
+      return route.fulfill({ json: {}, headers });
+    }
+
+    const { searchParams } = url;
+    const idFilter = searchParams.get("id");
+    const collectionId = searchParams.get("collectionId");
+    const allItems = visibleItems
+      .filter((item) => {
+        if (state.archiveItems && idFilter) return item.id === idFilter;
+        const matchesSearch =
+          !state.archiveItems ||
+          ((!searchParams.has("serviceLabel") ||
+            (item.label || item.sync_service_id) ===
+              searchParams.get("serviceLabel")) &&
+            (item.title ?? "").includes(searchParams.get("search") ?? ""));
+        const matchesCollection =
+          !collectionId ||
+          (state.memberships.get(item.id) ?? []).some((id) =>
+            ancestors(id).includes(collectionId),
+          );
+        return matchesSearch && matchesCollection;
+      })
+      .map((item) => {
+        const direct = state.memberships.get(item.id) ?? [];
+        const leaves = direct.filter(
+          (id) =>
+            !direct.some(
+              (other) => other !== id && ancestors(other).includes(id),
+            ),
+        );
+        return {
+          ...item,
+          collectionLabels: state.collections
+            .filter(({ id }) => leaves.includes(id))
+            .map(({ id, name }) => ({ id, name })),
+        };
+      });
+    if (state.archiveItems) {
+      const field =
+        searchParams.get("orderBy") === "updated_at"
+          ? "updated_at"
+          : "created_at";
+      allItems.sort((a, b) => b[field].localeCompare(a[field]));
+    }
     if (path.endsWith("/count"))
       return route.fulfill({ json: allItems.length, headers });
     const pageIndex = Number(url.searchParams.get("page") ?? 0);
@@ -335,6 +485,7 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
     content_id: `${d.platform}:${d.kind}`,
     sync_service_id: d.label,
     sync_service_type: d.type,
+    collectionLabels: [],
     title: d.title,
     label: d.label,
     content: d.kind,
@@ -372,6 +523,7 @@ test("achievement cards and Steam portrait covers fit both themes and viewports"
     content_id: "400",
     sync_service_id: "Steam reviews",
     sync_service_type: SyncServiceType.STEAM_GAME_REVIEW,
+    collectionLabels: [],
     title: "推荐",
     content: "<p>Steam 评测正文</p>",
     attachments: [{ filename: "cover.jpg", url: STEAM_COVER_URL }],
@@ -553,6 +705,7 @@ const searchFixture = (): TimelineItemClient[] => [
     content_id: "travel",
     sync_service_id: "feed",
     sync_service_type: SyncServiceType.FEED,
+    collectionLabels: [],
     title: "旅行文章",
     content: "<p>旅行内容</p>",
     created_at: "2025-01-01T00:00:00Z",
@@ -564,6 +717,7 @@ const searchFixture = (): TimelineItemClient[] => [
     content_id: "reading",
     sync_service_id: "github",
     sync_service_type: SyncServiceType.FEED,
+    collectionLabels: [],
     title: "读书评论",
     created_at: "2026-02-01T00:00:00Z",
     updated_at: "2025-12-01T00:00:00Z",
@@ -574,12 +728,506 @@ const searchFixture = (): TimelineItemClient[] => [
     content_id: "secret",
     sync_service_id: "feed",
     sync_service_type: SyncServiceType.FEED,
+    collectionLabels: [],
     title: "私密旅行",
     created_at: "2024-03-01T00:00:00Z",
     updated_at: "2025-04-01T00:00:00Z",
     is_secret: true,
   },
 ];
+
+const collectionIds = {
+  travel: "ffc00000-0000-4000-8000-000000000001",
+  photo: "ffc00000-0000-4000-8000-000000000002",
+  street: "ffc00000-0000-4000-8000-000000000003",
+  japan: "ffc00000-0000-4000-8000-000000000004",
+  kyoto: "ffc00000-0000-4000-8000-000000000005",
+  private: "ffc00000-0000-4000-8000-000000000006",
+};
+
+async function chooseCollection(page: Page, name: string) {
+  await page.getByRole("button", { name: "筛选合集", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "筛选合集" })
+    .getByRole("button")
+    .filter({ has: page.getByText(name, { exact: true }) })
+    .click();
+}
+
+test("collections can be created and assigned across branches", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.archiveItems = [searchFixture()[0]];
+  state.collections = [
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+    { id: collectionIds.street, name: "街拍", parentId: collectionIds.photo },
+  ];
+  await page.goto("/");
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "同步" }).press("End");
+  await expect(panel.getByRole("tab", { name: "合集" })).toBeFocused();
+  for (const [parent, name] of [
+    ["全部", "旅行"],
+    ["旅行", "京都"],
+  ]) {
+    await panel
+      .getByRole("button", { name: "在" + parent + "下新建子合集" })
+      .click();
+    const input = panel.getByRole("textbox", { name: "合集名称" });
+    await expect(input).toBeFocused();
+    await input.fill(name);
+    await input.press("Enter");
+    await expect(panel.getByRole("group", { name, exact: true })).toBeVisible();
+  }
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+
+  async function editMembership() {
+    await page.getByRole("button", { name: "feed", exact: true }).click();
+    await page.getByRole("button", { name: "编辑合集" }).click();
+    return page.getByRole("dialog", { name: "编辑合集" });
+  }
+  const editor = await editMembership();
+  await editor.getByRole("checkbox", { name: "京都" }).check();
+  await editor.getByRole("checkbox", { name: "街拍" }).check();
+  await expect(editor.getByRole("checkbox", { name: "旅行" })).toBeChecked();
+  await expect(editor.getByRole("checkbox", { name: "摄影" })).toBeChecked();
+  await editor.getByRole("button", { name: "保存" }).click();
+  await expect(editor).toBeHidden();
+  const labels = page.getByRole("list", { name: "归属合集" });
+  await expect(labels.getByText("京都", { exact: true })).toBeVisible();
+  await expect(labels.getByText("街拍", { exact: true })).toBeVisible();
+  await expect(labels.getByText("旅行", { exact: true })).toHaveCount(0);
+
+  await editMembership();
+  await expect(editor.getByRole("checkbox", { name: "京都" })).toBeChecked();
+  await editor.getByRole("checkbox", { name: "旅行" }).uncheck();
+  await expect(
+    editor.getByRole("checkbox", { name: "京都" }),
+  ).not.toBeChecked();
+  await expect(editor.getByRole("checkbox", { name: "街拍" })).toBeChecked();
+  await editor.getByRole("button", { name: "取消", exact: true }).click();
+  await editMembership();
+  await expect(editor.getByRole("checkbox", { name: "京都" })).toBeChecked();
+  await editor.getByRole("checkbox", { name: "旅行" }).uncheck();
+  await editor.getByRole("button", { name: "保存" }).click();
+  await expect(editor).toBeHidden();
+  await expect(labels.getByText("京都", { exact: true })).toHaveCount(0);
+  await expect(labels.getByText("街拍", { exact: true })).toBeVisible();
+});
+
+test("timeline multiselect confirms bulk actions and updates only checked cards", async ({
+  page,
+}) => {
+  const [travel, reading, third] = searchFixture();
+  const state = await backend(page);
+  state.archiveItems = [
+    reading,
+    travel,
+    { ...third, title: "保留条目", is_secret: false },
+  ];
+  state.collections = [
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+    { id: collectionIds.travel, name: "旅行合集", parentId: null },
+  ];
+  state.memberships.set(travel.id, [collectionIds.travel]);
+  await page.goto("/");
+
+  const toolbar = page.getByRole("group", { name: "批量操作" });
+  const readingCard = page.locator(`[id="${reading.id}"]`);
+  const travelCard = page.locator(`[id="${travel.id}"]`);
+  async function selectPair() {
+    await readingCard
+      .getByRole("button", { name: "github", exact: true })
+      .click();
+    await readingCard
+      .getByRole("button", { name: "多选", exact: true })
+      .click();
+    await expect(readingCard.getByRole("checkbox")).toBeChecked();
+    await expect(
+      page.locator(".timeline-item").getByRole("checkbox"),
+    ).toHaveCount(3);
+    await travelCard.getByRole("checkbox").check();
+    await expect(toolbar.getByRole("status")).toHaveText("已选 2 项");
+  }
+
+  await selectPair();
+  await toolbar.getByRole("button", { name: "编辑合集" }).click();
+  const editor = page.getByRole("dialog", { name: "编辑合集" });
+  await editor.getByRole("checkbox", { name: "摄影" }).check();
+  await editor.getByRole("button", { name: "保存" }).click();
+  await expect(toolbar).toBeHidden();
+  await expect(readingCard.getByText("摄影", { exact: true })).toBeVisible();
+  await expect(travelCard.getByText("摄影", { exact: true })).toBeVisible();
+  await expect(travelCard.getByText("旅行合集", { exact: true })).toBeVisible();
+
+  await selectPair();
+  await toolbar.getByRole("button", { name: "编辑合集" }).click();
+  await editor.getByRole("radio", { name: "从合集移出" }).check();
+  await editor.getByRole("checkbox", { name: "摄影" }).check();
+  await editor.getByRole("button", { name: "保存" }).click();
+  await expect(readingCard.getByText("摄影", { exact: true })).toHaveCount(0);
+  await expect(travelCard.getByText("摄影", { exact: true })).toHaveCount(0);
+  await expect(travelCard.getByText("旅行合集", { exact: true })).toBeVisible();
+
+  await selectPair();
+  const makePrivate = toolbar.getByRole("button", { name: "设为私密" });
+  await makePrivate.click();
+  const privateDialog = page.getByRole("dialog", { name: "设为私密" });
+  await expect(
+    privateDialog.getByText("将选中的 2 个条目设为私密？"),
+  ).toBeVisible();
+  await privateDialog
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
+  expect(
+    state.requests.filter(({ path }) => path === "/timeline-items/batch"),
+  ).toHaveLength(2);
+  await makePrivate.click();
+  await privateDialog
+    .getByRole("button", { name: "确认", exact: true })
+    .click();
+  await expect(readingCard.getByText("私密", { exact: true })).toBeVisible();
+  await expect(travelCard.getByText("私密", { exact: true })).toBeVisible();
+
+  await selectPair();
+  await toolbar.getByRole("button", { name: "删除" }).click();
+  const deleteDialog = page.getByRole("dialog", { name: "删除" });
+  await expect(deleteDialog.getByText("删除选中的 2 个条目？")).toBeVisible();
+  await deleteDialog.getByRole("button", { name: "确认", exact: true }).click();
+  await expect(toolbar).toBeHidden();
+  await expect(readingCard).toHaveCount(0);
+  await expect(travelCard).toHaveCount(0);
+  const remainingCard = page.locator(`[id="${third.id}"]`);
+  await expect(
+    remainingCard.getByText("保留条目", { exact: true }),
+  ).toBeVisible();
+  await remainingCard
+    .getByRole("button", { name: "feed", exact: true })
+    .click();
+  await remainingCard
+    .getByRole("button", { name: "多选", exact: true })
+    .click();
+  await expect(toolbar).toBeVisible();
+  await showToolbarControls(page);
+  await page.getByRole("button", { name: "管理员模式" }).click();
+  await expect(toolbar).toBeHidden();
+  await expect(remainingCard.getByRole("checkbox")).toHaveCount(0);
+  await remainingCard
+    .getByRole("button", { name: "feed", exact: true })
+    .click();
+  await expect(
+    remainingCard.getByRole("button", { name: "多选", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("collection options show visible totals in descending sibling order", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [travel, reading, secret] = searchFixture();
+  state.archiveItems = [
+    travel,
+    reading,
+    secret,
+    { ...reading, id: crypto.randomUUID(), title: "未归类条目" },
+  ];
+  state.collections = [
+    { id: collectionIds.photo, name: "A 摄影", parentId: null },
+    { id: collectionIds.travel, name: "Z 旅行", parentId: null },
+    {
+      id: collectionIds.street,
+      name: "A 大阪",
+      parentId: collectionIds.travel,
+    },
+    { id: collectionIds.kyoto, name: "Z 京都", parentId: collectionIds.travel },
+    { id: collectionIds.private, name: "空合集", parentId: null },
+  ];
+  state.memberships.set(travel.id, [collectionIds.street, collectionIds.kyoto]);
+  state.memberships.set(reading.id, [collectionIds.photo]);
+  state.memberships.set(secret.id, [collectionIds.kyoto]);
+
+  await page.goto("/?search=" + encodeURIComponent("旅行"));
+  const filter = page.getByRole("button", { name: "筛选合集", exact: true });
+  const picker = page.getByRole("dialog", { name: "筛选合集" });
+  const options = picker.locator("button[aria-pressed]");
+  await filter.click();
+  await expect(options).toHaveText([
+    /^全部\s*4$/,
+    /^Z 旅行\s*2$/,
+    /^Z 京都\s*2$/,
+    /^A 大阪\s*1$/,
+    /^A 摄影\s*1$/,
+    /^空合集\s*0$/,
+  ]);
+  await picker.getByRole("button", { name: "关闭筛选合集" }).click();
+  await showToolbarControls(page);
+  await page.getByRole("button", { name: "管理员模式" }).click();
+  await filter.click();
+  await expect(options).toHaveText([
+    /^全部\s*3$/,
+    /^A 摄影\s*1$/,
+    /^Z 旅行\s*1$/,
+    /^A 大阪\s*1$/,
+    /^Z 京都\s*1$/,
+  ]);
+});
+
+test("collection selection can be shared and drops restricted data in guest preview", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const fixtures = searchFixture();
+  state.archiveItems = fixtures;
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行合集", parentId: null },
+    { id: collectionIds.kyoto, name: "京都", parentId: collectionIds.travel },
+    { id: collectionIds.private, name: "私人合集", parentId: null },
+  ];
+  state.memberships.set(fixtures[0].id, [collectionIds.kyoto]);
+  state.memberships.set(fixtures[2].id, [collectionIds.private]);
+  await page.goto(
+    "/?search=" + encodeURIComponent("旅行 type:feed") + "&orderBy=updated_at",
+  );
+  await chooseCollection(page, "旅行合集");
+  await expect(page).toHaveURL(
+    new RegExp("collectionId=" + collectionIds.travel),
+  );
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  await page.goForward();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "筛选合集" })).toContainText(
+    "旅行合集",
+  );
+  await expect(page.getByRole("textbox", { name: "搜索时间线" })).toHaveValue(
+    "旅行",
+  );
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
+  expect(
+    state.requests.filter(({ path }) => path === "/timeline-items").at(-1),
+  ).toMatchObject({
+    collectionId: collectionIds.travel,
+    serviceLabel: "feed",
+    orderBy: "updated_at",
+    page: "0",
+  });
+
+  await page.goto(
+    "/?search=" +
+      encodeURIComponent("id:" + fixtures[1].id) +
+      "&collectionId=" +
+      collectionIds.private,
+  );
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  expect(
+    state.requests.filter(({ path }) => path === "/timeline-items").at(-1)
+      ?.collectionId,
+  ).toBeNull();
+  await chooseCollection(page, "私人合集");
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  expect(new URL(page.url()).searchParams.has("search")).toBe(false);
+
+  await showToolbarControls(page);
+  await page.getByRole("button", { name: "管理员模式" }).click();
+  await expect(page).toHaveURL(
+    new RegExp("collectionId=" + collectionIds.private),
+  );
+  await expect(page.getByText("合集不可用", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("私人合集", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "管理面板", exact: true }),
+  ).toHaveCount(0);
+  await chooseCollection(page, "全部");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+});
+
+test("moving a collection updates its subtree and the active filter", async ({
+  page,
+}, testInfo) => {
+  const state = await backend(page);
+  const [item] = searchFixture();
+  state.archiveItems = [item];
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+    { id: collectionIds.japan, name: "日本", parentId: collectionIds.travel },
+    { id: collectionIds.kyoto, name: "京都", parentId: collectionIds.japan },
+  ];
+  state.memberships.set(item.id, [collectionIds.kyoto]);
+  await page.goto("/?collectionId=" + collectionIds.travel);
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "合集" }).click();
+  await expect(
+    panel
+      .getByRole("group", { name: "全部", exact: true })
+      .getByText("1", { exact: true }),
+  ).toBeVisible();
+  const moveButton = panel.getByRole("button", { name: "移动日本到…" });
+  await moveButton.press("Enter");
+  const destination = panel.getByRole("combobox", { name: "目标父级" });
+  await expect(destination).toBeFocused();
+  await destination.selectOption(collectionIds.kyoto);
+  await panel.getByRole("button", { name: "移动", exact: true }).click();
+  await expect(panel.getByRole("alert")).toHaveText(
+    "不能将合集移到自身或后代下",
+  );
+
+  if (testInfo.project.name === "mobile") {
+    await destination.selectOption(collectionIds.photo);
+    await panel
+      .getByRole("button", { name: "移动", exact: true })
+      .press("Enter");
+  } else {
+    await panel.getByRole("button", { name: "取消", exact: true }).click();
+    await panel
+      .getByRole("group", { name: "日本", exact: true })
+      .dragTo(panel.getByRole("group", { name: "摄影", exact: true }));
+  }
+  await expect(panel.getByRole("status")).toHaveText("已移动合集。");
+  const photoBranch = panel.getByRole("listitem").filter({
+    has: page.getByRole("group", { name: "摄影", exact: true }),
+  });
+  await expect(
+    photoBranch.getByRole("group", { name: "京都", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel
+      .getByRole("group", { name: "摄影", exact: true })
+      .getByText("1", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel
+      .getByRole("group", { name: "旅行", exact: true })
+      .getByText("0", { exact: true }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await chooseCollection(page, "摄影");
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+});
+
+test("an admin timeline fallback removes cached private collections after session expiry", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const fixtures = searchFixture();
+  state.archiveItems = fixtures;
+  state.collections = [
+    { id: collectionIds.private, name: "会话私密合集", parentId: null },
+  ];
+  state.memberships.set(fixtures[2].id, [collectionIds.private]);
+
+  await page.goto("/?collectionId=" + collectionIds.private);
+  const filter = page.getByRole("button", { name: "筛选合集", exact: true });
+  await expect(filter).toContainText("会话私密合集");
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  state.loggedIn = false;
+
+  const [fallback] = await Promise.all([
+    page.waitForResponse((response) => {
+      const { pathname, searchParams } = new URL(response.url());
+      return (
+        pathname === "/timeline-items" &&
+        searchParams.get("view") === "admin" &&
+        searchParams.get("search") === "公开查询"
+      );
+    }),
+    page.getByRole("textbox", { name: "搜索时间线" }).fill("公开查询"),
+  ]);
+  expect(fallback.status()).toBe(200);
+  expect(fallback.headers()["x-timeline-view"]).toBe("public");
+  await expect(filter).toContainText("合集不可用");
+  await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "管理面板", exact: true }),
+  ).toHaveCount(0);
+  await expect(page).toHaveURL(
+    new RegExp("collectionId=" + collectionIds.private),
+  );
+  await filter.click();
+  const picker = page.getByRole("dialog", { name: "筛选合集" });
+  await expect(
+    picker.getByRole("button").filter({
+      has: page.getByText("全部", { exact: true }),
+    }),
+  ).toBeVisible();
+  await expect(picker.getByText("会话私密合集", { exact: true })).toHaveCount(
+    0,
+  );
+});
+
+test("returning to a collection reloads its cached second page after a move", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [item] = searchFixture();
+  const oldest = { ...item, title: "第二页的京都条目" };
+  const newer = Array.from({ length: 20 }, (_, index) => ({
+    ...item,
+    id: "eac00000-0000-4000-8000-" + String(index).padStart(12, "0"),
+    title: "旅行条目 " + index,
+    created_at: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+  }));
+  state.archiveItems = [...newer, oldest];
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+    { id: collectionIds.kyoto, name: "京都", parentId: collectionIds.travel },
+  ];
+  for (const entry of newer)
+    state.memberships.set(entry.id, [collectionIds.travel]);
+  state.memberships.set(oldest.id, [collectionIds.kyoto]);
+
+  await page.goto("/?collectionId=" + collectionIds.travel);
+  await page
+    .getByRole("button", { name: "加载更多", exact: true })
+    .scrollIntoViewIfNeeded();
+  await expect(page.getByText(oldest.title, { exact: true })).toBeVisible();
+  await chooseCollection(page, "全部");
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "合集" }).click();
+  await panel.getByRole("button", { name: "移动京都到…" }).click();
+  await panel
+    .getByRole("combobox", { name: "目标父级" })
+    .selectOption(collectionIds.photo);
+  await panel.getByRole("button", { name: "移动", exact: true }).click();
+  await expect(panel.getByRole("status")).toHaveText("已移动合集。");
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+
+  const [secondPage] = await Promise.all([
+    page.waitForResponse(
+      (response) => {
+        const { pathname, searchParams } = new URL(response.url());
+        return (
+          pathname === "/timeline-items" &&
+          searchParams.get("collectionId") === collectionIds.travel &&
+          searchParams.get("page") === "1"
+        );
+      },
+      { timeout: 4_000 },
+    ),
+    page.goBack(),
+  ]);
+  expect(secondPage.status()).toBe(200);
+  expect(await secondPage.json()).toEqual([]);
+  await expect(page.getByText(oldest.title, { exact: true })).toHaveCount(0);
+});
 
 test("search offers a unique label and shows entries from all its sources", async ({
   page,
@@ -760,7 +1408,9 @@ test("structured conditions are removable, exclusive, and invalid syntax stays s
     state.requests.filter((r) => r.path === "/timeline-items").at(-1)
       ?.serviceLabel,
   ).toBeNull();
-  expect(await page.evaluate(() => window.history.length)).toBe(historyLength);
+  expect(await page.evaluate(() => window.history.length)).toBe(
+    historyLength + 1,
+  );
   await expect(input).toHaveValue("id:hello type:unknown");
   await expect(
     page.getByRole("status").filter({ hasText: "没有找到相关内容" }),
@@ -1292,6 +1942,7 @@ test("the timeline mounts only nearby cards after loading several pages", async 
       content_id: `virtual-${index}`,
       sync_service_id: "feed",
       sync_service_type: SyncServiceType.FEED,
+      collectionLabels: [],
       title: `Virtual entry ${index + 1}`,
       content: "Timeline content\n\n".repeat(
         index === 0 ? 80 : (index % 5) + 1,
@@ -1361,6 +2012,7 @@ test("remounted image rows reserve their previously measured height", async ({
     content_id: `image-row-${index}`,
     sync_service_id: "github",
     sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+    collectionLabels: [],
     title: `Image row ${index}`,
     content:
       index === 0
@@ -1532,6 +2184,7 @@ test("remounted GitHub comments start collapsed without a height transition", as
     content_id: `comment-${index}`,
     sync_service_id: "github",
     sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+    collectionLabels: [],
     title: `Comment ${index}`,
     content: `# Comment ${index}\n\n${"Long comment paragraph.\n\n".repeat(80)}`,
     created_at: new Date(Date.UTC(2026, 1, 20 - index)).toISOString(),
@@ -1635,6 +2288,7 @@ test("archive joins pages within a month and follows the sorted reading position
     content_id: title,
     sync_service_id: "feed",
     sync_service_type: SyncServiceType.FEED,
+    collectionLabels: [],
     title,
     content:
       '[链接](https://example.com)\n\n> 引用\n\n<pre><code><span class="pl-c">代码</span></code></pre>',
@@ -1655,6 +2309,7 @@ test("archive joins pages within a month and follows the sorted reading position
       ...item(coverName, "2025-12-27T11:45:00Z"),
       sync_service_id: "video",
       sync_service_type: SyncServiceType.BILIBILI_WORK,
+      collectionLabels: [],
       url: "https://example.com/cover",
       attachments: [
         {
@@ -1668,6 +2323,7 @@ test("archive joins pages within a month and follows the sorted reading position
       ...item("Short comment", "2025-12-26T11:45:00Z"),
       sync_service_id: "github",
       sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+      collectionLabels: [],
       content: "Short comment body",
     },
     ...Array.from({ length: 21 }, (_, index) => ({
@@ -1680,6 +2336,7 @@ test("archive joins pages within a month and follows the sorted reading position
     {
       ...item("Final short comment", "2025-11-28T11:45:00Z"),
       sync_service_type: SyncServiceType.GITHUB_ISSUE_COMMENT,
+      collectionLabels: [],
       content: "Final short comment body",
     },
   ];
@@ -2123,6 +2780,7 @@ test("album navigation supports touch, visible indicators, and source actions", 
       content_id: "album",
       sync_service_id: "album",
       sync_service_type: SyncServiceType.QZONE_TALK,
+      collectionLabels: [],
       label: "相册",
       title: "Album",
       content: "",
@@ -2272,6 +2930,10 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
   await expect(panel.getByText("运行 historical-run")).toBeVisible();
   await panel.getByRole("tab", { name: "同步", exact: true }).focus();
   await page.keyboard.press("End");
+  await expect(
+    panel.getByRole("tab", { name: "合集", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
   await expect(
     panel.getByRole("tab", { name: "日志", exact: true }),
   ).toBeFocused();

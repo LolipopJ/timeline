@@ -1,4 +1,10 @@
-import { mdiClose, mdiLogout, mdiSync, mdiTextBoxOutline } from "@mdi/js";
+import {
+  mdiClose,
+  mdiFolderMultipleOutline,
+  mdiLogout,
+  mdiSync,
+  mdiTextBoxOutline,
+} from "@mdi/js";
 import Icon from "@mdi/react";
 import type {
   SyncAcceptedDto,
@@ -16,6 +22,7 @@ import usePageVisible from "@/hooks/usePageVisible";
 import { fetcherGET, fetcherPOST } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 
+import AdminCollections from "./collections";
 import AdminLogs from "./logs";
 
 const REASONS: Record<SyncUnavailableReason, string> = {
@@ -31,8 +38,13 @@ const STATUS = {
   failed: "执行失败",
 };
 const TRIGGER = { manual: "手动", scheduled: "定时", startup: "启动" };
-const TABS = ["sync", "logs"] as const;
+const TABS = ["sync", "logs", "collections"] as const;
 type Tab = (typeof TABS)[number];
+const TAB_CONTENT = {
+  sync: { name: "同步", icon: mdiSync },
+  logs: { name: "日志", icon: mdiTextBoxOutline },
+  collections: { name: "合集", icon: mdiFolderMultipleOutline },
+};
 const buttonClass =
   "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-control px-3 py-2 text-sm font-medium whitespace-nowrap motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50";
 const headerActionClass = `${buttonClass} hover:bg-background-lighter active:bg-background`;
@@ -92,11 +104,11 @@ function SyncRun({ run }: { run: SyncRunDto }) {
 export default function AdminConsole({
   open,
   onClose,
-  onSyncCompleted,
+  onTimelineChanged,
 }: {
   open: boolean;
   onClose: () => void;
-  onSyncCompleted: () => void;
+  onTimelineChanged: () => void;
 }) {
   const { canManageItems, logout, isLoggingOut } = useContext(GlobalContext);
   const visible = usePageVisible();
@@ -105,6 +117,7 @@ export default function AdminConsole({
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
     sync: null,
     logs: null,
+    collections: null,
   });
   const active = useRef(false);
   const latestCompletedRun = useRef<string | null | undefined>(undefined);
@@ -136,7 +149,7 @@ export default function AdminConsole({
       const latest = completedRunIds[0] ?? null;
       latestCompletedRun.current = latest;
       if (previous !== undefined && latest !== null && latest !== previous) {
-        onSyncCompleted();
+        onTimelineChanged();
       }
     },
   });
@@ -234,21 +247,22 @@ export default function AdminConsole({
           <div
             role="tablist"
             aria-label="管理工具"
-            className="grid grid-cols-2 gap-1 rounded-xl bg-background p-1"
+            className="grid grid-cols-3 gap-1 rounded-xl bg-background p-1"
             onKeyDown={(event) => {
               if (
                 !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
               )
                 return;
               event.preventDefault();
+              const offset = event.key === "ArrowLeft" ? -1 : 1;
               const next =
                 event.key === "Home"
-                  ? "sync"
+                  ? TABS[0]
                   : event.key === "End"
-                    ? "logs"
-                    : tab === "sync"
-                      ? "logs"
-                      : "sync";
+                    ? TABS[TABS.length - 1]
+                    : TABS[
+                        (TABS.indexOf(tab) + TABS.length + offset) % TABS.length
+                      ];
               selectTab(next);
               tabRefs.current[next]?.focus();
             }}
@@ -269,11 +283,11 @@ export default function AdminConsole({
                 onClick={() => selectTab(value)}
               >
                 <Icon
-                  path={value === "sync" ? mdiSync : mdiTextBoxOutline}
+                  path={TAB_CONTENT[value].icon}
                   size={0.75}
                   aria-hidden="true"
                 />
-                {value === "sync" ? "同步" : "日志"}
+                {TAB_CONTENT[value].name}
               </button>
             ))}
           </div>
@@ -397,6 +411,18 @@ export default function AdminConsole({
           hidden={tab !== "logs"}
         >
           <AdminLogs active={canRead && tab === "logs"} />
+        </section>
+        <section
+          role="tabpanel"
+          id="admin-collections-panel"
+          aria-labelledby="admin-collections-tab"
+          tabIndex={0}
+          className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          hidden={tab !== "collections"}
+        >
+          {canRead && tab === "collections" && (
+            <AdminCollections onChanged={onTimelineChanged} />
+          )}
         </section>
       </div>
     </dialog>

@@ -8,6 +8,7 @@ export interface TimelineSearchConditions {
 }
 
 export interface TimelineFilters extends TimelineSearchConditions {
+  collectionId?: string;
   orderBy: NonNullable<GetTimelineItemsParams["orderBy"]>;
 }
 
@@ -72,6 +73,9 @@ export function getTimelineRequestParams(
     ...(filters.id
       ? { id: filters.id }
       : {
+          ...(filters.collectionId
+            ? { collectionId: filters.collectionId }
+            : {}),
           ...(filters.search ? { search: filters.search } : {}),
           ...(filters.serviceLabel
             ? { serviceLabel: filters.serviceLabel }
@@ -86,6 +90,7 @@ export function areTimelineFiltersEqual(
 ) {
   return (
     left.orderBy === right.orderBy &&
+    left.collectionId === right.collectionId &&
     serializeTimelineSearch(left) === serializeTimelineSearch(right)
   );
 }
@@ -97,6 +102,8 @@ export function getTimelineFilterUrl(
   const params = new URLSearchParams();
   const search = serializeTimelineSearch(filters);
   if (search) params.set("search", search);
+  if (!filters.id && filters.collectionId)
+    params.set("collectionId", filters.collectionId);
   if (filters.orderBy !== "created_at") params.set("orderBy", filters.orderBy);
   const query = params.toString();
   return query ? `${pathname}?${query}` : pathname;

@@ -111,19 +111,72 @@ mock.module("./database/controller/timeline-item", () => ({
   getTimelineServiceIds: async (options: FindManyOptions<TimelineItem>) => [
     ...new Set(selectItems(options).map((item) => item.sync_service_id)),
   ],
+  applyTimelineItemBatch: mock(() => "saved"),
   updateTimelineItem: async () => ({}),
   softDeleteTimelineItem: async () => ({}),
   restoreSoftDeletedTimelineItem: async () => ({}),
+}));
+const branch = { id: "root", name: "主题", parent_id: null };
+const publicCollection = {
+  id: "public",
+  name: "公开分支",
+  parent_id: branch.id,
+};
+const privateCollection = {
+  id: "private",
+  name: "私密分支",
+  parent_id: branch.id,
+};
+const emptyCollection = { id: "empty", name: "空合集", parent_id: null };
+const collections = [
+  branch,
+  publicCollection,
+  privateCollection,
+  emptyCollection,
+];
+mock.module("./database/controller/timeline-collection", () => ({
+  getTimelineCollectionTree: async (
+    where: FindManyOptions<TimelineItem>["where"],
+    includeEmpty: boolean,
+  ) => {
+    const visible = selectItems({ where });
+    const visibleBranches = [
+      ...(visible.includes(items[0]) ? [publicCollection] : []),
+      ...(visible.includes(items[1]) ? [privateCollection] : []),
+    ];
+    return {
+      totalCount: visible.length,
+      nodes: [
+        { ...branch, item_count: visibleBranches.length },
+        ...visibleBranches.map((node) => ({ ...node, item_count: 1 })),
+        ...(includeEmpty ? [{ ...emptyCollection, item_count: 0 }] : []),
+      ],
+    };
+  },
+  getTimelineCollectionLabels: async () => new Map(),
+  createTimelineCollection: mock(() => {}),
+  moveTimelineCollection: mock(() => {}),
+  getItemCollectionIds: mock(() => {}),
+  saveItemCollectionIds: mock(() => {}),
 }));
 mock.module("./utils/file", () => ({ checkupDir: () => {} }));
 process.env["FULL_SYNC"] = "true";
 const { app } = await import("./index");
 const token = new JWT("test-only-secret").sign({ username: "test" });
-const request = (path: string, method = "GET", loggedIn = true) =>
+const request = (
+  path: string,
+  method = "GET",
+  loggedIn = true,
+  payload?: object,
+) =>
   app.handle(
     new Request(`http://localhost${path}`, {
       method,
-      headers: loggedIn ? { Cookie: `access-token=${token}` } : {},
+      headers: {
+        ...(loggedIn ? { Cookie: `access-token=${token}` } : {}),
+        ...(payload ? { "content-type": "application/json" } : {}),
+      },
+      body: payload ? JSON.stringify(payload) : undefined,
     }),
   );
 afterAll(async () => {
@@ -143,6 +196,124 @@ test("management endpoints enforce real authentication before side effects", asy
   expect(logs.headers.get("cache-control")).toBe("private, no-store");
   expect(executions).toHaveLength(0);
   expect(coordinator.snapshot().current).toBeNull();
+});
+
+test("collection administration checks the session on every protected route", async () => {
+  for (const [path, method] of [
+    ["/timeline-collections", "POST"],
+    ["/timeline-collections/", "POST"],
+    ["/timeline-collections/" + secretItemId + "/parent", "PATCH"],
+    ["/timeline-items/" + secretItemId + "/collections", "GET"],
+    ["/timeline-items/" + secretItemId + "/collections", "PATCH"],
+  ]) {
+    const response = await request(path, method, false);
+    expect(response.status).toBe(adminEnabled ? 401 : 400);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  }
+});
+
+test("timeline batch operations require an enabled administrator session", async () => {
+  const response = await request("/timeline-items/batch", "POST", false, {
+    action: "delete",
+    itemIds: [secretItemId],
+  });
+  expect(response.status).toBe(adminEnabled ? 401 : 400);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+});
+
+test.skipIf(!adminEnabled)(
+  "timeline batch operations reject malformed selections",
+  async () => {
+    for (const payload of [
+      { action: "delete", itemIds: [] },
+      { action: "make-private", itemIds: ["invalid-id"] },
+      { action: "add-collections", itemIds: [secretItemId], collectionIds: [] },
+      { action: "unknown-action", itemIds: [secretItemId] },
+    ]) {
+      const response = await request(
+        "/timeline-items/batch",
+        "POST",
+        true,
+        payload,
+      );
+      expect(response.status).toBe(400);
+    }
+  },
+);
+
+test("collection tree applies the effective timeline view", async () => {
+  for (const [view, loggedIn] of [
+    ["admin", false],
+    ["public", true],
+    ["admin", true],
+  ] as const) {
+    const response = await request(
+      "/timeline-collections?view=" + view,
+      "GET",
+      loggedIn,
+    );
+    const isFullTree = adminEnabled && loggedIn && view === "admin";
+    const counts = new Map([
+      [branch.id, isFullTree ? 2 : 1],
+      [emptyCollection.id, 0],
+    ]);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await response.json()).toEqual({
+      totalCount: isFullTree ? 12 : 4,
+      nodes: (isFullTree ? collections : [branch, publicCollection]).map(
+        ({ id, name, parent_id }) => ({
+          id,
+          name,
+          parentId: parent_id,
+          itemCount: counts.get(id) ?? 1,
+        }),
+      ),
+    });
+  }
+});
+
+test("timeline reads identify admin view fallback without expiring public previews", async () => {
+  for (const path of [
+    "/timeline-items",
+    "/timeline-items/count",
+    "/timeline-services",
+    "/timeline-collections",
+  ]) {
+    for (const [view, cookie, downgraded] of [
+      ["admin", "", true],
+      ["admin", "expired-token", true],
+      ["admin", token, !adminEnabled],
+      ["public", token, false],
+    ] as const) {
+      const response = await app.handle(
+        new Request("http://localhost" + path + "?view=" + view, {
+          headers: {
+            Origin: "http://localhost:3100",
+            ...(cookie ? { Cookie: "access-token=" + cookie } : {}),
+          },
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-timeline-view")).toBe(
+        downgraded ? "public" : null,
+      );
+      if (downgraded) {
+        expect(response.headers.get("access-control-expose-headers")).toContain(
+          "x-timeline-view",
+        );
+      }
+    }
+  }
+});
+
+test("malformed collection IDs are rejected for both items and counts", async () => {
+  for (const suffix of ["", "/count"]) {
+    const response = await request(
+      "/timeline-items" + suffix + "?collectionId=invalid",
+    );
+    expect(response.status).toBe(400);
+  }
 });
 
 test("public reads filter before search, paging and counts, and admin view never grants permission", async () => {

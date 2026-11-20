@@ -85,7 +85,7 @@ export default function RootLayout({
   };
 
   useEffect(() => {
-    // 服务端返回登录态已过期（401）时，清除本地登录状态
+    // 登录态失效时清除本地会话，时间线会随视角丢弃旧缓存。
     const onAuthExpired = () => {
       void mutateLoginStatus({ isLoggedIn: false }, false);
       setGuestPreview(false);

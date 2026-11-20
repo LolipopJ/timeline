@@ -1,8 +1,11 @@
 import type {
+  CollectionLabelDto,
+  CollectionNodeDto,
   TimelineItemAttachmentDto,
   TimelineItemClient,
 } from "@timeline/contracts";
 
+import type { TimelineCollection } from "../database/entity/timeline-collection";
 import type TimelineItem from "../database/entity/timeline-item";
 import type { TimelineItemAttachment } from "../types/config";
 
@@ -25,9 +28,20 @@ const serializeAttachment = (
       : toIsoString(attachment.updated_at),
 });
 
+export const serializeTimelineCollection = (
+  { id, name, parent_id }: TimelineCollection,
+  itemCount: number,
+): CollectionNodeDto => ({
+  id,
+  name,
+  parentId: parent_id,
+  itemCount,
+});
+
 export const serializeTimelineItem = (
   item: TimelineItem,
   label?: string,
+  collectionLabels: CollectionLabelDto[] = [],
 ): TimelineItemClient => {
   if (!item.id)
     throw new Error("Cannot serialize an unpersisted timeline item");
@@ -38,6 +52,7 @@ export const serializeTimelineItem = (
     sync_service_type: item.sync_service_type,
     content_id: item.content_id,
     label,
+    collectionLabels,
     title: item.title,
     content: item.content,
     url: item.url,

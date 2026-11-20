@@ -19,7 +19,7 @@ import {
   useState,
 } from "react";
 import type { KeyLoader } from "swr";
-import useSWR, { SWRConfig } from "swr";
+import useSWR, { SWRConfig, useSWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 
 import AdminConsole from "@/components/AdminConsole";
@@ -27,7 +27,9 @@ import TimelineArchive, {
   TimelineArchiveError,
   TimelineArchiveLoading,
 } from "@/components/TimelineArchive";
+import CollectionFilter from "@/components/TimelineCollections/filter";
 import TimelineCurrentDate from "@/components/TimelineCurrentDate";
+import BatchActions from "@/components/TimelineHome/BatchActions";
 import TimelineVirtualList, {
   getTimelineRows,
   type TimelineVirtualListHandle,
@@ -35,6 +37,7 @@ import TimelineVirtualList, {
 import TimelineSearch from "@/components/TimelineSearch";
 import TimelineTools from "@/components/TimelineTools";
 import GlobalContext from "@/contexts/GlobalContext";
+import { timelineCollectionsKey } from "@/hooks/useTimelineCollections";
 import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 import {
@@ -77,19 +80,22 @@ export default function TimelineHome() {
       revalidateOnFocus: false,
     },
   );
-  const filters = useMemo<TimelineFilters>(
-    () => ({
-      ...parseTimelineSearch(
-        urlSearchParams.get("search") ?? "",
-        serviceLabels ?? [],
-      ),
+  const filters = useMemo<TimelineFilters>(() => {
+    const search = parseTimelineSearch(
+      urlSearchParams.get("search") ?? "",
+      serviceLabels ?? [],
+    );
+    return {
+      ...search,
+      collectionId: search.id
+        ? undefined
+        : urlSearchParams.get("collectionId")?.toLowerCase() || undefined,
       orderBy:
         urlSearchParams.get("orderBy") === "updated_at"
           ? "updated_at"
           : "created_at",
-    }),
-    [urlSearchParams, serviceLabels],
-  );
+    };
+  }, [urlSearchParams, serviceLabels]);
   const changeFilters = useCallback<TimelineFiltersChange>(
     (update, mode) => {
       const key = urlSearchParams.toString();
@@ -110,7 +116,7 @@ export default function TimelineHome() {
           return;
         pendingFilters.current = undefined;
         if (!areTimelineFiltersEqual(filters, next))
-          router.replace(getTimelineFilterUrl(pathname, next), {
+          router.push(getTimelineFilterUrl(pathname, next), {
             scroll: false,
           });
       };
@@ -173,6 +179,7 @@ function TimelineData({
   previewFocusRef: React.RefObject<boolean>;
 }) {
   const { view, canManageItems } = useContext(GlobalContext);
+  const { mutate } = useSWRConfig();
   const [adminOpen, setAdminOpen] = useState(false);
   const closeAdmin = useCallback(() => setAdminOpen(false), []);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -200,6 +207,35 @@ function TimelineData({
       getSearchParamsFromObject({ ...getTimelineRequestParams(filters), view }),
     [filters, view],
   );
+  const [selection, setSelection] = useState<{
+    query: string;
+    ids: Set<string>;
+  }>();
+  const selectedIds =
+    canManageItems && selection?.query === query ? selection.ids : undefined;
+  if (selection && !selectedIds) setSelection(undefined);
+
+  const toggleSelection = useCallback(
+    (id: string) => {
+      setSelection((previous) => {
+        const ids = new Set(
+          previous?.query === query ? previous.ids : undefined,
+        );
+        if (ids.has(id)) ids.delete(id);
+        else ids.add(id);
+        return { query, ids };
+      });
+    },
+    [query],
+  );
+
+  const exitSelection = useCallback(() => {
+    setSelection(undefined);
+    requestAnimationFrame(() =>
+      timelineRef.current?.focus({ preventScroll: true }),
+    );
+  }, []);
+
   const orderBy = filters.orderBy;
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -218,7 +254,14 @@ function TimelineData({
     size,
     setSize: setQueryTimelineItemsPage,
     error: queryTimelineItemsError,
-  } = useSWRInfinite<TimelineItemClient[]>(getTimelineItemsKey, fetcherGET);
+  } = useSWRInfinite<TimelineItemClient[]>(
+    getTimelineItemsKey,
+    fetcherGET,
+    // 快速返回时也要重验证分页，避免复用移动前的请求结果。
+    filters.collectionId
+      ? { revalidateAll: true, dedupingInterval: 0 }
+      : undefined,
+  );
   const isFullyLoaded =
     !queryTimelineItemsError &&
     !isLoadingTimelineItems &&
@@ -248,7 +291,8 @@ function TimelineData({
 
   const refreshTimeline = useCallback(() => {
     void mutateTimelineItems();
-  }, [mutateTimelineItems]);
+    void mutate(timelineCollectionsKey(view));
+  }, [mutate, mutateTimelineItems, view]);
 
   const loadMore = useCallback(() => {
     void setQueryTimelineItemsPage(size + 1);
@@ -283,6 +327,18 @@ function TimelineData({
       <TimelineArchive
         ref={timelineRef}
         toolbarRef={toolbarRef}
+        actions={
+          selectedIds && (
+            <BatchActions
+              selectedIds={selectedIds}
+              onExit={exitSelection}
+              onSaved={() => {
+                refreshTimeline();
+                exitSelection();
+              }}
+            />
+          )
+        }
         toolbar={
           <>
             <TimelineCurrentDate
@@ -295,6 +351,16 @@ function TimelineData({
               serviceLabels={serviceLabels}
               onChange={onFiltersChange}
               className="min-w-0 flex-1"
+            />
+            <CollectionFilter
+              selection={filters.collectionId}
+              onSelect={(collectionId) =>
+                onFiltersChange((current) => ({
+                  ...current,
+                  collectionId,
+                  id: collectionId ? undefined : current.id,
+                }))
+              }
             />
             <TimelineTools previewFocusRef={previewFocusRef} />
           </>
@@ -367,7 +433,9 @@ function TimelineData({
             onReadingMonthChange={reportReadingMonth}
             filters={filters}
             onFiltersChange={onFiltersChange}
-            mutateTimelineItems={mutateTimelineItems}
+            onTimelineChanged={refreshTimeline}
+            selectedIds={selectedIds}
+            onToggleSelection={toggleSelection}
           />
         ) : null}
       </TimelineArchive>
@@ -413,7 +481,7 @@ function TimelineData({
         <AdminConsole
           open={adminOpen}
           onClose={closeAdmin}
-          onSyncCompleted={refreshTimeline}
+          onTimelineChanged={refreshTimeline}
         />
       )}
     </>

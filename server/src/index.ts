@@ -3,32 +3,50 @@ import "reflect-metadata";
 import { cors } from "@elysiajs/cors";
 import { staticPlugin } from "@elysiajs/static";
 import type {
+  BatchTimelineItemsParams,
   CountTimelineItemsParams,
+  CreateCollectionParams,
   GetTimelineItemsParams,
+  ItemCollectionsDto,
   LoginParams,
   LoginStatus,
+  MoveCollectionParams,
   UpdateTimelineItemParams,
 } from "@timeline/contracts";
-import { SyncServiceType } from "@timeline/contracts";
+import { SyncServiceType, TIMELINE_VIEW_HEADER } from "@timeline/contracts";
 import { Elysia, StatusMap } from "elysia";
 import type { Cookie, ElysiaCookie } from "elysia/cookies";
 import fs from "fs";
 import schedule from "node-schedule";
+import { z } from "zod";
 
 import { getAdminLogs, getAdminSyncStatus, requestAdminSync } from "./admin";
-import { serializeTimelineItem } from "./api/serializers";
+import {
+  serializeTimelineCollection,
+  serializeTimelineItem,
+} from "./api/serializers";
 import {
   getTimelineServiceLabel,
   getTimelineServiceLabels,
   getTimelineWhere,
-  isTimelineItemId,
+  hasAdminTimelineView,
   isTimelineServiceLabel,
   isTimelineView,
+  isUuid,
 } from "./api/timeline-query";
 import config from "./config";
 import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import { destroyDatabase, initializeDatabase } from "./database";
 import {
+  createTimelineCollection,
+  getItemCollectionIds,
+  getTimelineCollectionLabels,
+  getTimelineCollectionTree,
+  moveTimelineCollection,
+  saveItemCollectionIds,
+} from "./database/controller/timeline-collection";
+import {
+  applyTimelineItemBatch,
   countTimelineItems,
   getTimelineItems,
   getTimelineServiceIds,
@@ -55,6 +73,8 @@ const ALLOWED_ORIGIN = config.allowedOrigin ?? true;
 
 const SYNC_INTERVAL = config.syncInterval ?? "*/30 * * * *";
 
+const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
+
 // 启动时设置环境变量 `FULL_SYNC=true` 可触发一次全量同步，后续定时任务仍按增量同步执行
 const IS_FULL_SYNC_ON_START = process.env["FULL_SYNC"] === "true";
 
@@ -69,7 +89,43 @@ interface SensitiveRoute {
   pattern: RegExp;
 }
 
+const ITEM_COLLECTIONS_ROUTE = /^\/timeline-items\/[^/]+\/collections$/;
+const BATCH_ITEMS_ROUTE = /^\/timeline-items\/batch$/;
+const TIMELINE_VIEW_ROUTES = new Set([
+  "/timeline-items",
+  "/timeline-items/count",
+  "/timeline-services",
+  "/timeline-collections",
+]);
+
+const createCollectionSchema = z.object({
+  name: z.string().trim().min(1),
+  parentId: z.guid().nullable(),
+}) satisfies z.ZodType<CreateCollectionParams>;
+const moveCollectionSchema = z.object({
+  parentId: z.guid().nullable(),
+}) satisfies z.ZodType<MoveCollectionParams>;
+const itemCollectionsSchema = z.object({
+  collectionIds: z.array(z.guid()),
+}) satisfies z.ZodType<ItemCollectionsDto>;
+
+const batchItemIdsSchema = z.array(z.guid()).min(1);
+const batchTimelineItemsSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("make-private"), itemIds: batchItemIdsSchema }),
+  z.object({ action: z.literal("delete"), itemIds: batchItemIdsSchema }),
+  z.object({
+    action: z.enum(["add-collections", "remove-collections"]),
+    itemIds: batchItemIdsSchema,
+    collectionIds: z.array(z.guid()).min(1),
+  }),
+]) satisfies z.ZodType<BatchTimelineItemsParams>;
+
 const SENSITIVE_ROUTES: SensitiveRoute[] = [
+  { method: "POST", pattern: BATCH_ITEMS_ROUTE },
+  { method: "POST", pattern: /^\/timeline-collections$/ },
+  { method: "PATCH", pattern: /^\/timeline-collections\/[^/]+\/parent$/ },
+  { method: "GET", pattern: ITEM_COLLECTIONS_ROUTE },
+  { method: "PATCH", pattern: ITEM_COLLECTIONS_ROUTE },
   { method: "GET", pattern: /^\/admin\/sync$/ },
   { method: "POST", pattern: /^\/admin\/sync$/ },
   { method: "GET", pattern: /^\/admin\/logs$/ },
@@ -87,7 +143,7 @@ const isSensitiveRoute = (method: string, path: string) =>
 
 const COOKIE_OPTIONS: Partial<ElysiaCookie> = {
   httpOnly: true,
-  ...(process.env.NODE_ENV === "development"
+  ...(IS_DEVELOPMENT
     ? { sameSite: "none", secure: true }
     : { sameSite: "strict" }),
 };
@@ -208,6 +264,7 @@ export const app = new Elysia()
     cors({
       origin: ALLOWED_ORIGIN,
       credentials: true,
+      exposeHeaders: [TIMELINE_VIEW_HEADER],
     }),
   )
   .use(
@@ -239,19 +296,27 @@ export const app = new Elysia()
     );
   })
   .onBeforeHandle(
-    ({ path, request, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
+    ({
+      path,
+      request,
+      query,
+      cookie: { [COOKIE_TOKEN_KEY]: cookieToken },
+      set,
+    }) => {
+      const routePath = path.replace(/\/$/, "");
       if (
-        path.startsWith("/admin/") ||
-        path === "/timeline-items" ||
-        path === "/timeline-items/count" ||
-        path === "/timeline-services" ||
-        path === "/login"
+        routePath.startsWith("/admin/") ||
+        TIMELINE_VIEW_ROUTES.has(routePath) ||
+        routePath.startsWith("/timeline-collections/") ||
+        ITEM_COLLECTIONS_ROUTE.test(routePath) ||
+        BATCH_ITEMS_ROUTE.test(routePath) ||
+        routePath === "/login"
       ) {
         set.headers["cache-control"] = "private, no-store";
       }
+      let isCookieValidated = false;
       if (IS_ADMIN_ENABLED) {
         // 服务端启用了管理员功能，在正式处理请求前校验登录态 Cookie
-        let isCookieValidated = false;
         if (cookieToken.value) {
           try {
             // 若校验通过，后续路由可以通过 cookieToken.value 值是否为空来判断是否已登录
@@ -267,7 +332,7 @@ export const app = new Elysia()
         }
 
         // 如登录态 Cookie 校验不通过，拦截敏感操作路由
-        if (!isCookieValidated && isSensitiveRoute(request.method, path)) {
+        if (!isCookieValidated && isSensitiveRoute(request.method, routePath)) {
           set.status = 401;
           return "您未登录，或登录态已过期";
         }
@@ -278,11 +343,19 @@ export const app = new Elysia()
           ((path === "/login" || path === "/logout") &&
             request.method !== "GET") ||
           // 拦截敏感操作路由
-          isSensitiveRoute(request.method, path)
+          isSensitiveRoute(request.method, routePath)
         ) {
           set.status = 400;
           return "管理员功能未启用";
         }
+      }
+      if (
+        !isCookieValidated &&
+        query["view"] === "admin" &&
+        request.method === "GET" &&
+        TIMELINE_VIEW_ROUTES.has(routePath)
+      ) {
+        set.headers[TIMELINE_VIEW_HEADER] = "public";
       }
     },
   )
@@ -306,6 +379,106 @@ export const app = new Elysia()
   })
   //#region 时间线接口
   .get(
+    "/timeline-collections",
+    async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
+      const { view } = query;
+      if (!isTimelineView(view)) {
+        set.status = 400;
+        return "时间线视角参数无效";
+      }
+
+      const isAdmin = Boolean(IS_ADMIN_ENABLED && cookieToken.value);
+      const { totalCount, nodes } = await getTimelineCollectionTree(
+        getTimelineWhere({ view }, isAdmin),
+        hasAdminTimelineView(view, isAdmin),
+      );
+      return {
+        totalCount,
+        nodes: nodes.map((node) =>
+          serializeTimelineCollection(node, node.item_count),
+        ),
+      };
+    },
+  )
+  .post("/timeline-collections", async ({ body, set }) => {
+    const input = createCollectionSchema.safeParse(body);
+    if (!input.success) {
+      set.status = 400;
+      return "合集名称或父级无效";
+    }
+
+    const node = await createTimelineCollection(
+      input.data.name,
+      input.data.parentId,
+    );
+    if (!node) {
+      set.status = 400;
+      return "父级合集不存在";
+    }
+
+    set.status = 201;
+    return serializeTimelineCollection(node, 0);
+  })
+  .patch(
+    "/timeline-collections/:id/parent",
+    async ({ params: { id }, body, set }) => {
+      const input = moveCollectionSchema.safeParse(body);
+      if (!isUuid(id) || !input.success) {
+        set.status = 400;
+        return "合集 ID 或父级无效";
+      }
+
+      const result = await moveTimelineCollection(id, input.data.parentId);
+      if (result === "missing-collection") {
+        set.status = 404;
+        return "合集不存在";
+      }
+      if (result === "missing-parent" || result === "cycle") {
+        set.status = 400;
+        return result === "cycle"
+          ? "不能将合集移到自身或后代下"
+          : "父级合集不存在";
+      }
+
+      set.status = 204;
+    },
+  )
+  .get("/timeline-items/:id/collections", async ({ params: { id }, set }) => {
+    if (!isUuid(id)) {
+      set.status = 400;
+      return "时间线 ID 参数无效";
+    }
+
+    const collectionIds = await getItemCollectionIds(id);
+    if (collectionIds === null) {
+      set.status = 404;
+      return "条目不存在";
+    }
+    return { collectionIds } satisfies ItemCollectionsDto;
+  })
+  .patch(
+    "/timeline-items/:id/collections",
+    async ({ params: { id }, body, set }) => {
+      const input = itemCollectionsSchema.safeParse(body);
+      if (!isUuid(id) || !input.success) {
+        set.status = 400;
+        return "条目 ID 或合集归属无效";
+      }
+
+      const result = await saveItemCollectionIds(id, input.data.collectionIds);
+      if (result === "missing-item") {
+        set.status = 404;
+        return "条目不存在";
+      }
+      if (result === "invalid-collection") {
+        set.status = 400;
+        return "所选合集不存在";
+      }
+
+      set.status = 204;
+    },
+  )
+  .get(
     "/timeline-services",
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       const { view } = query;
@@ -327,6 +500,7 @@ export const app = new Elysia()
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
       const {
         id,
+        collectionId,
         page = "0",
         limit = "20",
         orderBy = "created_at",
@@ -336,9 +510,13 @@ export const app = new Elysia()
         view,
       } = query as GetTimelineItemsParams;
 
-      if (!isTimelineItemId(id)) {
+      if (id !== undefined && !isUuid(id)) {
         set.status = 400;
         return "时间线 ID 参数无效";
+      }
+      if (collectionId !== undefined && !isUuid(collectionId)) {
+        set.status = 400;
+        return "合集 ID 参数无效";
       }
       if (!isTimelineServiceLabel(serviceLabel)) {
         set.status = 400;
@@ -370,33 +548,42 @@ export const app = new Elysia()
         Boolean(IS_ADMIN_ENABLED && cookieToken.value),
       );
 
-      const timelineItems = await getTimelineItems({
-        take,
-        skip,
-        where,
-        ...(orderBy === "updated_at"
-          ? { order: { updated_at: "DESC" } }
-          : { order: { created_at: "DESC" } }),
-      });
-
-      const resolvedTimelineItems = timelineItems.map((item) =>
+      const timelineItems = await getTimelineItems(
+        {
+          take,
+          skip,
+          where,
+          order:
+            orderBy === "updated_at"
+              ? { updated_at: "DESC", id: "DESC" }
+              : { created_at: "DESC", id: "DESC" },
+        },
+        id === undefined ? collectionId : undefined,
+      );
+      const labelsByItem = await getTimelineCollectionLabels(
+        timelineItems.map(({ id }) => id).filter((id) => id !== undefined),
+      );
+      return timelineItems.map((item) =>
         serializeTimelineItem(
           item,
           getTimelineServiceLabel(item.sync_service_id),
+          item.id ? labelsByItem.get(item.id) : undefined,
         ),
       );
-
-      return resolvedTimelineItems;
     },
   )
   .get(
     "/timeline-items/count",
     async ({ query, cookie: { [COOKIE_TOKEN_KEY]: cookieToken }, set }) => {
-      const { id, serviceLabel, serviceType, search, view } =
+      const { id, collectionId, serviceLabel, serviceType, search, view } =
         query as CountTimelineItemsParams;
-      if (!isTimelineItemId(id)) {
+      if (id !== undefined && !isUuid(id)) {
         set.status = 400;
         return "时间线 ID 参数无效";
+      }
+      if (collectionId !== undefined && !isUuid(collectionId)) {
+        set.status = 400;
+        return "合集 ID 参数无效";
       }
       if (!isTimelineServiceLabel(serviceLabel)) {
         set.status = 400;
@@ -410,10 +597,31 @@ export const app = new Elysia()
         { id, serviceLabel, serviceType, search, view },
         Boolean(IS_ADMIN_ENABLED && cookieToken.value),
       );
-      const timelineItemsCount = await countTimelineItems({ where });
-      return timelineItemsCount;
+      return countTimelineItems(
+        { where },
+        id === undefined ? collectionId : undefined,
+      );
     },
   )
+  .post("/timeline-items/batch", async ({ body, set }) => {
+    const input = batchTimelineItemsSchema.safeParse(body);
+    if (!input.success) {
+      set.status = 400;
+      return "批量操作或所选条目无效";
+    }
+
+    const result = await applyTimelineItemBatch(input.data);
+    if (result === "missing-item") {
+      set.status = 404;
+      return "部分所选条目已不可用，请退出多选后重试";
+    }
+    if (result === "invalid-collection") {
+      set.status = 400;
+      return "所选合集不存在";
+    }
+
+    set.status = 204;
+  })
   .patch("/timeline-items/:id", async ({ params, body }) => {
     const { id } = params;
     const { is_secret } = body as UpdateTimelineItemParams;
@@ -583,7 +791,13 @@ export const app = new Elysia()
       }
 
       if (!IS_FULL_SYNC_ON_START) {
-        syncCoordinator.start("startup");
+        if (IS_DEVELOPMENT) {
+          logger.info(
+            "Development mode is active: skipping initial startup sync.",
+          );
+        } else {
+          syncCoordinator.start("startup");
+        }
       }
     } catch (error) {
       // `exitWithError` 内部会终止进程，不会继续执行后续语句

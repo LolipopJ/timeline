@@ -1,10 +1,12 @@
 import {
   mdiBookmarkMultiple,
+  mdiCheckboxMultipleMarkedOutline,
   mdiCommentProcessing,
   mdiCommentText,
   mdiEyeOffOutline,
   mdiEyeOutline,
   mdiFilterOutline,
+  mdiFolderMultipleOutline,
   mdiLinkVariant,
   mdiOpenInNew,
   mdiRssBox,
@@ -22,9 +24,9 @@ import type {
 } from "@timeline/contracts";
 import { SyncServiceType } from "@timeline/contracts";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { SWRInfiniteKeyedMutator } from "swr/infinite";
 
 import message from "@/components/Message";
+import CollectionEditor from "@/components/TimelineCollections/editor";
 import GlobalContext from "@/contexts/GlobalContext";
 import { fetcherDELETE, fetcherPATCH } from "@/services/axios";
 import {
@@ -35,11 +37,13 @@ import {
 
 export interface TimelineItemLabelProps {
   item: TimelineItemClient;
-  mutateTimelineItems: SWRInfiniteKeyedMutator<TimelineItemClient[][]>;
+  onTimelineChanged: () => void;
   displayedDateTime?: GetTimelineItemsParams["orderBy"];
   className?: string;
   filters: TimelineFilters;
   onFiltersChange: TimelineFiltersChange;
+  selected?: boolean;
+  onToggleSelection: (id: string) => void;
 }
 
 const LABEL_ICON_PATH: Partial<Record<SyncServiceType, string>> = {
@@ -84,6 +88,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const {
     item: {
       id,
+      title,
       sync_service_id,
       sync_service_type,
       created_at,
@@ -91,17 +96,22 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       label,
       url,
       is_secret,
+      collectionLabels,
     },
     displayedDateTime = "created_at",
-    mutateTimelineItems,
+    onTimelineChanged,
     filters,
     onFiltersChange,
+    selected,
+    onToggleSelection,
     className = "",
     ...rest
   } = props;
   const { lastVisitDate, canManageItems } = useContext(GlobalContext);
+  const showItemActions = canManageItems && selected === undefined;
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editingCollections, setEditingCollections] = useState(false);
   const [confirmingAction, setConfirmingAction] = useState<ItemAction | null>(
     null,
   );
@@ -147,14 +157,6 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     }
   }
 
-  const updateTimelineItemsCache = (
-    updater: (data: TimelineItemClient[]) => TimelineItemClient[],
-  ) => {
-    mutateTimelineItems((pages) => pages?.map((page) => updater(page)), {
-      revalidate: false,
-    });
-  };
-
   async function confirmAction() {
     const action = confirmingAction;
     if (!action || submitting || !canManageItems) return;
@@ -165,18 +167,14 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       if (action === "delete") {
         await fetcherDELETE(`/timeline-items/${id}`);
         message.success("已删除");
-        updateTimelineItemsCache((items) => items.filter((it) => it.id !== id));
-        return;
+      } else {
+        const nextIsSecret = !is_secret;
+        await fetcherPATCH(`/timeline-items/${id}`, {
+          is_secret: nextIsSecret,
+        });
+        message.success(nextIsSecret ? "已设为私密" : "已设为公开");
       }
-
-      const nextIsSecret = !is_secret;
-      await fetcherPATCH(`/timeline-items/${id}`, { is_secret: nextIsSecret });
-      message.success(nextIsSecret ? "已设为私密" : "已设为公开");
-      updateTimelineItemsCache((items) =>
-        items.map((it) =>
-          it.id === id ? { ...it, is_secret: nextIsSecret } : it,
-        ),
-      );
+      onTimelineChanged();
     } catch (error) {
       message.error(String(error));
     } finally {
@@ -194,7 +192,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
     {
       action: "delete",
       icon: mdiTrashCanOutline,
-      label: "删除",
+      label: "删除条目",
       prompt: "删除该条目？",
     },
   ] as const;
@@ -208,6 +206,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
   const displayedDate =
     displayedDateTime === "updated_at" ? updatedAt : createdAt;
 
+  const displayedDateText = formatDateTime(displayedDate);
   const isNewlyCreated = lastVisitDate && lastVisitDate < createdAt;
   const isNewlyUpdated = lastVisitDate && lastVisitDate < updatedAt;
 
@@ -243,7 +242,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           (hasUpdated ? `\n最后更新于：${updatedAtString}` : "")
         }
       >
-        {formatDateTime(displayedDate)}
+        {displayedDateText}
       </time>
       <div
         ref={menuRef}
@@ -318,7 +317,47 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
                 只看当前类型
               </button>
             </li>
-            {canManageItems &&
+            {showItemActions && (
+              <li>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    closeMenu();
+                    onToggleSelection(id);
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter disabled:opacity-60"
+                >
+                  <Icon
+                    path={mdiCheckboxMultipleMarkedOutline}
+                    size={0.7}
+                    aria-hidden="true"
+                  />
+                  多选
+                </button>
+              </li>
+            )}
+            {showItemActions && (
+              <li>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    closeMenu();
+                    setEditingCollections(true);
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left whitespace-nowrap text-foreground hover:bg-background-lighter disabled:opacity-60"
+                >
+                  <Icon
+                    path={mdiFolderMultipleOutline}
+                    size={0.7}
+                    aria-hidden="true"
+                  />
+                  编辑合集
+                </button>
+              </li>
+            )}
+            {showItemActions &&
               actions.map(({ action, icon, label, prompt }) => (
                 <li key={action}>
                   {confirmingAction === action ? (
@@ -364,6 +403,36 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           </ul>
         </div>
       </div>
+      {canManageItems && selected !== undefined && (
+        <label className="grid size-8 shrink-0 cursor-pointer place-items-center">
+          <input
+            type="checkbox"
+            aria-label={`选择条目：${title || `${label || sync_service_id} ${displayedDateText}`}`}
+            checked={selected}
+            className="size-5 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            onChange={() => onToggleSelection(id)}
+          />
+        </label>
+      )}
+      {collectionLabels.length > 0 && (
+        <ul aria-label="归属合集" className="flex min-w-0 flex-wrap gap-1">
+          {collectionLabels.map(({ id, name }) => (
+            <li
+              key={id}
+              className="rounded-sm border border-binding bg-background-lighter px-1.5 py-0.5 text-xs wrap-anywhere text-foreground-dark"
+            >
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canManageItems && editingCollections && (
+        <CollectionEditor
+          itemId={id}
+          onClose={() => setEditingCollections(false)}
+          onSaved={onTimelineChanged}
+        />
+      )}
       {is_secret && (
         <span className="rounded-sm bg-background-lighter px-1.5 text-xs text-warning">
           私密

@@ -1,8 +1,13 @@
+import { TIMELINE_VIEW_HEADER } from "@timeline/contracts";
 import axios from "axios";
 
 import clientConfig from "@/config";
 
 export const AUTH_EXPIRED_EVENT = "auth-expired";
+
+const notifyAuthExpired = () => {
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+};
 
 export const instance = axios.create({
   timeout: 3000,
@@ -11,10 +16,15 @@ export const instance = axios.create({
 });
 
 instance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.headers[TIMELINE_VIEW_HEADER] === "public") {
+      notifyAuthExpired();
+    }
+    return response;
+  },
   (error) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      notifyAuthExpired();
     }
     return Promise.reject(error);
   },

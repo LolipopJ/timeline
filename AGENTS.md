@@ -61,7 +61,7 @@ openspec/                      规格及变更规划
 - `client` 是公开构建输入，修改后需重新构建。管理员凭据、JWT 密钥、数据库密码和平台令牌填入 `server`，登录会话保留在服务端运行目录。
 - 配置字段分别由 `client/config.mjs` 和 `server/src/types/config.ts` 的校验规则定义。修改时同步维护 `config.example.yaml` 与配置指南。
 - PostgreSQL 数据库需要手动创建。开发模式在配置的数据库名称后追加 `_dev`；当前 TypeORM 数据源使用 `synchronize: true`。数据库验证使用开发库，不要用生产库做检查，也不要自行引入兼容旧 schema 的迁移层。
-- 服务端启动会连接数据库、创建运行目录并立即触发同步，随后按 `syncInterval` 调度。`FULL_SYNC=true` 会先执行全量同步；仅为检查文档或类型时不要启动服务端。
+- 服务端启动会连接数据库、创建运行目录并按 `syncInterval` 调度，非开发模式下会立即触发一次初始同步（开发模式 `NODE_ENV=development` 会跳过初始同步，保留 `syncInterval` 定时调度）。`FULL_SYNC=true` 会先执行全量同步；仅为检查文档或类型时不要启动服务端。
 - 运行目录通过 `server/src/constants/index.ts` 定位到 `server/.static` 和 `server/.temporary`，不依赖启动工作目录。部署及修改路径逻辑时保留已有媒体、缓存和会话数据；这些目录不应提交到 Git。
 - 服务端依赖目标平台的 `ffmpeg-static` 处理视频。部署保持 workspace 相对布局及依赖链接，不能把其他平台安装的 ffmpeg 二进制直接复制使用。
 

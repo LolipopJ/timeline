@@ -28,7 +28,15 @@
 
 需要自动修复时，使用对应的 `lint:client:fix`、`lint:server:fix` 或 `lint:contracts:fix`。也可在 `client/` 或 `server/` 目录运行各自的 `bun run dev`。
 
+开发模式（`NODE_ENV=development`）下启动服务端时，会跳过启动时的初始同步，保留按 `syncInterval` 调度的定时同步与管理后台手动同步。如需在启动时强制执行一次全量同步，可设置 `FULL_SYNC=true`。
+
 仓库协作与变更验证规则见 [AGENTS.md](../AGENTS.md)。
+
+## 管理员批量接口
+
+`POST /timeline-items/batch` 使用管理员的 `access-token` Cookie。请求体传入非空的条目 UUID 数组 `itemIds` 和操作名 `action`。`make-private` 将条目设为私密，`delete` 软删除条目。`add-collections` 和 `remove-collections` 还需传入非空的 `collectionIds`。移除归属时包括所选合集的所有后代。
+
+整批操作在一个事务中执行。成功返回 `204`，无效输入或不存在的合集返回 `400`，任一所选条目不可编辑时返回 `404`。
 
 ## 游戏成就采集
 
@@ -52,4 +60,4 @@ server/.venv/bin/python -m unittest discover -s server/python -p "test_*.py"
 
 `requirements.txt` 固定 Xbox 库和 HTTP 代理支持，Python 不新增包管理器锁文件。首次 OAuth 授权参见[配置指南](configuration.md#xbox)。
 
-在 `server/` 运行 `bun test src/sync/achievement.test.ts src/sync/psn.test.ts src/sync/xbox.test.ts src/sync/steam-achievement.test.ts`。数据库回归使用开发库，PowerShell 先设置 `$env:NODE_ENV = "development"`，再执行 `bun test src/database/game-achievement.test.ts`；该用例只创建并清理带随机测试标识的记录，不启动服务端同步。浏览器回归在根目录先执行 `bun run build:client`，再执行 `node node_modules/@playwright/test/cli.js test`。
+在 `server/` 运行 `bun test src/sync/achievement.test.ts src/sync/psn.test.ts src/sync/xbox.test.ts src/sync/steam-achievement.test.ts`。数据库回归使用开发库，PowerShell 先设置 `$env:NODE_ENV = "development"`，再执行 `bun test src/database/game-achievement.test.ts`；该用例只创建并清理带随机测试标识的记录，不启动服务端同步。合集回归在同样的开发模式下运行 `bun test src/database/timeline-collections.test.ts`，使用开发配置中的管理员会话检查真实 HTTP 接口，并清理带随机标识的测试记录。浏览器回归在根目录先执行 `bun run build:client`，再执行 `node node_modules/@playwright/test/cli.js test`。

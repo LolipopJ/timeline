@@ -41,10 +41,14 @@ export const isTimelineView = (
 ): view is TimelineView | undefined =>
   view === undefined || view === "public" || view === "admin";
 
-export const isTimelineItemId = (id: unknown): id is string | undefined =>
-  id === undefined ||
-  (typeof id === "string" &&
-    /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id));
+export const isUuid = (id: unknown): id is string =>
+  typeof id === "string" &&
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id);
+
+export const hasAdminTimelineView = (
+  view: TimelineView | undefined,
+  isAdmin: boolean,
+) => isAdmin && view !== "public";
 
 export const getTimelineWhere = (
   { id, serviceLabel, serviceType, search, view }: CountTimelineItemsParams,
@@ -57,7 +61,7 @@ export const getTimelineWhere = (
       ? {}
       : { sync_service_id: In(getServiceIdsForLabel(serviceLabel)) }),
     ...(serviceType === undefined ? {} : { sync_service_type: serviceType }),
-    ...(isAdmin && view !== "public" ? {} : { is_secret: false }),
+    ...(hasAdminTimelineView(view, isAdmin) ? {} : { is_secret: false }),
   };
   return search
     ? [
