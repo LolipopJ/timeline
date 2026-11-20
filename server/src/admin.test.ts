@@ -148,6 +148,9 @@ mock.module("./database/controller/timeline-collection", () => ({
     ];
     return {
       totalCount: visible.length,
+      uncategorizedCount: visible.filter(
+        (item) => item !== items[0] && item !== items[1],
+      ).length,
       nodes: [
         { ...branch, item_count: visibleBranches.length },
         ...visibleBranches.map((node) => ({ ...node, item_count: 1 })),
@@ -331,6 +334,7 @@ test("collection tree applies the effective timeline view", async () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(await response.json()).toEqual({
       totalCount: isFullTree ? 12 : 4,
+      uncategorizedCount: isFullTree ? 10 : 3,
       nodes: (isFullTree ? collections : [branch, publicCollection]).map(
         ({ id, name, parent_id }) => ({
           id,
@@ -383,6 +387,10 @@ test("malformed collection IDs are rejected for both items and counts", async ()
       "/timeline-items" + suffix + "?collectionId=invalid",
     );
     expect(response.status).toBe(400);
+    const uncategorized = await request(
+      "/timeline-items" + suffix + "?collectionId=uncategorized",
+    );
+    expect(uncategorized.status).toBe(200);
   }
 });
 

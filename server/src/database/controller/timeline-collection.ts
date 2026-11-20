@@ -28,6 +28,7 @@ export const getTimelineCollectionTree = async (
   const [tree] = await dataSource.query<
     {
       totalCount: number;
+      uncategorizedCount: number;
       nodes: (TimelineCollection & { item_count: number })[];
     }[]
   >(
@@ -51,6 +52,13 @@ export const getTimelineCollectionTree = async (
        GROUP BY collection.id
      )
      SELECT to_jsonb((SELECT COUNT(*) FROM visible_items)) AS "totalCount",
+            to_jsonb((
+              SELECT COUNT(*) FROM visible_items item
+              WHERE NOT EXISTS (
+                SELECT 1 FROM timeline_item_collection membership
+                WHERE membership.timeline_item_id = item.id
+              )
+            )) AS "uncategorizedCount",
             COALESCE(
               jsonb_agg(collection_counts ORDER BY item_count DESC, name, id),
               '[]'::jsonb

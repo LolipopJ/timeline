@@ -1,4 +1,5 @@
 import type { BatchTimelineItemsParams } from "@timeline/contracts";
+import { UNCATEGORIZED_COLLECTION_ID } from "@timeline/contracts";
 import type { FindManyOptions, FindOptionsWhere } from "typeorm";
 import { Any, Raw } from "typeorm";
 
@@ -77,7 +78,14 @@ const getTimelineQuery = (
     .getRepository(TimelineItem)
     .createQueryBuilder("item")
     .setFindOptions(options);
-  if (collectionId !== undefined) {
+  if (collectionId === UNCATEGORIZED_COLLECTION_ID) {
+    query.andWhere(
+      `NOT EXISTS (
+         SELECT 1 FROM timeline_item_collection membership
+         WHERE membership.timeline_item_id = item.id
+       )`,
+    );
+  } else if (collectionId !== undefined) {
     query
       .addCommonTableExpression(
         `SELECT id FROM timeline_collection WHERE id = :collectionId

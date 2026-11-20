@@ -20,6 +20,7 @@ const nodeSchema = labelSchema.extend({ parentId: z.guid().nullable() });
 const countSchema = z.number().int().nonnegative();
 const treeSchema = z.object({
   totalCount: countSchema,
+  uncategorizedCount: countSchema,
   nodes: z.array(nodeSchema.extend({ itemCount: countSchema })),
 });
 const membershipSchema = z.object({ collectionIds: z.array(z.guid()) });
@@ -205,8 +206,14 @@ databaseTest(
         ["admin", false],
         ["admin", true],
       ] as const) {
-        const { totalCount, nodes } = await collectionTree(view, loggedIn);
+        const { totalCount, uncategorizedCount, nodes } = await collectionTree(
+          view,
+          loggedIn,
+        );
         expect(totalCount).toBe(await count("view=" + view, loggedIn));
+        expect(uncategorizedCount).toBe(
+          await count("view=" + view + "&collectionId=uncategorized", loggedIn),
+        );
         const ownNodes = nodes.filter(({ id }) => created.includes(id));
         const counts = new Map(
           ownNodes.map(({ id, itemCount }) => [id, itemCount]),
@@ -249,6 +256,10 @@ databaseTest(
       ]);
       expect(await list(travel + "&page=2&limit=1")).toHaveLength(0);
       expect(await count(query + "&collectionId=" + kyoto)).toBe(1);
+      expect(
+        (await list(query + "&collectionId=uncategorized")).map(({ id }) => id),
+      ).toEqual([uncategorized]);
+      expect(await count(query + "&collectionId=uncategorized")).toBe(1);
 
       for (const id of [privateRoot, randomUUID()]) {
         const scoped = query + "&collectionId=" + id;
@@ -486,6 +497,42 @@ databaseTest(
       expect(delFresh.status).toBe(204);
       expect([204, 400]).toContain(batchFresh.status);
       expect(await directIds(parentOnly)).toEqual([newRoot]);
+
+      // Uncategorized counts and queries respect item visibility and disappear when categorized.
+      const secretUncategorized = await seedItem(
+        "matching secret uncategorized",
+        8,
+        service,
+        true,
+      );
+      const beforePublic = (await collectionTree("public")).uncategorizedCount;
+      const beforeAdmin = (await collectionTree("admin")).uncategorizedCount;
+      expect(beforeAdmin).toBeGreaterThan(beforePublic);
+      expect(
+        (
+          await list(
+            "view=public&serviceLabel=" +
+              service +
+              "&search=matching&collectionId=uncategorized",
+          )
+        ).map(({ id }) => id),
+      ).toEqual([uncategorized]);
+      expect(
+        (
+          await list(
+            "view=admin&serviceLabel=" +
+              service +
+              "&search=matching&collectionId=uncategorized",
+          )
+        ).map(({ id }) => id),
+      ).toEqual([secretUncategorized, uncategorized]);
+      expect((await save(secretUncategorized, [newRoot])).status).toBe(204);
+      expect((await collectionTree("admin")).uncategorizedCount).toBe(
+        beforeAdmin - 1,
+      );
+      expect((await collectionTree("public")).uncategorizedCount).toBe(
+        beforePublic,
+      );
     } finally {
       try {
         await items.delete({ sync_service_id: In([service, otherService]) });

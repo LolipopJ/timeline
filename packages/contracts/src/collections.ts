@@ -1,3 +1,5 @@
+export const UNCATEGORIZED_COLLECTION_ID = "uncategorized";
+
 export interface CollectionLabelDto {
   id: string;
   name: string;
@@ -10,6 +12,7 @@ export interface CollectionNodeDto extends CollectionLabelDto {
 
 export interface CollectionTreeDto {
   totalCount: number;
+  uncategorizedCount: number;
   nodes: CollectionNodeDto[];
 }
 

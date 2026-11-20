@@ -2,6 +2,7 @@ import type {
   CountTimelineItemsParams,
   TimelineView,
 } from "@timeline/contracts";
+import { UNCATEGORIZED_COLLECTION_ID } from "@timeline/contracts";
 import type { FindOptionsWhere } from "typeorm";
 import { ILike, In } from "typeorm";
 
@@ -44,6 +45,9 @@ export const isTimelineView = (
 export const isUuid = (id: unknown): id is string =>
   typeof id === "string" &&
   /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id);
+
+export const isCollectionFilterId = (id: unknown): id is string =>
+  id === UNCATEGORIZED_COLLECTION_ID || isUuid(id);
 
 export const hasAdminTimelineView = (
   view: TimelineView | undefined,

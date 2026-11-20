@@ -1,5 +1,6 @@
 import { mdiFolderMultipleOutline } from "@mdi/js";
 import Icon from "@mdi/react";
+import { UNCATEGORIZED_COLLECTION_ID } from "@timeline/contracts";
 import { useState } from "react";
 
 import useTimelineCollections from "@/hooks/useTimelineCollections";
@@ -17,7 +18,10 @@ export default function CollectionFilter({
   const [open, setOpen] = useState(false);
   const { data, error, mutate } = useTimelineCollections();
   const current = data?.nodes.find(({ id }) => id === selection);
-  const label = current?.name ?? (selection && data ? "合集不可用" : "合集");
+  const label =
+    selection === UNCATEGORIZED_COLLECTION_ID
+      ? "未加入合集"
+      : (current?.name ?? (selection && data ? "合集不可用" : "合集"));
 
   const option = (name: string, itemCount?: number, id?: string) => (
     <button
@@ -76,6 +80,13 @@ export default function CollectionFilter({
                 }
               />
             )}
+            {data &&
+              data.uncategorizedCount > 0 &&
+              option(
+                "未加入合集",
+                data.uncategorizedCount,
+                UNCATEGORIZED_COLLECTION_ID,
+              )}
             {error ? (
               <div className="space-y-2">
                 <p role="alert" className="text-sm text-danger">

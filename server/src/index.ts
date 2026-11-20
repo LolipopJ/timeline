@@ -4,6 +4,7 @@ import { cors } from "@elysiajs/cors";
 import { staticPlugin } from "@elysiajs/static";
 import type {
   BatchTimelineItemsParams,
+  CollectionTreeDto,
   CountTimelineItemsParams,
   CreateCollectionParams,
   GetTimelineItemsParams,
@@ -31,6 +32,7 @@ import {
   getTimelineServiceLabels,
   getTimelineWhere,
   hasAdminTimelineView,
+  isCollectionFilterId,
   isTimelineServiceLabel,
   isTimelineView,
   isUuid,
@@ -396,16 +398,18 @@ export const app = new Elysia()
       }
 
       const isAdmin = Boolean(IS_ADMIN_ENABLED && cookieToken.value);
-      const { totalCount, nodes } = await getTimelineCollectionTree(
-        getTimelineWhere({ view }, isAdmin),
-        hasAdminTimelineView(view, isAdmin),
-      );
+      const { totalCount, uncategorizedCount, nodes } =
+        await getTimelineCollectionTree(
+          getTimelineWhere({ view }, isAdmin),
+          hasAdminTimelineView(view, isAdmin),
+        );
       return {
         totalCount,
+        uncategorizedCount,
         nodes: nodes.map((node) =>
           serializeTimelineCollection(node, node.item_count),
         ),
-      };
+      } satisfies CollectionTreeDto;
     },
   )
   .post("/timeline-collections", async ({ body, set }) => {
@@ -554,7 +558,7 @@ export const app = new Elysia()
         set.status = 400;
         return "时间线 ID 参数无效";
       }
-      if (collectionId !== undefined && !isUuid(collectionId)) {
+      if (collectionId !== undefined && !isCollectionFilterId(collectionId)) {
         set.status = 400;
         return "合集 ID 参数无效";
       }
@@ -621,7 +625,7 @@ export const app = new Elysia()
         set.status = 400;
         return "时间线 ID 参数无效";
       }
-      if (collectionId !== undefined && !isUuid(collectionId)) {
+      if (collectionId !== undefined && !isCollectionFilterId(collectionId)) {
         set.status = 400;
         return "合集 ID 参数无效";
       }

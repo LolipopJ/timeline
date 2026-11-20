@@ -11,7 +11,10 @@ import type {
   SyncRunDto,
   TimelineItemClient,
 } from "@timeline/contracts";
-import { SyncServiceType } from "@timeline/contracts";
+import {
+  SyncServiceType,
+  UNCATEGORIZED_COLLECTION_ID,
+} from "@timeline/contracts";
 
 import { readClientConfig } from "../config.mjs";
 
@@ -291,6 +294,9 @@ async function backend(page: Page) {
       return route.fulfill({
         json: {
           totalCount: visibleItems.length,
+          uncategorizedCount: visibleItems.filter(
+            ({ id }) => !state.memberships.get(id)?.length,
+          ).length,
           nodes,
         } satisfies CollectionTreeDto,
         headers,
@@ -411,9 +417,11 @@ async function backend(page: Page) {
             (item.title ?? "").includes(searchParams.get("search") ?? ""));
         const matchesCollection =
           !collectionId ||
-          (state.memberships.get(item.id) ?? []).some((id) =>
-            ancestors(id).includes(collectionId),
-          );
+          (collectionId === UNCATEGORIZED_COLLECTION_ID
+            ? !state.memberships.get(item.id)?.length
+            : (state.memberships.get(item.id) ?? []).some((id) =>
+                ancestors(id).includes(collectionId),
+              ));
         return matchesSearch && matchesCollection;
       })
       .map((item) => {
@@ -997,6 +1005,7 @@ test("collection options show visible totals in descending sibling order", async
     /^A 大阪\s*1$/,
     /^A 摄影\s*1$/,
     /^空合集\s*0$/,
+    /^未加入合集\s*1$/,
   ]);
   await picker.getByRole("button", { name: "关闭筛选合集" }).click();
   await showToolbarControls(page);
@@ -1008,6 +1017,7 @@ test("collection options show visible totals in descending sibling order", async
     /^Z 旅行\s*1$/,
     /^A 大阪\s*1$/,
     /^Z 京都\s*1$/,
+    /^未加入合集\s*1$/,
   ]);
 });
 
@@ -1414,6 +1424,64 @@ test("collection edit dialog keeps cancel and save actions pinned when scrolling
   await expect(
     card.getByRole("list", { name: "归属合集" }).getByText("长列表合集 01"),
   ).toBeVisible();
+});
+
+test("uncategorized filter shows at the end only when uncategorized items exist", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [travel, reading, secret] = searchFixture();
+  state.archiveItems = [travel, reading, secret];
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+  ];
+  state.memberships.set(travel.id, [collectionIds.travel]);
+  state.memberships.set(reading.id, [collectionIds.travel]);
+
+  await page.goto("/");
+  const filter = page.getByRole("button", { name: "筛选合集", exact: true });
+  const picker = page.getByRole("dialog", { name: "筛选合集" });
+  const options = picker.locator("button[aria-pressed]");
+
+  // Admin view has 1 private uncategorized item; option appears at the end.
+  await filter.click();
+  await expect(options).toHaveText([
+    /^全部\s*3$/,
+    /^旅行\s*2$/,
+    /^未加入合集\s*1$/,
+  ]);
+  await picker
+    .getByRole("button")
+    .filter({ has: page.getByText("未加入合集", { exact: true }) })
+    .click();
+  await expect(page).toHaveURL(/\?collectionId=uncategorized$/);
+  await expect(filter).toContainText("未加入合集");
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  await expect(page.getByText("旅行文章", { exact: true })).toHaveCount(0);
+
+  // Guest preview has 0 public uncategorized items, so the option is hidden.
+  await showToolbarControls(page);
+  await page.getByRole("button", { name: "管理员模式" }).click();
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await filter.click();
+  await expect(options).toHaveText([/^全部\s*2$/, /^旅行\s*2$/]);
+  await expect(picker.getByText("未加入合集")).toHaveCount(0);
+
+  // When a public uncategorized item exists, guest view shows and filters it too.
+  state.loggedIn = false;
+  state.memberships.delete(reading.id);
+  await page.goto("/?collectionId=uncategorized");
+  await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
+  await expect(page.getByText("旅行文章", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
+  await filter.click();
+  await expect(options).toHaveText([
+    /^全部\s*2$/,
+    /^旅行\s*1$/,
+    /^未加入合集\s*1$/,
+  ]);
 });
 
 test("an admin timeline fallback removes cached private collections after session expiry", async ({
