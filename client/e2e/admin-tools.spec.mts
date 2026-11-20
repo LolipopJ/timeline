@@ -7,6 +7,7 @@ import type {
   CreateCollectionParams,
   ItemCollectionsDto,
   MoveCollectionParams,
+  RenameCollectionParams,
   SyncRunDto,
   TimelineItemClient,
 } from "@timeline/contracts";
@@ -74,7 +75,7 @@ async function backend(page: Page) {
         "/admin/logs",
       ].includes(path) &&
       !/^\/timeline-items\/[^/]+(?:\/collections)?$/.test(path) &&
-      !/^\/timeline-collections\/[^/]+\/parent$/.test(path)
+      !/^\/timeline-collections\/[^/]+(?:\/(?:parent|name))?$/.test(path)
     )
       return route.continue();
     state.requests.push({
@@ -296,8 +297,44 @@ async function backend(page: Page) {
       });
     }
     if (path.startsWith("/timeline-collections/")) {
-      const { parentId }: MoveCollectionParams = request.postDataJSON();
       const node = state.collections.find(({ id }) => id === itemId);
+      if (method === "DELETE") {
+        if (!node) {
+          return route.fulfill({
+            status: 404,
+            body: "合集不存在",
+            headers,
+          });
+        }
+        const removed = new Set(
+          state.collections
+            .filter(({ id }) => ancestors(id).includes(node.id))
+            .map(({ id }) => id),
+        );
+        state.collections = state.collections.filter(
+          ({ id }) => !removed.has(id),
+        );
+        for (const [id, ids] of state.memberships) {
+          state.memberships.set(
+            id,
+            ids.filter((collectionId) => !removed.has(collectionId)),
+          );
+        }
+        return route.fulfill({ status: 204, headers });
+      }
+      if (path.endsWith("/name")) {
+        const { name }: RenameCollectionParams = request.postDataJSON();
+        if (!node) {
+          return route.fulfill({
+            status: 404,
+            body: "合集不存在",
+            headers,
+          });
+        }
+        node.name = name;
+        return route.fulfill({ status: 204, headers });
+      }
+      const { parentId }: MoveCollectionParams = request.postDataJSON();
       if (!node || (parentId && ancestors(parentId).includes(node.id))) {
         return route.fulfill({
           status: 400,
@@ -1118,6 +1155,194 @@ test("moving a collection updates its subtree and the active filter", async ({
   ).toBeVisible();
   await chooseCollection(page, "摄影");
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+});
+
+test("renaming and deleting a collection updates labels and keeps timeline items", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [travelItem, readingItem] = searchFixture();
+  state.archiveItems = [travelItem, readingItem];
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+    { id: collectionIds.japan, name: "日本", parentId: collectionIds.travel },
+    { id: collectionIds.kyoto, name: "京都", parentId: collectionIds.japan },
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+    { id: collectionIds.street, name: "街拍", parentId: collectionIds.photo },
+  ];
+  state.memberships.set(travelItem.id, [
+    collectionIds.kyoto,
+    collectionIds.street,
+  ]);
+  state.memberships.set(readingItem.id, [collectionIds.travel]);
+
+  await page.goto("/?collectionId=" + collectionIds.travel);
+  const travelCard = page.locator(`[id="${travelItem.id}"]`);
+  const readingCard = page.locator(`[id="${readingItem.id}"]`);
+  await expect(travelCard).toBeVisible();
+  await expect(readingCard).toBeVisible();
+  await expect(page.getByRole("button", { name: "筛选合集" })).toContainText(
+    "旅行",
+  );
+
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "合集" }).click();
+  await expect(panel.getByRole("button", { name: "重命名全部" })).toHaveCount(
+    0,
+  );
+  await expect(panel.getByRole("button", { name: "删除全部" })).toHaveCount(0);
+
+  await panel.getByRole("button", { name: "重命名旅行" }).click();
+  const nameInput = panel.getByRole("textbox", { name: "合集名称" });
+  await expect(nameInput).toBeFocused();
+  await expect(nameInput).toHaveValue("旅行");
+  await panel.getByRole("button", { name: "重命名摄影" }).click();
+  await expect(panel.getByRole("textbox", { name: "合集名称" })).toBeFocused();
+  await expect(panel.getByRole("textbox", { name: "合集名称" })).toHaveValue(
+    "摄影",
+  );
+  await panel.getByRole("button", { name: "重命名旅行" }).click();
+  await expect(nameInput).toBeFocused();
+  await expect(nameInput).toHaveValue("旅行");
+  await nameInput.fill("   ");
+  await expect(panel.getByRole("button", { name: "保存" })).toBeDisabled();
+  await nameInput.fill("旅途");
+  await nameInput.press("Enter");
+  await expect(panel.getByRole("status")).toHaveText("已重命名合集。");
+  await expect(
+    panel.getByRole("group", { name: "旅途", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("group", { name: "旅行", exact: true }),
+  ).toHaveCount(0);
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+
+  await expect(page.getByRole("button", { name: "筛选合集" })).toContainText(
+    "旅途",
+  );
+  await expect(
+    readingCard.getByRole("list", { name: "归属合集" }).getByText("旅途"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  await panel.getByRole("tab", { name: "合集" }).click();
+  await panel.getByRole("button", { name: "删除旅途" }).click();
+  await expect(
+    panel.getByText(
+      "将同时删除其下 2 个子合集，并解除相关条目归属；不会删除任何时间线项本身。",
+    ),
+  ).toBeVisible();
+  const cancelDelete = panel.getByRole("button", { name: "取消", exact: true });
+  await expect(cancelDelete).toBeFocused();
+  await cancelDelete.click();
+  await expect(
+    panel.getByRole("group", { name: "京都", exact: true }),
+  ).toBeVisible();
+
+  await panel.getByRole("button", { name: "删除旅途" }).click();
+  await panel.getByRole("button", { name: "确认删除", exact: true }).click();
+  await expect(panel.getByRole("status")).toHaveText("已删除合集。");
+  for (const deleted of ["旅途", "日本", "京都"]) {
+    await expect(
+      panel.getByRole("group", { name: deleted, exact: true }),
+    ).toHaveCount(0);
+  }
+  await expect(
+    panel.getByRole("group", { name: "街拍", exact: true }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+
+  await expect(page.getByRole("button", { name: "筛选合集" })).toContainText(
+    "合集不可用",
+  );
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  await chooseCollection(page, "全部");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(travelCard).toBeVisible();
+  await expect(readingCard).toBeVisible();
+  await expect(
+    travelCard.getByRole("list", { name: "归属合集" }).getByText("街拍"),
+  ).toBeVisible();
+  await expect(
+    travelCard.getByRole("list", { name: "归属合集" }).getByText("京都"),
+  ).toHaveCount(0);
+  await expect(readingCard.getByRole("list", { name: "归属合集" })).toHaveCount(
+    0,
+  );
+});
+
+test("returning to cached multi-page root refreshes renamed labels and focus after sibling reorder", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [baseItem] = searchFixture();
+  const newer = Array.from({ length: 20 }, (_, index) => ({
+    ...baseItem,
+    id: "fbc00000-0000-4000-8000-" + String(index).padStart(12, "0"),
+    title: "全部页条目 " + index,
+    created_at: new Date(Date.UTC(2026, 0, index + 2)).toISOString(),
+  }));
+  const secondPageItem = {
+    ...baseItem,
+    id: "fbc00000-0000-4000-8000-999999999999",
+    title: "第二页旅行条目",
+    created_at: new Date(Date.UTC(2026, 0, 1)).toISOString(),
+  };
+  state.archiveItems = [...newer, secondPageItem];
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+  ];
+  state.memberships.set(secondPageItem.id, [collectionIds.travel]);
+
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "加载更多", exact: true })
+    .scrollIntoViewIfNeeded();
+  const secondCard = page.locator(`[id="${secondPageItem.id}"]`);
+  await expect(secondCard).toBeVisible();
+  await expect(
+    secondCard.getByRole("list", { name: "归属合集" }).getByText("旅行"),
+  ).toBeVisible();
+
+  await chooseCollection(page, "旅行");
+  await expect(page).toHaveURL(
+    new RegExp("collectionId=" + collectionIds.travel),
+  );
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "合集" }).click();
+
+  await panel.getByRole("button", { name: "重命名旅行" }).click();
+  const input = panel.getByRole("textbox", { name: "合集名称" });
+  await input.fill("0 旅途");
+  await input.press("Enter");
+  await expect(panel.getByRole("status")).toHaveText("已重命名合集。");
+
+  // Renaming a tied sibling to reorder it must not drop focus to document.body.
+  await panel.getByRole("button", { name: "在全部下新建子合集" }).click();
+  await panel.getByRole("textbox", { name: "合集名称" }).fill("甲");
+  await panel.getByRole("textbox", { name: "合集名称" }).press("Enter");
+  await panel.getByRole("button", { name: "在全部下新建子合集" }).click();
+  await panel.getByRole("textbox", { name: "合集名称" }).fill("乙");
+  await panel.getByRole("textbox", { name: "合集名称" }).press("Enter");
+  await panel.getByRole("button", { name: "重命名乙" }).click();
+  await panel.getByRole("textbox", { name: "合集名称" }).fill("0 乙");
+  await panel.getByRole("textbox", { name: "合集名称" }).press("Enter");
+  await expect(
+    panel.getByRole("button", { name: "在全部下新建子合集" }),
+  ).toBeFocused();
+
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+  await chooseCollection(page, "全部");
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByText("没有更多噜", { exact: true }).scrollIntoViewIfNeeded();
+  await expect(
+    secondCard.getByRole("list", { name: "归属合集" }).getByText("0 旅途"),
+  ).toBeVisible();
 });
 
 test("an admin timeline fallback removes cached private collections after session expiry", async ({

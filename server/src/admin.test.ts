@@ -134,6 +134,8 @@ const collections = [
   privateCollection,
   emptyCollection,
 ];
+const renameTimelineCollection = mock((id: string) => id === secretItemId);
+const deleteTimelineCollection = mock((id: string) => id === secretItemId);
 mock.module("./database/controller/timeline-collection", () => ({
   getTimelineCollectionTree: async (
     where: FindManyOptions<TimelineItem>["where"],
@@ -155,7 +157,9 @@ mock.module("./database/controller/timeline-collection", () => ({
   },
   getTimelineCollectionLabels: async () => new Map(),
   createTimelineCollection: mock(() => {}),
+  renameTimelineCollection,
   moveTimelineCollection: mock(() => {}),
+  deleteTimelineCollection,
   getItemCollectionIds: mock(() => {}),
   saveItemCollectionIds: mock(() => {}),
 }));
@@ -202,7 +206,9 @@ test("collection administration checks the session on every protected route", as
   for (const [path, method] of [
     ["/timeline-collections", "POST"],
     ["/timeline-collections/", "POST"],
+    ["/timeline-collections/" + secretItemId + "/name", "PATCH"],
     ["/timeline-collections/" + secretItemId + "/parent", "PATCH"],
+    ["/timeline-collections/" + secretItemId, "DELETE"],
     ["/timeline-items/" + secretItemId + "/collections", "GET"],
     ["/timeline-items/" + secretItemId + "/collections", "PATCH"],
   ]) {
@@ -211,6 +217,70 @@ test("collection administration checks the session on every protected route", as
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   }
 });
+
+test.skipIf(!adminEnabled)(
+  "collection rename and delete validate inputs and existence",
+  async () => {
+    expect(
+      (
+        await request("/timeline-collections/invalid/name", "PATCH", true, {
+          name: "新名称",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(
+          `/timeline-collections/${secretItemId}/name`,
+          "PATCH",
+          true,
+          { name: "   " },
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(
+          "/timeline-collections/00000000-0000-4000-8000-000000000000/name",
+          "PATCH",
+          true,
+          { name: "新名称" },
+        )
+      ).status,
+    ).toBe(404);
+    const renamed = await request(
+      `/timeline-collections/${secretItemId}/name`,
+      "PATCH",
+      true,
+      { name: "  重命名合集  " },
+    );
+    expect(renamed.status).toBe(204);
+    expect(renamed.headers.get("cache-control")).toBe("private, no-store");
+    expect(renameTimelineCollection).toHaveBeenLastCalledWith(
+      secretItemId,
+      "重命名合集",
+    );
+
+    expect(
+      (await request("/timeline-collections/invalid", "DELETE")).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(
+          "/timeline-collections/00000000-0000-4000-8000-000000000000",
+          "DELETE",
+        )
+      ).status,
+    ).toBe(404);
+    const deleted = await request(
+      `/timeline-collections/${secretItemId}`,
+      "DELETE",
+    );
+    expect(deleted.status).toBe(204);
+    expect(deleted.headers.get("cache-control")).toBe("private, no-store");
+    expect(deleteTimelineCollection).toHaveBeenLastCalledWith(secretItemId);
+  },
+);
 
 test("timeline batch operations require an enabled administrator session", async () => {
   const response = await request("/timeline-items/batch", "POST", false, {

@@ -18,7 +18,7 @@ export class TimelineCollection {
   name!: string;
 
   @Index()
-  @ForeignKey(() => TimelineCollection)
+  @ForeignKey(() => TimelineCollection, { onDelete: "CASCADE" })
   @Column("uuid", { nullable: true })
   parent_id!: string | null;
 }

@@ -11,6 +11,7 @@ import type {
   LoginParams,
   LoginStatus,
   MoveCollectionParams,
+  RenameCollectionParams,
   UpdateTimelineItemParams,
 } from "@timeline/contracts";
 import { SyncServiceType, TIMELINE_VIEW_HEADER } from "@timeline/contracts";
@@ -39,10 +40,12 @@ import { SERVER_STATIC_DIR, SERVER_TEMPORARY_DIR } from "./constants";
 import { destroyDatabase, initializeDatabase } from "./database";
 import {
   createTimelineCollection,
+  deleteTimelineCollection,
   getItemCollectionIds,
   getTimelineCollectionLabels,
   getTimelineCollectionTree,
   moveTimelineCollection,
+  renameTimelineCollection,
   saveItemCollectionIds,
 } from "./database/controller/timeline-collection";
 import {
@@ -102,6 +105,9 @@ const createCollectionSchema = z.object({
   name: z.string().trim().min(1),
   parentId: z.guid().nullable(),
 }) satisfies z.ZodType<CreateCollectionParams>;
+const renameCollectionSchema = z.object({
+  name: z.string().trim().min(1),
+}) satisfies z.ZodType<RenameCollectionParams>;
 const moveCollectionSchema = z.object({
   parentId: z.guid().nullable(),
 }) satisfies z.ZodType<MoveCollectionParams>;
@@ -123,7 +129,9 @@ const batchTimelineItemsSchema = z.discriminatedUnion("action", [
 const SENSITIVE_ROUTES: SensitiveRoute[] = [
   { method: "POST", pattern: BATCH_ITEMS_ROUTE },
   { method: "POST", pattern: /^\/timeline-collections$/ },
+  { method: "PATCH", pattern: /^\/timeline-collections\/[^/]+\/name$/ },
   { method: "PATCH", pattern: /^\/timeline-collections\/[^/]+\/parent$/ },
+  { method: "DELETE", pattern: /^\/timeline-collections\/[^/]+$/ },
   { method: "GET", pattern: ITEM_COLLECTIONS_ROUTE },
   { method: "PATCH", pattern: ITEM_COLLECTIONS_ROUTE },
   { method: "GET", pattern: /^\/admin\/sync$/ },
@@ -443,6 +451,38 @@ export const app = new Elysia()
       set.status = 204;
     },
   )
+  .patch(
+    "/timeline-collections/:id/name",
+    async ({ params: { id }, body, set }) => {
+      const input = renameCollectionSchema.safeParse(body);
+      if (!isUuid(id) || !input.success) {
+        set.status = 400;
+        return "合集 ID 或名称无效";
+      }
+
+      const renamed = await renameTimelineCollection(id, input.data.name);
+      if (!renamed) {
+        set.status = 404;
+        return "合集不存在";
+      }
+
+      set.status = 204;
+    },
+  )
+  .delete("/timeline-collections/:id", async ({ params: { id }, set }) => {
+    if (!isUuid(id)) {
+      set.status = 400;
+      return "合集 ID 无效";
+    }
+
+    const deleted = await deleteTimelineCollection(id);
+    if (!deleted) {
+      set.status = 404;
+      return "合集不存在";
+    }
+
+    set.status = 204;
+  })
   .get("/timeline-items/:id/collections", async ({ params: { id }, set }) => {
     if (!isUuid(id)) {
       set.status = 400;

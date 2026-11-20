@@ -104,6 +104,10 @@ databaseTest(
     }
     const move = (id: string, parentId: string | null) =>
       request("/timeline-collections/" + id + "/parent", "PATCH", { parentId });
+    const rename = (id: string, name: string) =>
+      request("/timeline-collections/" + id + "/name", "PATCH", { name });
+    const remove = (id: string) =>
+      request("/timeline-collections/" + id, "DELETE");
     const query =
       "view=public&serviceLabel=" +
       service +
@@ -368,6 +372,120 @@ databaseTest(
       ).toBe(200);
       expect(await directIds(multi)).toEqual([newRoot]);
       expect(await list("view=public&id=" + multi)).toEqual([]);
+
+      // Renaming updates tree nodes, sibling ordering and card labels without altering memberships.
+      const siblingA = await create("A 乙", newRoot);
+      const siblingB = await create("B 甲", newRoot);
+      expect(
+        (await collectionTree("admin")).nodes
+          .filter(({ parentId }) => parentId === newRoot)
+          .map(({ id }) => id),
+      ).toEqual([siblingA, siblingB]);
+      expect((await rename(newRoot, "   ")).status).toBe(400);
+      expect((await rename("invalid", "有效名称")).status).toBe(400);
+      expect((await rename(randomUUID(), "有效名称")).status).toBe(404);
+      expect((await rename(newRoot, "  " + service + " 影像  ")).status).toBe(
+        204,
+      );
+      expect((await rename(siblingB, "0 甲")).status).toBe(204);
+      expect(
+        (await collectionTree("admin")).nodes
+          .filter(({ parentId }) => parentId === newRoot)
+          .map(({ id }) => id),
+      ).toEqual([siblingB, siblingA]);
+      expect(
+        (await collectionTree("admin")).nodes.find(({ id }) => id === newRoot)
+          ?.name,
+      ).toBe(service + " 影像");
+      expect(
+        (await list("view=admin&id=" + multi))[0]?.collectionLabels,
+      ).toEqual([{ id: newRoot, name: service + " 影像" }]);
+
+      // Deleting a collection subtree cascades to descendant collections and memberships, never timeline items.
+      expect((await remove("invalid")).status).toBe(400);
+      expect((await remove(randomUUID())).status).toBe(404);
+      expect((await move(branch, oldRoot)).status).toBe(204);
+      expect(
+        (await request("/timeline-items/" + parentOnly + "/restore", "POST"))
+          .status,
+      ).toBe(200);
+      expect((await save(parentOnly, [oldRoot, kyoto, newRoot])).status).toBe(
+        204,
+      );
+      expect(
+        (await rename(parentOnly, "unused")).status, // sanity check: item UUID is not a collection
+      ).toBe(404);
+      expect((await remove(oldRoot)).status).toBe(204);
+      expect((await remove(oldRoot)).status).toBe(404);
+      expect(
+        (await collectionTree("admin")).nodes.filter(({ id }) =>
+          [oldRoot, branch, kyoto, osaka].includes(id),
+        ),
+      ).toEqual([]);
+      expect(
+        (
+          await request("/timeline-collections", "POST", {
+            name: service + " 幽灵子合集",
+            parentId: branch,
+          })
+        ).status,
+      ).toBe(400);
+      expect(await list("view=admin&id=" + parentOnly)).toEqual([
+        expect.objectContaining({
+          id: parentOnly,
+          collectionLabels: [{ id: newRoot, name: service + " 影像" }],
+        }),
+      ]);
+      expect(await directIds(parentOnly)).toEqual([newRoot]);
+      expect(await list("view=admin&id=" + multi)).toEqual([
+        expect.objectContaining({ id: multi }),
+      ]);
+      expect(await list(travel)).toEqual([]);
+      expect(await count(travel)).toBe(0);
+
+      // Concurrent delete and child creation serialize without leaving orphans or 500s.
+      const doomed = await create("并发删除");
+      const [deleteResult, createChildResult] = await Promise.all([
+        remove(doomed),
+        request("/timeline-collections", "POST", {
+          name: service + " 并发子合集",
+          parentId: doomed,
+        }),
+      ]);
+      expect(deleteResult.status).toBe(204);
+      expect([201, 400]).toContain(createChildResult.status);
+      if (createChildResult.status === 201) {
+        const child = nodeSchema.parse(await createChildResult.json());
+        created.push(child.id);
+      }
+      expect(
+        (await collectionTree("admin")).nodes.filter(
+          ({ id, parentId }) => id === doomed || parentId === doomed,
+        ),
+      ).toEqual([]);
+
+      // Concurrent delete and membership edits serialize cleanly without deadlocks or FK 500s.
+      const raceExisting = await create("并发归属甲");
+      const raceFresh = await create("并发归属乙");
+      expect((await save(parentOnly, [newRoot, raceExisting])).status).toBe(
+        204,
+      );
+      const [delExisting, saveExisting, delFresh, batchFresh] =
+        await Promise.all([
+          remove(raceExisting),
+          save(parentOnly, [newRoot, raceExisting]),
+          remove(raceFresh),
+          batch({
+            action: "add-collections",
+            itemIds: [parentOnly],
+            collectionIds: [raceFresh],
+          }),
+        ]);
+      expect(delExisting.status).toBe(204);
+      expect([204, 400]).toContain(saveExisting.status);
+      expect(delFresh.status).toBe(204);
+      expect([204, 400]).toContain(batchFresh.status);
+      expect(await directIds(parentOnly)).toEqual([newRoot]);
     } finally {
       try {
         await items.delete({ sync_service_id: In([service, otherService]) });

@@ -61,15 +61,40 @@ export const getTimelineCollectionTree = async (
   return tree;
 };
 
-export const createTimelineCollection = async (
+export const createTimelineCollection = (
   name: string,
   parentId: string | null,
-) => {
-  const collections = dataSource.getRepository(TimelineCollection);
-  if (parentId !== null && !(await collections.existsBy({ id: parentId })))
-    return null;
-  return collections.save({ name, parent_id: parentId });
+) =>
+  dataSource.transaction("READ COMMITTED", async (manager) => {
+    if (parentId !== null) {
+      await manager.query(
+        "LOCK TABLE timeline_collection IN SHARE ROW EXCLUSIVE MODE",
+      );
+    }
+    const collections = manager.getRepository(TimelineCollection);
+    if (parentId !== null && !(await collections.existsBy({ id: parentId })))
+      return null;
+    return collections.save({ name, parent_id: parentId });
+  });
+
+export const renameTimelineCollection = async (id: string, name: string) => {
+  const result = await dataSource
+    .getRepository(TimelineCollection)
+    .update({ id }, { name });
+  return Boolean(result.affected);
 };
+
+export const deleteTimelineCollection = (id: string) =>
+  dataSource.transaction("READ COMMITTED", async (manager) => {
+    // Concurrent deletes and moves serialize so deleting a parent removes its entire subtree cleanly.
+    await manager.query(
+      "LOCK TABLE timeline_collection IN SHARE ROW EXCLUSIVE MODE",
+    );
+    const result = await manager
+      .getRepository(TimelineCollection)
+      .delete({ id });
+    return Boolean(result.affected);
+  });
 
 export const getItemCollectionIds = async (id: string) => {
   const rows = await dataSource
@@ -93,8 +118,11 @@ async function validateCollectionIds(
   collectionIds: string[],
 ) {
   const ids = [...new Set(collectionIds.map((id) => id.toLowerCase()))];
+  if (!ids.length) return ids;
+
+  // Serialize against concurrent collection deletes so FK checks never race or deadlock.
+  await manager.query("LOCK TABLE timeline_collection IN SHARE MODE");
   if (
-    ids.length &&
     (await manager
       .getRepository(TimelineCollection)
       .countBy({ id: Any(ids) })) !== ids.length

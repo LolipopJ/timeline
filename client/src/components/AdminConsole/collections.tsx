@@ -1,9 +1,16 @@
-import { mdiDrag, mdiFolderOutline, mdiFolderPlusOutline } from "@mdi/js";
+import {
+  mdiDrag,
+  mdiFolderOutline,
+  mdiFolderPlusOutline,
+  mdiPencilOutline,
+  mdiTrashCanOutline,
+} from "@mdi/js";
 import Icon from "@mdi/react";
 import type {
   CollectionNodeDto,
   CreateCollectionParams,
   MoveCollectionParams,
+  RenameCollectionParams,
 } from "@timeline/contracts";
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
@@ -11,13 +18,16 @@ import { useEffect, useRef, useState } from "react";
 import { dialogActionClass } from "@/components/TimelineCollections/dialog";
 import CollectionTree, {
   collectionPath,
+  countCollectionDescendants,
 } from "@/components/TimelineCollections/tree";
 import useTimelineCollections from "@/hooks/useTimelineCollections";
-import { fetcherPATCH, fetcherPOST } from "@/services/axios";
+import { fetcherDELETE, fetcherPATCH, fetcherPOST } from "@/services/axios";
 
 type CollectionForm =
   | { type: "create"; parentId: string | null; name: string }
-  | { type: "move"; id: string; parentId: string | null };
+  | { type: "rename"; id: string; name: string }
+  | { type: "move"; id: string; parentId: string | null }
+  | { type: "delete"; id: string };
 
 const inputClass =
   "mt-1 block min-h-11 w-full rounded-md border border-control bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary";
@@ -25,7 +35,16 @@ const rowActionClass =
   "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium whitespace-nowrap hover:bg-background-lighter focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50";
 const rootName = "全部";
 
-function focusField(field: HTMLInputElement | HTMLSelectElement | null) {
+const SUCCESS_FEEDBACK: Record<CollectionForm["type"], string> = {
+  create: "已创建合集。",
+  rename: "已重命名合集。",
+  move: "已移动合集。",
+  delete: "已删除合集。",
+};
+
+function focusField(
+  field: HTMLInputElement | HTMLSelectElement | HTMLButtonElement | null,
+) {
   field?.focus();
 }
 
@@ -46,9 +65,24 @@ export default function AdminCollections({
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const rootCreate = useRef<HTMLButtonElement>(null);
   const byId = new Map(data?.nodes.map((node) => [node.id, node]));
+  const targetId = form
+    ? form.type === "create"
+      ? form.parentId
+      : form.id
+    : null;
+  const missingTarget = Boolean(
+    data && targetId !== null && !byId.has(targetId),
+  );
+  if (missingTarget) {
+    setForm(null);
+    setFeedback({ type: "alert", text: "所选合集已不存在。" });
+  }
 
   useEffect(() => {
     if (form || saving) return;
+    if (returnFocus.current && !returnFocus.current.isConnected) {
+      returnFocus.current = rootCreate.current;
+    }
     returnFocus.current?.focus();
     returnFocus.current = null;
   }, [form, saving]);
@@ -82,15 +116,23 @@ export default function AdminCollections({
           name: change.name.trim(),
           parentId: change.parentId,
         } satisfies CreateCollectionParams);
-      } else {
+      } else if (change.type === "rename") {
+        await fetcherPATCH("/timeline-collections/" + change.id + "/name", {
+          name: change.name.trim(),
+        } satisfies RenameCollectionParams);
+      } else if (change.type === "move") {
         await fetcherPATCH("/timeline-collections/" + change.id + "/parent", {
           parentId: change.parentId,
         } satisfies MoveCollectionParams);
-        if (returnFocus.current) returnFocus.current = rootCreate.current;
+      } else {
+        await fetcherDELETE("/timeline-collections/" + change.id);
+      }
+      if (returnFocus.current && change.type !== "create") {
+        returnFocus.current = rootCreate.current;
       }
       setFeedback({
         type: "status",
-        text: change.type === "create" ? "已创建合集。" : "已移动合集。",
+        text: SUCCESS_FEEDBACK[change.type],
       });
       setForm(null);
       onChanged();
@@ -103,7 +145,9 @@ export default function AdminCollections({
         text:
           typeof detail === "string" && detail
             ? detail
-            : "保存合集失败，请重试。",
+            : change.type === "delete"
+              ? "删除合集失败，请重试。"
+              : "保存合集失败，请重试。",
       });
     } finally {
       setSaving(false);
@@ -186,20 +230,57 @@ export default function AdminCollections({
             新建
           </button>
           {node && (
-            <button
-              type="button"
-              aria-label={"移动" + name + "到…"}
-              onClick={(event) =>
-                open(
-                  { type: "move", id: node.id, parentId: node.parentId },
-                  event.currentTarget,
-                )
-              }
-              disabled={saving}
-              className={rowActionClass}
-            >
-              移动到…
-            </button>
+            <>
+              <button
+                type="button"
+                aria-label={"重命名" + name}
+                onClick={(event) =>
+                  open(
+                    { type: "rename", id: node.id, name: node.name },
+                    event.currentTarget,
+                  )
+                }
+                disabled={saving}
+                className={rowActionClass}
+              >
+                <Icon
+                  path={mdiPencilOutline}
+                  className="size-4"
+                  aria-hidden="true"
+                />
+                重命名
+              </button>
+              <button
+                type="button"
+                aria-label={"移动" + name + "到…"}
+                onClick={(event) =>
+                  open(
+                    { type: "move", id: node.id, parentId: node.parentId },
+                    event.currentTarget,
+                  )
+                }
+                disabled={saving}
+                className={rowActionClass}
+              >
+                移动到…
+              </button>
+              <button
+                type="button"
+                aria-label={"删除" + name}
+                onClick={(event) =>
+                  open({ type: "delete", id: node.id }, event.currentTarget)
+                }
+                disabled={saving}
+                className={`${rowActionClass} text-danger`}
+              >
+                <Icon
+                  path={mdiTrashCanOutline}
+                  className="size-4"
+                  aria-hidden="true"
+                />
+                删除
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -229,25 +310,36 @@ export default function AdminCollections({
       </p>
     );
 
+  const isNameForm = form?.type === "create" || form?.type === "rename";
+  const targetName =
+    form && form.type !== "create" ? byId.get(form.id)?.name : undefined;
+  const descendantCount =
+    form?.type === "delete"
+      ? countCollectionDescendants(data.nodes, form.id)
+      : 0;
+
   return (
     <div className="space-y-3 overflow-x-auto">
-      {form && (
+      {form && !missingTarget && (
         <form
+          key={
+            form.type === "create"
+              ? "create:" + (form.parentId ?? "")
+              : form.type + ":" + form.id
+          }
           className="space-y-3 rounded-lg border border-binding bg-background p-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (form.type === "create" && !form.name.trim()) return;
+            if (isNameForm && !form.name.trim()) return;
             void save(form);
           }}
         >
-          {form.type === "create" ? (
+          {form.type === "create" || form.type === "rename" ? (
             <>
               <p className="text-sm font-medium">
-                在「
-                {form.parentId === null
-                  ? rootName
-                  : byId.get(form.parentId)?.name}
-                」下新建子合集
+                {form.type === "create"
+                  ? `在「${form.parentId === null ? rootName : byId.get(form.parentId)?.name}」下新建子合集`
+                  : `重命名「${targetName}」`}
               </p>
               <label className="block text-sm">
                 合集名称
@@ -263,11 +355,9 @@ export default function AdminCollections({
                 />
               </label>
             </>
-          ) : (
+          ) : form.type === "move" ? (
             <>
-              <p className="text-sm font-medium">
-                移动「{byId.get(form.id)?.name}」
-              </p>
+              <p className="text-sm font-medium">移动「{targetName}」</p>
               <label className="block text-sm">
                 目标父级
                 <select
@@ -293,9 +383,19 @@ export default function AdminCollections({
                 </select>
               </label>
             </>
+          ) : (
+            <>
+              <p className="text-sm font-medium">删除「{targetName}」</p>
+              <p className="text-sm text-foreground-dark">
+                {descendantCount > 0
+                  ? `将同时删除其下 ${descendantCount} 个子合集，并解除相关条目归属；不会删除任何时间线项本身。`
+                  : "将移除该合集并解除相关条目归属；不会删除任何时间线项本身。"}
+              </p>
+            </>
           )}
           <div className="flex flex-wrap justify-end gap-2">
             <button
+              ref={form.type === "delete" ? focusField : undefined}
               type="button"
               className={dialogActionClass}
               onClick={cancel}
@@ -305,10 +405,20 @@ export default function AdminCollections({
             </button>
             <button
               type="submit"
-              className={`${dialogActionClass} bg-primary text-on-primary hover:bg-primary-light`}
-              disabled={saving || (form.type === "create" && !form.name.trim())}
+              className={`${dialogActionClass} ${form.type === "delete" ? "border-danger text-danger" : "bg-primary text-on-primary hover:bg-primary-light"}`}
+              disabled={saving || (isNameForm && !form.name.trim())}
             >
-              {saving ? "正在保存…" : form.type === "create" ? "创建" : "移动"}
+              {saving
+                ? form.type === "delete"
+                  ? "正在删除…"
+                  : "正在保存…"
+                : form.type === "create"
+                  ? "创建"
+                  : form.type === "rename"
+                    ? "保存"
+                    : form.type === "move"
+                      ? "移动"
+                      : "确认删除"}
             </button>
           </div>
         </form>

@@ -179,7 +179,7 @@ function TimelineData({
   previewFocusRef: React.RefObject<boolean>;
 }) {
   const { view, canManageItems } = useContext(GlobalContext);
-  const { mutate } = useSWRConfig();
+  const { cache, mutate } = useSWRConfig();
   const [adminOpen, setAdminOpen] = useState(false);
   const closeAdmin = useCallback(() => setAdminOpen(false), []);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -257,10 +257,11 @@ function TimelineData({
   } = useSWRInfinite<TimelineItemClient[]>(
     getTimelineItemsKey,
     fetcherGET,
-    // 快速返回时也要重验证分页，避免复用移动前的请求结果。
-    filters.collectionId
-      ? { revalidateAll: true, dedupingInterval: 0 }
-      : undefined,
+    // 快速返回时也要重验证分页，避免复用移动或修改前的请求结果。
+    {
+      dedupingInterval: 0,
+      ...(filters.collectionId ? { revalidateAll: true } : {}),
+    },
   );
   const isFullyLoaded =
     !queryTimelineItemsError &&
@@ -290,9 +291,24 @@ function TimelineData({
   );
 
   const refreshTimeline = useCallback(() => {
+    const activePagePrefix = `/timeline-items?${query}&page=`;
+    const activeInfKey = `$inf$${activePagePrefix}0&limit=${PAGE_LIMIT}`;
+    for (const key of cache.keys()) {
+      if (
+        key.startsWith("/timeline-items?") &&
+        !key.startsWith(activePagePrefix)
+      ) {
+        cache.delete(key);
+      } else if (
+        key.startsWith("$inf$/timeline-items?") &&
+        key !== activeInfKey
+      ) {
+        void mutate(key, undefined, { revalidate: false });
+      }
+    }
     void mutateTimelineItems();
     void mutate(timelineCollectionsKey(view));
-  }, [mutate, mutateTimelineItems, view]);
+  }, [cache, mutate, mutateTimelineItems, query, view]);
 
   const loadMore = useCallback(() => {
     void setQueryTimelineItemsPage(size + 1);

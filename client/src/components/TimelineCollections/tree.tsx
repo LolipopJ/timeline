@@ -16,6 +16,30 @@ export function collectionPath(
   return path.reverse();
 }
 
+export function countCollectionDescendants(
+  nodes: CollectionNodeDto[],
+  targetId: string,
+) {
+  const byParent = new Map<string, string[]>();
+  for (const { id, parentId } of nodes) {
+    if (parentId === null) continue;
+    const children = byParent.get(parentId);
+    if (children) children.push(id);
+    else byParent.set(parentId, [id]);
+  }
+  const seen = new Set(byParent.get(targetId) ?? []);
+  const queue = [...seen];
+  for (const id of queue) {
+    for (const childId of byParent.get(id) ?? []) {
+      if (!seen.has(childId)) {
+        seen.add(childId);
+        queue.push(childId);
+      }
+    }
+  }
+  return seen.size;
+}
+
 export default function CollectionTree({
   nodes,
   renderNode,

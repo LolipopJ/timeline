@@ -18,6 +18,10 @@ export interface CreateCollectionParams {
   parentId: string | null;
 }
 
+export interface RenameCollectionParams {
+  name: string;
+}
+
 export interface MoveCollectionParams {
   parentId: string | null;
 }
