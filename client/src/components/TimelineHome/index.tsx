@@ -405,22 +405,24 @@ function TimelineData({
               month={currentMonth}
               isLoading={isLoadingTimelineItems}
             />
-            <TimelineSearch
-              searchKey={searchKey}
-              value={filters}
-              serviceLabels={serviceLabels}
-              onChange={onFiltersChange}
-              className="min-w-0 flex-1"
-            />
-            <CollectionFilter
-              selection={collectionId}
-              label={
-                collectionName ??
-                (collectionUnavailable ? "合集不可用" : "合集")
-              }
-              collections={collections}
-              onSelect={selectCollection}
-            />
+            <div className="flex min-w-0 flex-1 items-center gap-1 lg:flex-none lg:flex-col lg:items-stretch lg:gap-2">
+              <TimelineSearch
+                searchKey={searchKey}
+                value={filters}
+                serviceLabels={serviceLabels}
+                onChange={onFiltersChange}
+                className="min-w-0 flex-1"
+              />
+              <CollectionFilter
+                selection={collectionId}
+                label={
+                  collectionName ??
+                  (collectionUnavailable ? "合集不可用" : "合集")
+                }
+                collections={collections}
+                onSelect={selectCollection}
+              />
+            </div>
             <TimelineTools />
           </>
         }
