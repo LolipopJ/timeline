@@ -12,7 +12,7 @@ export type SyncServiceResultDto = {
 } & (
   | { status: "running" }
   | { status: "succeeded"; itemCount: number }
-  | { status: "failed"; error: string }
+  | { status: "failed"; error: string; qzoneLoginPath?: string }
 );
 
 export interface SyncRunDto {
@@ -29,11 +29,17 @@ export interface SyncStatusDto {
   available: boolean;
   reason: SyncUnavailableReason | null;
   serviceId: string | null;
-  services: Pick<SyncServiceResultDto, "id" | "label">[];
+  services: (Pick<SyncServiceResultDto, "id" | "label"> & {
+    enabled: boolean;
+  })[];
   activeRunId: string | null;
   completedRunIds: string[];
   current: SyncRunDto | null;
   history: SyncRunDto[];
+}
+
+export interface StartSyncParams {
+  serviceIds: string[];
 }
 
 export interface SyncAcceptedDto {
@@ -41,7 +47,7 @@ export interface SyncAcceptedDto {
 }
 
 export interface SyncRejectedDto {
-  reason: SyncUnavailableReason;
+  reason: SyncUnavailableReason | "invalid_selection";
   runId?: string;
 }
 

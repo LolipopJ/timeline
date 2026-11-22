@@ -8,6 +8,7 @@ import {
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type { TimelineItemClient } from "@timeline/contracts";
+import { UNCATEGORIZED_COLLECTION_ID } from "@timeline/contracts";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -23,12 +24,15 @@ import useSWR, { SWRConfig, useSWRConfig } from "swr";
 import useSWRInfinite from "swr/infinite";
 
 import AdminConsole from "@/components/AdminConsole";
+import AdminViewToggle from "@/components/AdminViewToggle";
+import { dialogActionClass } from "@/components/Dialog";
 import TimelineArchive, {
   TimelineArchiveError,
   TimelineArchiveLoading,
 } from "@/components/TimelineArchive";
 import CollectionFilter from "@/components/TimelineCollections/filter";
 import TimelineCurrentDate from "@/components/TimelineCurrentDate";
+import TimelineActionBar from "@/components/TimelineHome/ActionBar";
 import BatchActions from "@/components/TimelineHome/BatchActions";
 import TimelineVirtualList, {
   getTimelineRows,
@@ -37,7 +41,9 @@ import TimelineVirtualList, {
 import TimelineSearch from "@/components/TimelineSearch";
 import TimelineTools from "@/components/TimelineTools";
 import GlobalContext from "@/contexts/GlobalContext";
-import { timelineCollectionsKey } from "@/hooks/useTimelineCollections";
+import useTimelineCollections, {
+  timelineCollectionsKey,
+} from "@/hooks/useTimelineCollections";
 import { fetcherGET } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 import {
@@ -52,6 +58,8 @@ import {
 const PAGE_LIMIT = 20;
 const EMPTY_PAGES: TimelineItemClient[][] = [[]];
 const DATA_CACHE = { provider: () => new Map(), keepPreviousData: false };
+const floatingControlsPositionClass =
+  "fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 lg:bottom-10";
 const floatingButtonClass =
   "size-12 cursor-pointer place-items-center rounded-full border border-control bg-background-light text-foreground shadow-lg hover:bg-background-lighter active:bg-background-lighter";
 
@@ -60,7 +68,6 @@ export default function TimelineHome() {
   const pathname = usePathname();
   const urlSearchParams = useSearchParams();
   const { isLoggedIn, view } = useContext(GlobalContext);
-  const previewFocusRef = useRef(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -134,34 +141,37 @@ export default function TimelineHome() {
     [urlSearchParams],
   );
 
-  if (!serviceLabels)
-    return (
-      <TimelineArchive>
-        {servicesError ? (
-          <TimelineArchiveError
-            error="筛选来源加载失败"
-            onRetry={() => void reloadServices()}
-            retrying={isValidatingServices}
-          />
-        ) : (
-          <TimelineArchiveLoading label="正在加载筛选来源" />
-        )}
-      </TimelineArchive>
-    );
-
   return (
-    <SWRConfig
-      key={`${isLoggedIn ? "admin" : "guest"}:${view}`}
-      value={DATA_CACHE}
-    >
-      <TimelineData
-        filters={filters}
-        serviceLabels={serviceLabels}
-        onFiltersChange={changeFilters}
-        searchKey={urlSearchParams.toString()}
-        previewFocusRef={previewFocusRef}
+    <>
+      {serviceLabels ? (
+        <SWRConfig
+          key={`${isLoggedIn ? "admin" : "guest"}:${view}`}
+          value={DATA_CACHE}
+        >
+          <TimelineData
+            filters={filters}
+            serviceLabels={serviceLabels}
+            onFiltersChange={changeFilters}
+            searchKey={urlSearchParams.toString()}
+          />
+        </SWRConfig>
+      ) : (
+        <TimelineArchive>
+          {servicesError ? (
+            <TimelineArchiveError
+              error="筛选来源加载失败"
+              onRetry={() => void reloadServices()}
+              retrying={isValidatingServices}
+            />
+          ) : (
+            <TimelineArchiveLoading label="正在加载筛选来源" />
+          )}
+        </TimelineArchive>
+      )}
+      <AdminViewToggle
+        className={`${floatingControlsPositionClass} ${floatingButtonClass}`}
       />
-    </SWRConfig>
+    </>
   );
 }
 
@@ -170,16 +180,22 @@ function TimelineData({
   serviceLabels,
   onFiltersChange,
   searchKey,
-  previewFocusRef,
 }: {
   filters: TimelineFilters;
   serviceLabels: string[];
   onFiltersChange: TimelineFiltersChange;
   searchKey: string;
-  previewFocusRef: React.RefObject<boolean>;
 }) {
-  const { view, canManageItems } = useContext(GlobalContext);
+  const { isLoggedIn, view, canManageItems } = useContext(GlobalContext);
   const { cache, mutate } = useSWRConfig();
+  const collections = useTimelineCollections();
+  const { collectionId } = filters;
+  const collectionName =
+    collectionId === UNCATEGORIZED_COLLECTION_ID
+      ? "未加入合集"
+      : collections.data?.nodes.find(({ id }) => id === collectionId)?.name;
+  const collectionUnavailable =
+    collectionId && collections.data && !collectionName;
   const [adminOpen, setAdminOpen] = useState(false);
   const closeAdmin = useCallback(() => setAdminOpen(false), []);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -338,13 +354,21 @@ function TimelineData({
     queryTimelineItemsError,
   ]);
 
+  function selectCollection(nextCollectionId?: string) {
+    onFiltersChange((current) => ({
+      ...current,
+      collectionId: nextCollectionId,
+      id: nextCollectionId ? undefined : current.id,
+    }));
+  }
+
   return (
     <>
       <TimelineArchive
         ref={timelineRef}
         toolbarRef={toolbarRef}
         actions={
-          selectedIds && (
+          selectedIds ? (
             <BatchActions
               selectedIds={selectedIds}
               onExit={exitSelection}
@@ -353,7 +377,27 @@ function TimelineData({
                 exitSelection();
               }}
             />
-          )
+          ) : collectionId ? (
+            <TimelineActionBar
+              label="合集筛选"
+              status={
+                collectionUnavailable
+                  ? "当前合集不可用"
+                  : `正在查看合集「${collectionName ?? "合集"}」`
+              }
+            >
+              <button
+                type="button"
+                className={`${dialogActionClass} shrink-0`}
+                onClick={() => {
+                  selectCollection();
+                  timelineRef.current?.focus({ preventScroll: true });
+                }}
+              >
+                查看全部
+              </button>
+            </TimelineActionBar>
+          ) : null
         }
         toolbar={
           <>
@@ -369,16 +413,15 @@ function TimelineData({
               className="min-w-0 flex-1"
             />
             <CollectionFilter
-              selection={filters.collectionId}
-              onSelect={(collectionId) =>
-                onFiltersChange((current) => ({
-                  ...current,
-                  collectionId,
-                  id: collectionId ? undefined : current.id,
-                }))
+              selection={collectionId}
+              label={
+                collectionName ??
+                (collectionUnavailable ? "合集不可用" : "合集")
               }
+              collections={collections}
+              onSelect={selectCollection}
             />
-            <TimelineTools previewFocusRef={previewFocusRef} />
+            <TimelineTools />
           </>
         }
         footer={
@@ -455,7 +498,9 @@ function TimelineData({
           />
         ) : null}
       </TimelineArchive>
-      <div className="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex flex-col gap-3 lg:bottom-10">
+      <div
+        className={`${floatingControlsPositionClass} flex flex-col gap-3 ${isLoggedIn ? "mb-15" : ""}`}
+      >
         <button
           type="button"
           aria-label="回到顶部"

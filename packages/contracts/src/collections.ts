@@ -29,6 +29,10 @@ export interface MoveCollectionParams {
   parentId: string | null;
 }
 
+export interface MergeCollectionParams {
+  targetId: string | null;
+}
+
 export interface ItemCollectionsDto {
   collectionIds: string[];
 }

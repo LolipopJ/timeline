@@ -7,7 +7,7 @@ import useDialogBackdrop from "@/hooks/useDialogBackdrop";
 export const dialogActionClass =
   "min-h-11 cursor-pointer rounded-md border border-control px-3 py-2 text-sm font-medium hover:bg-background-lighter focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50";
 
-export default function CollectionDialog({
+export default function Dialog({
   title,
   onClose,
   busy = false,
@@ -45,6 +45,7 @@ export default function CollectionDialog({
       {...backdrop}
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         dismiss();
       }}
       className="archive-dialog fixed inset-0 m-auto max-h-[calc(100dvh-1.5rem)] w-[min(calc(100%-1.5rem),32rem)] max-w-none flex-col overflow-hidden rounded-xl border border-control bg-background-light text-foreground shadow-xl backdrop:bg-black/60 open:flex"

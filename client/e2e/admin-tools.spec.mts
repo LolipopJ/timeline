@@ -6,8 +6,10 @@ import type {
   CollectionTreeDto,
   CreateCollectionParams,
   ItemCollectionsDto,
+  MergeCollectionParams,
   MoveCollectionParams,
   RenameCollectionParams,
+  StartSyncParams,
   SyncRunDto,
   TimelineItemClient,
 } from "@timeline/contracts";
@@ -31,6 +33,11 @@ async function backend(page: Page) {
     console.error(`Browser error: ${error.message}`),
   );
   const state = {
+    syncServices: [
+      { id: "feed", label: "博客", enabled: true },
+      { id: "empty", label: "博客", enabled: true },
+      { id: "paused", label: "已停用来源", enabled: false },
+    ],
     loggedIn: true,
     failLogout: false,
     failServices: false,
@@ -78,7 +85,7 @@ async function backend(page: Page) {
         "/admin/logs",
       ].includes(path) &&
       !/^\/timeline-items\/[^/]+(?:\/collections)?$/.test(path) &&
-      !/^\/timeline-collections\/[^/]+(?:\/(?:parent|name))?$/.test(path)
+      !/^\/timeline-collections\/[^/]+(?:\/(?:parent|name|merge))?$/.test(path)
     )
       return route.continue();
     state.requests.push({
@@ -149,15 +156,21 @@ async function backend(page: Page) {
         return route.fulfill({ status: 401, body: "expired", headers });
       }
       if (request.method() === "POST") {
+        const selection: StartSyncParams | null = request.postDataJSON();
+        if (!selection) return route.fulfill({ status: 400, headers });
         state.run = {
           id: "test-run",
           trigger: "manual",
           startedAt: new Date().toISOString(),
           finishedAt: null,
           status: "running",
-          services: [
-            { id: "feed", type: SyncServiceType.FEED, status: "running" },
-          ],
+          services: state.syncServices
+            .filter(({ id }) => selection.serviceIds.includes(id))
+            .map(({ id }) => ({
+              id,
+              type: SyncServiceType.FEED,
+              status: "running",
+            })),
         };
         if (state.loseAcceptance) return route.abort("failed");
         return route.fulfill({
@@ -184,10 +197,7 @@ async function backend(page: Page) {
           available: !current,
           reason: current ? "busy" : null,
           serviceId,
-          services: [
-            { id: "feed", label: "博客" },
-            { id: "empty", label: "博客" },
-          ],
+          services: state.syncServices,
           activeRunId: current?.id ?? null,
           completedRunIds: history.map(({ id }) => id),
           current: current ? (filterRun(current)[0] ?? null) : null,
@@ -206,7 +216,8 @@ async function backend(page: Page) {
         timestamp: "2026-11-03T01:00:00.000Z",
         level: "error",
         module: "Sync",
-        message: '<img src=x onerror="window.logInjected=true"> LOG-MARKER',
+        message:
+          '<img src=x onerror="window.logInjected=true"> LOG-MARKER\nLOG-STACK-MARKER',
       })).filter(
         (record) =>
           (!url.searchParams.get("level") ||
@@ -304,7 +315,7 @@ async function backend(page: Page) {
     }
     if (path.startsWith("/timeline-collections/")) {
       const node = state.collections.find(({ id }) => id === itemId);
-      if (method === "DELETE") {
+      if (method === "DELETE" || path.endsWith("/merge")) {
         if (!node) {
           return route.fulfill({
             status: 404,
@@ -317,14 +328,23 @@ async function backend(page: Page) {
             .filter(({ id }) => ancestors(id).includes(node.id))
             .map(({ id }) => id),
         );
+        const { targetId }: MergeCollectionParams =
+          method === "DELETE" ? { targetId: null } : request.postDataJSON();
         state.collections = state.collections.filter(
           ({ id }) => !removed.has(id),
         );
         for (const [id, ids] of state.memberships) {
-          state.memberships.set(
-            id,
-            ids.filter((collectionId) => !removed.has(collectionId)),
+          const remaining = ids.filter(
+            (collectionId) => !removed.has(collectionId),
           );
+          if (
+            targetId !== null &&
+            remaining.length < ids.length &&
+            !remaining.includes(targetId)
+          ) {
+            remaining.push(targetId);
+          }
+          state.memberships.set(id, remaining);
         }
         return route.fulfill({ status: 204, headers });
       }
@@ -955,7 +975,6 @@ test("timeline multiselect confirms bulk actions and updates only checked cards"
     .getByRole("button", { name: "多选", exact: true })
     .click();
   await expect(toolbar).toBeVisible();
-  await showToolbarControls(page);
   await page.getByRole("button", { name: "管理员模式" }).click();
   await expect(toolbar).toBeHidden();
   await expect(remainingCard.getByRole("checkbox")).toHaveCount(0);
@@ -1008,7 +1027,6 @@ test("collection options show visible totals in descending sibling order", async
     /^未加入合集\s*1$/,
   ]);
   await picker.getByRole("button", { name: "关闭筛选合集" }).click();
-  await showToolbarControls(page);
   await page.getByRole("button", { name: "管理员模式" }).click();
   await filter.click();
   await expect(options).toHaveText([
@@ -1064,6 +1082,23 @@ test("collection selection can be shared and drops restricted data in guest prev
     page: "0",
   });
 
+  const collectionBar = page.getByRole("group", { name: "合集筛选" });
+  await expect(collectionBar.getByRole("status")).toContainText("旅行合集");
+  const card = page.locator(`[id="${fixtures[0].id}"]`);
+  await card.getByRole("button", { name: "feed", exact: true }).click();
+  await card.getByRole("button", { name: "多选", exact: true }).click();
+  await expect(collectionBar).toHaveCount(0);
+  const batchBar = page.getByRole("group", { name: "批量操作" });
+  await expect(batchBar.getByRole("status")).toHaveText("已选 1 项");
+  await batchBar.getByRole("button", { name: "退出多选" }).click();
+  await expect(collectionBar.getByRole("status")).toContainText("旅行合集");
+  await collectionBar.getByRole("button", { name: "查看全部" }).click();
+  await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
+  const params = new URL(page.url()).searchParams;
+  expect(params.has("collectionId")).toBe(false);
+  expect(params.get("search")).toBe("旅行 type:feed");
+  expect(params.get("orderBy")).toBe("updated_at");
+
   await page.goto(
     "/?search=" +
       encodeURIComponent("id:" + fixtures[1].id) +
@@ -1079,7 +1114,6 @@ test("collection selection can be shared and drops restricted data in guest prev
   await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.has("search")).toBe(false);
 
-  await showToolbarControls(page);
   await page.getByRole("button", { name: "管理员模式" }).click();
   await expect(page).toHaveURL(
     new RegExp("collectionId=" + collectionIds.private),
@@ -1098,9 +1132,47 @@ test("collection selection can be shared and drops restricted data in guest prev
   await expect(page.getByText("读书评论", { exact: true })).toBeVisible();
 });
 
+async function dragCollection(
+  page: Page,
+  source: Locator,
+  target: Locator,
+  beforeTouchRelease?: () => Promise<void>,
+) {
+  const handle = source.getByTitle("拖拽移动合集");
+  if (!(await page.evaluate(() => navigator.maxTouchPoints))) {
+    await handle.dragTo(target);
+    return;
+  }
+  await target.scrollIntoViewIfNeeded();
+  await handle.scrollIntoViewIfNeeded();
+  const from = await handle.boundingBox();
+  const to = await target.boundingBox();
+  if (!from || !to) throw new Error("Missing collection drag coordinates");
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [
+        { x: from.x + from.width / 2, y: from.y + from.height / 2 },
+      ],
+    });
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: to.x + to.width / 2, y: to.y + to.height / 2 }],
+    });
+    await beforeTouchRelease?.();
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  } finally {
+    await session.detach();
+  }
+}
+
 test("moving a collection updates its subtree and the active filter", async ({
   page,
-}, testInfo) => {
+}) => {
   const state = await backend(page);
   const [item] = searchFixture();
   state.archiveItems = [item];
@@ -1121,27 +1193,24 @@ test("moving a collection updates its subtree and the active filter", async ({
       .getByRole("group", { name: "全部", exact: true })
       .getByText("1", { exact: true }),
   ).toBeVisible();
-  const moveButton = panel.getByRole("button", { name: "移动日本到…" });
-  await moveButton.press("Enter");
-  const destination = panel.getByRole("combobox", { name: "目标父级" });
-  await expect(destination).toBeFocused();
-  await destination.selectOption(collectionIds.kyoto);
-  await panel.getByRole("button", { name: "移动", exact: true }).click();
+  const japan = panel.getByRole("group", { name: "日本", exact: true });
+  await expect(panel.getByRole("button", { name: "移动日本到…" })).toHaveCount(
+    0,
+  );
+  await dragCollection(
+    page,
+    japan,
+    panel.getByRole("group", { name: "京都", exact: true }),
+  );
   await expect(panel.getByRole("alert")).toHaveText(
     "不能将合集移到自身或后代下",
   );
 
-  if (testInfo.project.name === "mobile") {
-    await destination.selectOption(collectionIds.photo);
-    await panel
-      .getByRole("button", { name: "移动", exact: true })
-      .press("Enter");
-  } else {
-    await panel.getByRole("button", { name: "取消", exact: true }).click();
-    await panel
-      .getByRole("group", { name: "日本", exact: true })
-      .dragTo(panel.getByRole("group", { name: "摄影", exact: true }));
-  }
+  await dragCollection(
+    page,
+    japan,
+    panel.getByRole("group", { name: "摄影", exact: true }),
+  );
   await expect(panel.getByRole("status")).toHaveText("已移动合集。");
   const photoBranch = panel.getByRole("listitem").filter({
     has: page.getByRole("group", { name: "摄影", exact: true }),
@@ -1164,6 +1233,115 @@ test("moving a collection updates its subtree and the active filter", async ({
     page.getByText("没有找到相关内容", { exact: true }),
   ).toBeVisible();
   await chooseCollection(page, "摄影");
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+});
+
+test("a touch drag resets when its source collection is removed", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Requires touch capture");
+  const state = await backend(page);
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+    { id: collectionIds.japan, name: "日本", parentId: null },
+    { id: collectionIds.photo, name: "摄影", parentId: null },
+  ];
+  await page.clock.install();
+  await page.goto("/");
+  await page.getByRole("button", { name: "管理面板", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "合集" }).click();
+  const source = panel.getByRole("group", { name: "旅行", exact: true });
+  const target = panel.getByRole("group", { name: "摄影", exact: true });
+  await expect(source).toBeVisible();
+  await page.clock.fastForward(2500);
+
+  await dragCollection(page, source, target, async () => {
+    state.collections = state.collections.filter(
+      ({ id }) => id !== collectionIds.travel,
+    );
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("offline"));
+      window.dispatchEvent(new Event("online"));
+    });
+    await expect(source).toHaveCount(0);
+  });
+
+  await panel
+    .getByRole("group", { name: "日本", exact: true })
+    .getByTitle("拖拽移动合集")
+    .dragTo(target);
+  await expect(panel.getByRole("status")).toHaveText("已移动合集。");
+});
+
+test("merging collections offers valid targets and refreshes the filtered timeline", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  const [item] = searchFixture();
+  state.archiveItems = [item];
+  state.collections = [
+    { id: collectionIds.travel, name: "旅行", parentId: null },
+    { id: collectionIds.japan, name: "日本", parentId: collectionIds.travel },
+    { id: collectionIds.kyoto, name: "京都", parentId: collectionIds.japan },
+    { id: collectionIds.photo, name: "全部", parentId: null },
+  ];
+  state.memberships.set(item.id, [collectionIds.kyoto]);
+  await page.goto("/?collectionId=" + collectionIds.photo);
+  await expect(
+    page.getByText("没有找到相关内容", { exact: true }),
+  ).toBeVisible();
+  const admin = page.getByRole("button", { name: "管理面板", exact: true });
+  await admin.click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("tab", { name: "合集" }).click();
+  const more = panel.getByRole("button", { name: "旅行的更多操作" });
+  const merge = panel.getByRole("button", { name: "合并到…" });
+  await more.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(merge).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(merge).toBeHidden();
+  await expect(more).toBeFocused();
+  await more.press("Enter");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(panel.getByRole("button", { name: "删除合集" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    panel.getByRole("button", { name: "在日本下新建子合集" }),
+  ).toBeFocused();
+  await expect(merge).toBeHidden();
+  await more.click();
+  await merge.click();
+
+  const destination = panel.getByRole("combobox", { name: "目标合集" });
+  const confirm = panel.getByRole("button", { name: "确认合并" });
+  await expect(destination).toBeFocused();
+  await expect(confirm).toBeDisabled();
+  await expect(destination.locator("option")).toHaveText([
+    "请选择目标合集",
+    "全部",
+    "全部 / 全部",
+  ]);
+  await destination.selectOption({ label: "全部 / 全部" });
+  await confirm.click();
+  await expect(panel.getByRole("status")).toHaveText("已合并合集。");
+  await expect(more).toHaveCount(0);
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+  await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
+
+  await admin.click();
+  await panel.getByRole("tab", { name: "合集" }).click();
+  const targetActions = panel.getByRole("button", { name: "全部的更多操作" });
+  await targetActions.click();
+  await merge.click();
+  await destination.selectOption({ label: "全部" });
+  await confirm.click();
+  await expect(panel.getByRole("status")).toHaveText("已合并合集。");
+  await expect(targetActions).toHaveCount(0);
+  await panel.getByRole("button", { name: "关闭管理面板" }).click();
+  await chooseCollection(page, "未加入合集");
   await expect(page.getByText("旅行文章", { exact: true })).toBeVisible();
 });
 
@@ -1201,7 +1379,9 @@ test("renaming and deleting a collection updates labels and keeps timeline items
   await expect(panel.getByRole("button", { name: "重命名全部" })).toHaveCount(
     0,
   );
-  await expect(panel.getByRole("button", { name: "删除全部" })).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "全部的更多操作" }),
+  ).toHaveCount(0);
 
   await panel.getByRole("button", { name: "重命名旅行" }).click();
   const nameInput = panel.getByRole("textbox", { name: "合集名称" });
@@ -1237,7 +1417,10 @@ test("renaming and deleting a collection updates labels and keeps timeline items
 
   await page.getByRole("button", { name: "管理面板", exact: true }).click();
   await panel.getByRole("tab", { name: "合集" }).click();
-  await panel.getByRole("button", { name: "删除旅途" }).click();
+  const more = panel.getByRole("button", { name: "旅途的更多操作" });
+  const remove = panel.getByRole("button", { name: "删除合集" });
+  await more.click();
+  await remove.click();
   await expect(
     panel.getByText(
       "将同时删除其下 2 个子合集，并解除相关条目归属；不会删除任何时间线项本身。",
@@ -1246,11 +1429,13 @@ test("renaming and deleting a collection updates labels and keeps timeline items
   const cancelDelete = panel.getByRole("button", { name: "取消", exact: true });
   await expect(cancelDelete).toBeFocused();
   await cancelDelete.click();
+  await expect(more).toBeFocused();
   await expect(
     panel.getByRole("group", { name: "京都", exact: true }),
   ).toBeVisible();
 
-  await panel.getByRole("button", { name: "删除旅途" }).click();
+  await more.click();
+  await remove.click();
   await panel.getByRole("button", { name: "确认删除", exact: true }).click();
   await expect(panel.getByRole("status")).toHaveText("已删除合集。");
   for (const deleted of ["旅途", "日本", "京都"]) {
@@ -1460,7 +1645,6 @@ test("uncategorized filter shows at the end only when uncategorized items exist"
   await expect(page.getByText("旅行文章", { exact: true })).toHaveCount(0);
 
   // Guest preview has 0 public uncategorized items, so the option is hidden.
-  await showToolbarControls(page);
   await page.getByRole("button", { name: "管理员模式" }).click();
   await expect(
     page.getByText("没有找到相关内容", { exact: true }),
@@ -1566,11 +1750,11 @@ test("returning to a collection reloads its cached second page after a move", as
   await page.getByRole("button", { name: "管理面板", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "管理面板" });
   await panel.getByRole("tab", { name: "合集" }).click();
-  await panel.getByRole("button", { name: "移动京都到…" }).click();
-  await panel
-    .getByRole("combobox", { name: "目标父级" })
-    .selectOption(collectionIds.photo);
-  await panel.getByRole("button", { name: "移动", exact: true }).click();
+  await dragCollection(
+    page,
+    panel.getByRole("group", { name: "京都", exact: true }),
+    panel.getByRole("group", { name: "摄影", exact: true }),
+  );
   await expect(panel.getByRole("status")).toHaveText("已移动合集。");
   await panel.getByRole("button", { name: "关闭管理面板" }).click();
 
@@ -2020,17 +2204,14 @@ test("private ID links stay empty for visitors and preview, and restore for admi
     page.getByRole("button", { name: "复制分享链接", exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await showToolbarControls(page);
   const preview = page.getByRole("button", {
     name: /^(访客预览|管理员模式)$/,
-    includeHidden: true,
   });
   await preview.click();
   await expect(page.getByText("私密旅行", { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("status").filter({ hasText: "没有找到相关内容" }),
   ).toBeVisible();
-  await showToolbarControls(page);
   await preview.click();
   await expect(page.getByText("私密旅行", { exact: true })).toBeVisible();
   await page.goto("/?search=id:00000000-0000-4000-8000-000000000000");
@@ -2233,7 +2414,10 @@ test("the archive date and site links fit the responsive toolbar", async ({
   await page.goto("/");
   const toolbar = page.getByRole("complementary", { name: "时间线工具" });
   await expect(
-    toolbar.getByRole("button", { name: /^(访客预览|管理员模式)$/ }),
+    page.getByRole("button", {
+      name: /^(访客预览|管理员模式)$/,
+      includeHidden: true,
+    }),
   ).toHaveCount(0);
   const reading = toolbar.getByRole("group", { name: "当前阅读年月" });
   await expect(reading.getByText("貳〇貳陸", { exact: true })).toBeVisible();
@@ -2277,6 +2461,10 @@ test("the archive date and site links fit the responsive toolbar", async ({
     await expect(link).toBeInViewport();
     await expect(link).toHaveAttribute("href", href);
   }
+  await page.keyboard.press("Tab");
+  await expect(
+    toolbar.getByRole("button", { name: "登录", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
     toolbar.getByRole("button", { name: "纸张浅色主题" }),
@@ -3218,7 +3406,16 @@ test("primary admin actions stay in view while reading long logs", async ({
   await entry.click();
   const panel = page.getByRole("dialog", { name: "管理面板" });
   await panel.getByRole("tab", { name: "日志" }).click();
-  await panel.getByRole("listitem").last().scrollIntoViewIfNeeded();
+  const logs = panel.locator("pre").filter({ hasText: "LOG-MARKER" });
+  await expect(logs).toHaveCount(1);
+  const rows = logs.getByRole("group", { name: "错误", exact: true });
+  await expect(rows).toHaveCount(40);
+  await expect(rows.nth(1)).toContainText("[Sync] <img");
+  const lineNumber = (row: Locator) =>
+    row.evaluate((element) => getComputedStyle(element, "::before").content);
+  expect(await lineNumber(rows.nth(1))).toBe('"2"');
+  expect(await lineNumber(rows.last())).toBe('"40"');
+  await logs.evaluate((element) => element.scrollIntoView({ block: "end" }));
   for (const name of ["退出登录", "关闭管理面板"]) {
     await expect(panel.getByRole("button", { name })).toBeInViewport();
   }
@@ -3229,7 +3426,7 @@ test("primary admin actions stay in view while reading long logs", async ({
     await expect(
       panel.getByRole("button", { name: "退出登录" }),
     ).toBeInViewport();
-    await expect(panel.getByRole("listitem").first()).toBeVisible();
+    await expect(logs).toBeVisible();
   } else {
     const bounds = await panel.boundingBox();
     expect(bounds?.x).toBeGreaterThan(0);
@@ -3306,6 +3503,16 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
     panel.getByRole("tab", { name: "同步", exact: true }),
   ).toBeFocused();
   await panel.getByRole("button", { name: "开始同步" }).click();
+  const selection = page.getByRole("dialog", { name: "选择同步任务" });
+  await expect(
+    selection.getByRole("checkbox", { name: "博客(feed)" }),
+  ).toBeChecked();
+  await expect(
+    selection.getByRole("checkbox", { name: "博客(empty)" }),
+  ).toBeChecked();
+  await expect(selection.getByRole("checkbox")).toHaveCount(2);
+  expect(state.run).toBeNull();
+  await selection.getByRole("button", { name: "立即同步" }).click();
   await expect(panel.getByRole("status")).toContainText("正在等待执行结果");
   await expect(panel.getByRole("button", { name: "开始同步" })).toBeDisabled();
   expect(timelineReads()).toBe(initialReads);
@@ -3376,6 +3583,95 @@ test("admin panel is keyboard accessible and a completed run refreshes timeline 
   await expect(entry).toBeFocused();
 });
 
+test("the sync picker submits the currently enabled selection after a status refresh", async ({
+  page,
+}) => {
+  const state = await backend(page);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "管理面板", exact: true })
+    .filter({ visible: true })
+    .click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  await panel.getByRole("combobox", { name: "同步任务" }).selectOption("feed");
+  await panel.getByRole("button", { name: "开始同步" }).click();
+  const picker = page.getByRole("dialog", { name: "选择同步任务" });
+  const removed = picker.getByRole("checkbox", { name: "博客(feed)" });
+  const remaining = picker.getByRole("checkbox", { name: "博客(empty)" });
+  await expect(removed).toBeChecked();
+  await expect(remaining).not.toBeChecked();
+  const unfiltered = page.waitForRequest(
+    (request) => {
+      const url = new URL(request.url());
+      return (
+        request.method() === "GET" &&
+        url.pathname === "/admin/sync" &&
+        !url.searchParams.has("serviceId")
+      );
+    },
+    { timeout: 5000 },
+  );
+  state.syncServices = state.syncServices.filter(({ id }) => id !== "feed");
+  await expect(removed).toHaveCount(0);
+
+  const confirm = picker.getByRole("button", { name: "立即同步" });
+  await expect(confirm).toBeDisabled();
+  await unfiltered;
+  await remaining.check();
+  const submitted = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/admin/sync",
+  );
+  await confirm.click();
+  expect((await submitted).postDataJSON()).toEqual({ serviceIds: ["empty"] });
+});
+
+test("a QQ session failure opens the account QR route", async ({ page }) => {
+  const state = await backend(page);
+  state.history.push({
+    id: "qzone-failure",
+    trigger: "scheduled",
+    startedAt: "2026-11-03T00:00:00Z",
+    finishedAt: "2026-11-03T00:01:00Z",
+    status: "failed",
+    services: [
+      {
+        id: "qzone-expired",
+        type: SyncServiceType.QZONE_TALK,
+        status: "failed",
+        error: "QQ 空间登录已失效，请扫码并确认登录。",
+        qzoneLoginPath: "/qzone-login?qqNumber=123456789",
+      },
+      {
+        id: "qzone-network-error",
+        type: SyncServiceType.QZONE_TALK,
+        status: "failed",
+        error: "Network error",
+      },
+    ],
+  });
+  await page.goto("/");
+  const qrUrl = new URL(
+    `${(clientConfig.apiBaseURL ?? "").replace(/\/$/, "")}/qzone-login?qqNumber=123456789`,
+    page.url(),
+  ).href;
+  await page
+    .context()
+    .route(qrUrl, (route) => route.fulfill({ body: "QR fixture" }));
+  await page
+    .getByRole("button", { name: "管理面板", exact: true })
+    .filter({ visible: true })
+    .click();
+  const panel = page.getByRole("dialog", { name: "管理面板" });
+  const links = panel.getByRole("link", { name: "显示登录二维码" });
+  await expect(links).toHaveCount(1);
+  await expect(panel.getByText(/QQ 空间登录已失效/)).toBeVisible();
+  const popup = page.waitForEvent("popup");
+  await links.click();
+  await expect(await popup).toHaveURL(qrUrl);
+});
+
 test("logs are text, can be filtered and paused, and stop polling when closed or hidden", async ({
   page,
 }, testInfo) => {
@@ -3389,6 +3685,7 @@ test("logs are text, can be filtered and paused, and stop polling when closed or
   await page.getByRole("tab", { name: "日志", exact: true }).click();
   const panel = page.getByRole("dialog");
   await expect(panel.getByText(/LOG-MARKER/)).toBeVisible();
+  await expect(panel.getByText(/LOG-STACK-MARKER/)).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("admin-logs.png") });
   expect(await page.evaluate(() => "logInjected" in window)).toBe(false);
   const requests = () =>
@@ -3482,28 +3779,45 @@ test("guest preview preserves login and filters while replacing cached private d
   });
   const previewToggle = page.getByRole("button", {
     name: /^(访客预览|管理员模式)$/,
-    includeHidden: true,
   });
   const menuTrigger = page.getByRole("button", { name: "时间线菜单" });
   const reading = page.getByRole("group", { name: "当前阅读年月" });
   await expect(reading).toContainText("2026 年 11 月");
+  await expect(previewToggle).toBeInViewport({ ratio: 1 });
+  await expect(previewToggle).toHaveAccessibleName("管理员模式");
+  await expect(previewToggle.locator("svg")).toBeVisible();
+  await expect(previewToggle).toHaveText("");
+  const viewport = page.viewportSize()!;
+  const previewBounds = (await previewToggle.boundingBox())!;
+  expect(
+    viewport.width - previewBounds.x - previewBounds.width,
+  ).toBeLessThanOrEqual(48);
+  expect(
+    viewport.height - previewBounds.y - previewBounds.height,
+  ).toBeLessThanOrEqual(48);
+  const panelBounds = (await page
+    .getByRole("button", { name: "管理面板", exact: true })
+    .boundingBox())!;
+  expect(panelBounds.y + panelBounds.height).toBeLessThan(previewBounds.y);
   await showToolbarControls(page);
   if ((await themeToggle.getAttribute("aria-pressed")) === "false")
     await themeToggle.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
-  await expect(previewToggle).toHaveAccessibleName("管理员模式");
-  const themeBounds = (await themeToggle.boundingBox())!;
-  const previewBounds = (await previewToggle.boundingBox())!;
-  expect(previewBounds.x).toBe(themeBounds.x);
-  expect(previewBounds.y).toBeGreaterThanOrEqual(
-    themeBounds.y + themeBounds.height,
-  );
+  const login = page.getByRole("button", { name: "登录", exact: true });
+  await expect(login).toHaveCount(0);
   await previewToggle.press("Space");
-  await expect(
-    page.viewportSize()!.width < 640 ? menuTrigger : previewToggle,
-  ).toBeFocused();
-  await showToolbarControls(page);
+  await expect(previewToggle).toBeFocused();
   await expect(previewToggle).toHaveAccessibleName("访客预览");
+  await expect(previewToggle.locator("svg")).toBeVisible();
+  await expect(previewToggle).toHaveText("");
+  expect(await previewToggle.boundingBox()).toEqual(previewBounds);
+  await showToolbarControls(page);
+  await expect(login).toBeVisible();
+  const loginBounds = (await login.boundingBox())!;
+  const previewThemeBounds = (await themeToggle.boundingBox())!;
+  expect(loginBounds.y + loginBounds.height).toBeLessThanOrEqual(
+    previewThemeBounds.y,
+  );
   await expect(page.getByRole("region", { name: "访客预览" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "退出登录" })).toHaveCount(0);
   await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
@@ -3523,12 +3837,8 @@ test("guest preview preserves login and filters while replacing cached private d
   await expect(
     page.getByRole("button", { name: "删除", exact: true }),
   ).toHaveCount(0);
-  await showToolbarControls(page);
   await previewToggle.click();
-  await expect(
-    page.viewportSize()!.width < 640 ? menuTrigger : previewToggle,
-  ).toBeFocused();
-  await showToolbarControls(page);
+  await expect(previewToggle).toBeFocused();
   await expect(previewToggle).toHaveAccessibleName("管理员模式");
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
   await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
@@ -3553,18 +3863,14 @@ test("guest preview preserves login and filters while replacing cached private d
     expect(request.serviceLabel).toBe("feed");
     expect(request.orderBy).toBe("updated_at");
   }
-  await showToolbarControls(page);
   await previewToggle.click();
   await page.reload();
   await expect(page.getByText("PRIVATE", { exact: true })).toBeVisible();
   await expect(previewToggle).toHaveAttribute("aria-label", "管理员模式");
   await page.setViewportSize({ width: 320, height: 844 });
-  await expect(previewToggle).toBeHidden();
+  await expect(previewToggle).toBeInViewport({ ratio: 1 });
   await expect(themeToggle).toBeHidden();
   await showToolbarControls(page);
-  await expect(previewToggle).toBeInViewport();
-  await expect(previewToggle.locator("span")).toBeVisible();
-  await expect(previewToggle).toHaveCSS("border-width", "0px");
   await expect(themeToggle).toHaveCSS("border-width", "0px");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     320,
@@ -3573,21 +3879,15 @@ test("guest preview preserves login and filters while replacing cached private d
   await expect(menuTrigger).toBeFocused();
   for (const width of [640, 767, 768, 1023]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const control of [themeToggle, previewToggle]) {
-      await expect(control).toHaveCount(1);
-      await expect(control).toBeInViewport();
-      if (width < 768) {
-        await expect(control.locator("span")).toBeHidden();
-        expect((await control.boundingBox())!.width).toBe(44);
-      } else await expect(control.locator("span")).toBeVisible();
-    }
+    await expect(previewToggle).toBeInViewport({ ratio: 1 });
+    await expect(themeToggle).toHaveCount(1);
+    await expect(themeToggle).toBeInViewport();
+    if (width < 768) {
+      await expect(themeToggle.locator("span")).toBeHidden();
+      expect((await themeToggle.boundingBox())!.width).toBe(44);
+    } else await expect(themeToggle.locator("span")).toBeVisible();
     await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
     const themeBounds = (await themeToggle.boundingBox())!;
-    const previewBounds = (await previewToggle.boundingBox())!;
-    expect(previewBounds.x).toBeGreaterThanOrEqual(
-      themeBounds.x + themeBounds.width,
-    );
-    expect(previewBounds.y).toBe(themeBounds.y);
     if (await menuTrigger.isVisible())
       expect((await menuTrigger.boundingBox())!.y).toBe(themeBounds.y);
     expect(
@@ -3651,7 +3951,6 @@ for (const transition of ["preview", "logout", "401"] as const) {
     });
     if (transition === "preview") {
       await panel.getByRole("button", { name: "关闭管理面板" }).click();
-      await showToolbarControls(page);
       await previewToggle.click();
     } else if (transition === "logout")
       await panel
@@ -3684,7 +3983,7 @@ for (const transition of ["preview", "logout", "401"] as const) {
       page.getByRole("group", { name: "当前阅读年月" }),
     ).toContainText(/\d{4} 年 \d{2} 月/);
     if (transition === "preview") {
-      await showToolbarControls(page);
+      await expect(previewToggle).toBeInViewport();
       await expect(previewToggle).toHaveAccessibleName("访客预览");
       expect(state.loggedIn).toBe(true);
     } else await expect(previewToggle).toHaveCount(0);
@@ -3700,8 +3999,24 @@ test("unknown acceptance is reconciled with GET and closing the panel stops poll
   const entry = page.getByRole("button", { name: "管理面板", exact: true });
   await entry.click();
   const panel = page.getByRole("dialog");
+  await panel.getByRole("combobox", { name: "同步任务" }).selectOption("empty");
   await panel.getByRole("button", { name: "开始同步" }).click();
+  const selection = page.getByRole("dialog", { name: "选择同步任务" });
+  const feed = selection.getByRole("checkbox", { name: "博客(feed)" });
+  const empty = selection.getByRole("checkbox", { name: "博客(empty)" });
+  const confirm = selection.getByRole("button", { name: "立即同步" });
+  await expect(feed).not.toBeChecked();
+  await expect(empty).toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(selection).toBeHidden();
+  await expect(panel.getByRole("button", { name: "开始同步" })).toBeFocused();
+  await panel.getByRole("button", { name: "开始同步" }).click();
+  await empty.uncheck();
+  await expect(confirm).toBeDisabled();
+  await feed.check();
+  await confirm.click();
   await expect(panel.getByRole("status")).toContainText("受理结果未知");
+  expect(state.run?.services.map(({ id }) => id)).toEqual(["feed"]);
   await expect(panel.getByRole("button", { name: "开始同步" })).toBeDisabled();
   const heading = (await panel
     .getByRole("heading", { name: "管理面板" })
@@ -3780,7 +4095,10 @@ test("login confirmation gates admin requests, and the login form still works", 
 }) => {
   const state = await backend(page);
   state.loggedIn = false;
-  await page.goto("/?login");
+  await page.goto("/?search=fixture#timeline");
+  await showToolbarControls(page);
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page).toHaveURL(/\/\?search=fixture&login=?#timeline$/);
   await expect(
     page.getByRole("button", { name: "管理面板", exact: true }),
   ).toHaveCount(0);
@@ -3791,7 +4109,7 @@ test("login confirmation gates admin requests, and the login form still works", 
   await dialog.getByLabel("用户名").fill("test");
   await dialog.getByLabel("密码").fill("test");
   await dialog.getByRole("button", { name: "登 录", exact: true }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/\?search=fixture#timeline$/);
   await expect(
     page
       .getByRole("button", { name: "管理面板", exact: true })

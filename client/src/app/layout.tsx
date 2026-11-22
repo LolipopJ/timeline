@@ -5,7 +5,7 @@ import "./globals.css";
 import { Fancybox } from "@fancyapps/ui";
 import type { LoginStatus } from "@timeline/contracts";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { LoginModal } from "@/components/LoginModal";
@@ -23,12 +23,6 @@ import GlobalContext, {
 import { AUTH_EXPIRED_EVENT, fetcherGET, fetcherPOST } from "@/services/axios";
 import { THEME_INIT_SCRIPT } from "@/utils/theme";
 
-function loginReturnUrl() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete("login");
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,7 +33,6 @@ export default function RootLayout({
 
   const [lastVisitDate, setLastVisitDate] = useState<Date | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
-  const [login, setLogin] = useState<boolean>(false);
   const [urlLogoutRequested, setUrlLogoutRequested] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -106,11 +99,8 @@ export default function RootLayout({
       // Reading the timeline does not require browser storage.
     }
 
-    //#region 初始化登录、登出查询
-    const url = new URL(window.location.href);
-    const params = new URLSearchParams(url.search);
-    setLogin(params.get("login") !== null);
-    if (params.has("logout")) {
+    //#region 初始化登出查询
+    if (new URLSearchParams(window.location.search).has("logout")) {
       setUrlLogoutRequested(true);
       void logout();
     }
@@ -177,17 +167,13 @@ export default function RootLayout({
               </TimelineArchive>
             )}
           </main>
-          <LoginModal
-            open={login}
-            onClose={() => {
-              setLogin(false);
-              router.replace(loginReturnUrl(), { scroll: false });
-            }}
-            onLogged={() => {
-              void mutateLoginStatus({ isLoggedIn: true }, false);
-              window.location.replace(loginReturnUrl());
-            }}
-          />
+          <Suspense>
+            <LoginModal
+              onLogged={() => {
+                void mutateLoginStatus({ isLoggedIn: true }, false);
+              }}
+            />
+          </Suspense>
           <MessageContainer />
         </GlobalContext.Provider>
       </body>

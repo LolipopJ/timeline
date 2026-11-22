@@ -1,13 +1,13 @@
 import type { AxiosError, AxiosRequestConfig } from "axios";
 import fs from "fs";
 import path from "path";
+import { z } from "zod";
 
 import {
   SEC_CH_UA_DESKTOP,
   SERVER_TEMPORARY_DIR,
   USER_AGENT_DESKTOP,
 } from "../constants";
-import type { CookieParam } from "./axios";
 import axios, { parseSetCookieToCookie } from "./axios";
 import { checkupDir } from "./file";
 import { createLogger, formatError } from "./logger";
@@ -90,6 +90,7 @@ const getQZoneCookiesFilePath = (qqNumber: string) => {
 const getQZoneLoginQRCodeScanResult = async (
   qqNumber: string,
   qrsig: string,
+  signal: AbortSignal,
 ) => {
   try {
     const ptqrToken = getPtqrToken(qrsig);
@@ -101,8 +102,10 @@ const getQZoneLoginQRCodeScanResult = async (
           ...AXIOS_HEADERS_QZONE,
           Cookie: qrsigCookie,
         },
+        signal,
       },
     );
+    if (signal.aborted) return;
     const responseText = response.data as string;
 
     if (responseText.includes("登录成功")) {
@@ -130,8 +133,10 @@ const getQZoneLoginQRCodeScanResult = async (
             Cookie: qrsigCookie,
           },
           maxRedirects: 0,
+          signal,
         });
       } catch (error) {
+        if (signal.aborted) return;
         // 验证成功后，响应为 302 状态码。提取响应包含的 Set-Cookies 即可
         const checkSigResponse = (error as AxiosError).response;
         if (!checkSigResponse || checkSigResponse.status !== 302)
@@ -161,6 +166,7 @@ const getQZoneLoginQRCodeScanResult = async (
       return undefined;
     }
   } catch (error) {
+    if (signal.aborted) return;
     logger.error(
       `Get QQ Zone login QR code scan result failed:\n${formatError(error)}`,
     );
@@ -168,39 +174,63 @@ const getQZoneLoginQRCodeScanResult = async (
   }
 };
 
-const getQZoneLoginQRCodeScanResultIntervals: Record<string, Timer> = {};
-const clearGetQZoneLoginQRCodeScanResultTimeouts: Record<string, Timer> = {};
+const activeQRCodePolls = new Map<string, AbortController>();
+
 export const pollGetQZoneLoginQRCodeScanResult = (
   qqNumber: string,
   qrsig: string,
 ) => {
-  clearInterval(getQZoneLoginQRCodeScanResultIntervals[qqNumber]);
-  clearTimeout(clearGetQZoneLoginQRCodeScanResultTimeouts[qqNumber]);
+  activeQRCodePolls.get(qqNumber)?.abort();
+  const controller = new AbortController();
+  const { signal } = controller;
+  activeQRCodePolls.set(qqNumber, controller);
 
-  getQZoneLoginQRCodeScanResultIntervals[qqNumber] = setInterval(async () => {
-    const cookies = await getQZoneLoginQRCodeScanResult(qqNumber, qrsig);
-    if (cookies)
-      clearInterval(getQZoneLoginQRCodeScanResultIntervals[qqNumber]);
+  const interval = setInterval(async () => {
+    if (await getQZoneLoginQRCodeScanResult(qqNumber, qrsig, signal)) {
+      controller.abort();
+    }
   }, 5000).unref();
-  // `unref()` 保证登录轮询不会阻止进程退出
-  clearGetQZoneLoginQRCodeScanResultTimeouts[qqNumber] = setTimeout(
-    () => clearInterval(getQZoneLoginQRCodeScanResultIntervals[qqNumber]),
-    1000 * 60 * 2, // 登录二维码的有效时间为 2 分钟，因此 2 分钟后结束轮询
+  const timeout = setTimeout(
+    () => controller.abort(),
+    1000 * 60 * 2, // 登录二维码的有效时间为 2 分钟
   ).unref();
+  signal.addEventListener(
+    "abort",
+    () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+      activeQRCodePolls.delete(qqNumber);
+    },
+    { once: true },
+  );
 };
 //#endregion
 
 //#region Step 3: 通过 Cookies 中的值计算得到 bkn，在需要时使用
+const qzoneCookiesSchema = z.array(
+  z.object({ name: z.string(), value: z.string() }),
+);
+
+export class QZoneLoginRequiredError extends Error {
+  constructor(reason: string) {
+    super(`${reason}，请扫码并确认登录。`);
+  }
+}
+
 export const getQZoneCookies = (qqNumber: string) => {
   const cookiesFilePath = getQZoneCookiesFilePath(qqNumber);
   try {
-    const cookiesFileContent = fs.readFileSync(cookiesFilePath).toString();
-    return JSON.parse(cookiesFileContent) as CookieParam[];
-  } catch (error) {
-    logger.error(
-      `Read QQ Zone cookies from file \`${cookiesFilePath}\` failed.\n${formatError(error)}`,
+    return qzoneCookiesSchema.parse(
+      JSON.parse(fs.readFileSync(cookiesFilePath, "utf8")),
     );
-    return undefined;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+    if (error instanceof SyntaxError || error instanceof z.ZodError) {
+      throw new QZoneLoginRequiredError("QQ 空间登录凭据无效");
+    }
+    throw error;
   }
 };
 

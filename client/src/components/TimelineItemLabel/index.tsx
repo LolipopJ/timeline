@@ -72,6 +72,9 @@ const LABEL_ICON_COLOR: Partial<Record<SyncServiceType, string>> = {
   [SyncServiceType.FFXIV_ULTIMATE_ACHIEVEMENT]: "oklch(82.8% 0.189 84.429)",
 };
 
+const tagClass =
+  "rounded-sm border border-binding bg-background-lighter px-1.5 py-0.5 text-xs wrap-anywhere";
+
 const twoDigits = (value: number) => String(value).padStart(2, "0");
 
 function formatDateTime(date: Date) {
@@ -417,10 +420,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
       {collectionLabels.length > 0 && (
         <ul aria-label="归属合集" className="flex min-w-0 flex-wrap gap-1">
           {collectionLabels.map(({ id, name }) => (
-            <li
-              key={id}
-              className="rounded-sm border border-binding bg-background-lighter px-1.5 py-0.5 text-xs wrap-anywhere text-foreground-dark"
-            >
+            <li key={id} className={`${tagClass} text-foreground-dark`}>
               {name}
             </li>
           ))}
@@ -439,7 +439,7 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
         </span>
       )}
       {(isNewlyCreated || isNewlyUpdated) && (
-        <span className="rounded-sm bg-background-lighter px-1.5 text-xs text-primary">
+        <span className={`${tagClass} text-primary`}>
           {isNewlyCreated ? "新增" : "已更新"}
         </span>
       )}

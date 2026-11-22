@@ -1,10 +1,17 @@
-import { mdiDotsHorizontal, mdiEmail, mdiGithub, mdiWebBox } from "@mdi/js";
+import {
+  mdiDotsHorizontal,
+  mdiEmail,
+  mdiGithub,
+  mdiLoginVariant,
+  mdiWebBox,
+} from "@mdi/js";
 import Icon from "@mdi/react";
-import { type RefObject, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useContext, useEffect, useId, useRef, useState } from "react";
 
-import AdminViewToggle from "@/components/AdminViewToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import config from "@/config";
+import GlobalContext from "@/contexts/GlobalContext";
 
 const { homepage, email, github } = config;
 const links = [
@@ -17,11 +24,9 @@ const links = [
   },
 ].filter(({ href }) => href);
 
-export default function TimelineTools({
-  previewFocusRef,
-}: {
-  previewFocusRef: RefObject<boolean>;
-}) {
+export default function TimelineTools() {
+  const router = useRouter();
+  const { view } = useContext(GlobalContext);
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -60,17 +65,7 @@ export default function TimelineTools({
       }}
     >
       <button
-        ref={(element) => {
-          triggerRef.current = element;
-          if (
-            element &&
-            previewFocusRef.current &&
-            !window.matchMedia("(min-width: 40rem)").matches
-          ) {
-            previewFocusRef.current = false;
-            element.focus({ preventScroll: true });
-          }
-        }}
+        ref={triggerRef}
         type="button"
         aria-label="时间线菜单"
         aria-expanded={open}
@@ -86,8 +81,31 @@ export default function TimelineTools({
         className={`${open ? "flex" : "hidden"} absolute top-full right-0 z-30 mt-2 min-w-40 flex-col gap-1 rounded-md border border-control bg-background-light p-1 shadow-lg motion-safe:max-sm:archive-disclosure sm:static sm:mt-0 sm:flex sm:min-w-0 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none`}
       >
         <div className="flex flex-col gap-1 sm:flex-row sm:gap-2 lg:flex-col">
+          {view === "public" && (
+            <button
+              type="button"
+              aria-label="登录"
+              aria-haspopup="dialog"
+              aria-controls="login-modal"
+              title="登录"
+              className="flex h-11 w-full shrink-0 cursor-pointer items-center justify-start gap-2 rounded-md border-0 bg-background-light px-3 whitespace-nowrap hover:bg-background-lighter focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-11 sm:justify-center sm:border sm:border-control sm:px-0 md:w-auto md:justify-start md:px-3 lg:w-full"
+              onClick={(event) => {
+                if (open) closeMenu();
+                else event.currentTarget.focus({ preventScroll: true });
+                const url = new URL(window.location.href);
+                url.searchParams.set("login", "");
+                router.replace(`${url.pathname}${url.search}${url.hash}`, {
+                  scroll: false,
+                });
+              }}
+            >
+              <Icon path={mdiLoginVariant} size={0.8} aria-hidden="true" />
+              <span className="text-sm font-medium sm:hidden md:inline">
+                登录
+              </span>
+            </button>
+          )}
           <ThemeToggle />
-          <AdminViewToggle focusRef={previewFocusRef} />
         </div>
         {links.length > 0 && (
           <ul

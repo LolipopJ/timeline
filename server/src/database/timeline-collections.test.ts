@@ -533,6 +533,66 @@ databaseTest(
       expect((await collectionTree("public")).uncategorizedCount).toBe(
         beforePublic,
       );
+
+      const source = await create("待合并");
+      const child = await create("待合并子级", source);
+      const grandchild = await create("待合并孙级", child);
+      const sourceMemberships = [source, grandchild, newRoot, siblingA];
+      expect((await save(parentOnly, sourceMemberships)).status).toBe(204);
+      expect((await save(multi, [child, grandchild])).status).toBe(204);
+      expect((await request("/timeline-items/" + multi, "DELETE")).status).toBe(
+        200,
+      );
+      const merge = (id: string, targetId: string | null) =>
+        request("/timeline-collections/" + id + "/merge", "POST", { targetId });
+      for (const invalidTarget of [source, grandchild, randomUUID()]) {
+        expect((await merge(source, invalidTarget)).status).toBe(400);
+      }
+      expect(new Set(await directIds(parentOnly))).toEqual(
+        new Set(sourceMemberships),
+      );
+
+      const { response, statusBeforeSyncCommit } = await dataSource.transaction(
+        async (manager) => {
+          // Updating a sync key holds the item lock used by a concurrent sync upsert.
+          await manager
+            .getRepository(TimelineItem)
+            .update({ id: multi }, { content_id: "merge-during-sync" });
+          const response = merge(source, siblingA);
+          const statusBeforeSyncCommit = await Promise.race([
+            response.then(({ status }) => status),
+            Bun.sleep(3000).then(() => undefined),
+          ]);
+          return { response, statusBeforeSyncCommit };
+        },
+      );
+      expect((await response).status).toBe(204);
+      expect(statusBeforeSyncCommit).toBe(204);
+      expect((await merge(source, siblingA)).status).toBe(404);
+      expect(
+        await collections.countBy({ id: In([source, child, grandchild]) }),
+      ).toBe(0);
+      expect(new Set(await directIds(parentOnly))).toEqual(
+        new Set([newRoot, siblingA]),
+      );
+      expect(
+        (await request("/timeline-items/" + multi + "/restore", "POST")).status,
+      ).toBe(200);
+      expect(await directIds(multi)).toEqual([siblingA]);
+
+      expect((await merge(siblingA, null)).status).toBe(204);
+      expect(await collections.existsBy({ id: siblingA })).toBe(false);
+      expect(await directIds(parentOnly)).toEqual([newRoot]);
+      expect(await directIds(multi)).toEqual([]);
+
+      const concurrentSource = await create("并发合并");
+      expect((await save(parentOnly, [concurrentSource])).status).toBe(204);
+      const [mergeResult, clearResult] = await Promise.all([
+        merge(concurrentSource, siblingB),
+        save(parentOnly, []),
+      ]);
+      expect([mergeResult.status, clearResult.status]).toEqual([204, 204]);
+      expect(await directIds(parentOnly)).toEqual([]);
     } finally {
       try {
         await items.delete({ sync_service_id: In([service, otherService]) });

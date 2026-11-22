@@ -18,7 +18,11 @@ import type {
 import axios from "../utils/axios";
 import { checkupDir } from "../utils/file";
 import { createLogger, formatError } from "../utils/logger";
-import { getGTk, getQZoneCookies } from "../utils/qzone";
+import {
+  getGTk,
+  getQZoneCookies,
+  QZoneLoginRequiredError,
+} from "../utils/qzone";
 import { convertVideoToM3u8 } from "../utils/video";
 
 const logger = createLogger("QZone");
@@ -106,9 +110,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
 
   const cookies = getQZoneCookies(qqNumber);
   if (!cookies?.length) {
-    throw new Error(
-      "Sync QQ Zone talks failed: cookies are not exist. Visit `/qzone-login`, scan QR code and confirm login to refresh cookies.",
-    );
+    throw new QZoneLoginRequiredError("QQ 空间尚未扫码登录");
   }
 
   const [skey, p_uin, pt4_token, p_skey] = [
@@ -118,9 +120,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     cookies.find((cookie) => cookie.name === "p_skey")?.value,
   ];
   if (!skey || !p_uin || !pt4_token || !p_skey) {
-    throw new Error(
-      "Sync QQ Zone talks failed: cookies are not valid. Visit `/qzone-login`, scan QR code and confirm login to refresh cookies.",
-    );
+    throw new QZoneLoginRequiredError("QQ 空间登录凭据无效");
   }
   const g_tk = getGTk(p_skey);
 
@@ -178,10 +178,7 @@ export const syncQQZoneTalks = async (service: SyncServiceQzoneTalk) => {
     );
     const qZoneInfo = JSON.parse(qZoneInfoRawText) as QZoneInfo;
     if (qZoneInfo.code === -3000) {
-      // 登录态过期
-      throw new Error(
-        `Syncing QQ Zone talks for ${qqNumber} failed. Cookies are expired, please re-scan login QR code.`,
-      );
+      throw new QZoneLoginRequiredError("QQ 空间登录已失效（QQ 返回 -3000）");
     }
 
     const savePath = path.resolve(

@@ -7,9 +7,11 @@ import type {
   SyncTrigger,
   SyncUnavailableReason,
 } from "@timeline/contracts";
+import { SyncServiceType } from "@timeline/contracts";
 
 import type { SyncService } from "../types/config";
 import { createLogger, formatError } from "../utils/logger";
+import { QZoneLoginRequiredError } from "../utils/qzone";
 import { truncateLogMessage } from "../utils/runtime-logs";
 
 const logger = createLogger("Sync");
@@ -62,7 +64,11 @@ export const createSyncCoordinator = (
         available: reason === null,
         reason,
         serviceId: serviceId ?? null,
-        services: services.map(({ id, label }) => ({ id, label })),
+        services: services.map(({ id, label, enabled }) => ({
+          id,
+          label,
+          enabled: enabled !== false,
+        })),
         activeRunId: current?.id ?? null,
         completedRunIds: history.map(({ id }) => id),
         current:
@@ -127,14 +133,24 @@ export const createSyncCoordinator = (
                   itemCount,
                 };
               } catch (error) {
-                const message = truncateLogMessage(formatError(error));
+                const needsQZoneLogin =
+                  service.type === SyncServiceType.QZONE_TALK &&
+                  error instanceof QZoneLoginRequiredError;
+                const message = truncateLogMessage(
+                  needsQZoneLogin ? error.message : formatError(error),
+                );
                 run.services[index] = {
                   ...result,
                   status: "failed",
                   error: message,
+                  ...(needsQZoneLogin
+                    ? {
+                        qzoneLoginPath: `/qzone-login?${new URLSearchParams({ qqNumber: service.qqNumber })}`,
+                      }
+                    : {}),
                 };
                 logger.error(
-                  `Sync task ${service.id} (${service.type}) failed:\n${message}`,
+                  `Sync task ${service.id} (${service.type}) failed:${needsQZoneLogin ? " " : "\n"}${message}`,
                 );
                 throw error;
               }

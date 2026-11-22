@@ -1,13 +1,26 @@
-import type { RuntimeLogLevel } from "@timeline/contracts";
+import type {
+  RuntimeLogLevel,
+  StartSyncParams,
+  SyncRejectedDto,
+} from "@timeline/contracts";
 
+import config from "./config";
 import { syncCoordinator } from "./sync";
 import { runtimeLogs } from "./utils/runtime-logs";
 
 export const getAdminSyncStatus = (serviceId?: string) =>
   syncCoordinator.snapshot(serviceId);
 
-export const requestAdminSync = () => {
-  const body = syncCoordinator.start("manual");
+export const requestAdminSync = ({ serviceIds }: StartSyncParams) => {
+  const selectedIds = new Set(serviceIds);
+  const services = config.services.filter(({ id }) => selectedIds.has(id));
+  if (services.length !== selectedIds.size) {
+    return {
+      status: 400,
+      body: { reason: "invalid_selection" } satisfies SyncRejectedDto,
+    };
+  }
+  const body = syncCoordinator.start("manual", { services });
   return {
     status:
       "reason" in body

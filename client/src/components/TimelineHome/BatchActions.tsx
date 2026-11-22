@@ -7,11 +7,10 @@ import type {
 import { isAxiosError } from "axios";
 import { useId, useState } from "react";
 
+import Dialog, { dialogActionClass } from "@/components/Dialog";
 import message from "@/components/Message";
-import CollectionDialog, {
-  dialogActionClass,
-} from "@/components/TimelineCollections/dialog";
 import CollectionTree from "@/components/TimelineCollections/tree";
+import TimelineActionBar from "@/components/TimelineHome/ActionBar";
 import useTimelineCollections from "@/hooks/useTimelineCollections";
 import { fetcherPOST } from "@/services/axios";
 
@@ -40,17 +39,7 @@ export default function BatchActions({
   const [action, setAction] = useState<BatchAction>();
 
   return (
-    <div
-      role="group"
-      aria-label="批量操作"
-      className="flex w-full flex-wrap items-center justify-center gap-1.5 rounded-lg border border-control bg-background-light p-2 shadow-lg lg:fixed lg:top-4 lg:left-1/2 lg:w-max lg:-translate-x-1/2"
-    >
-      <p
-        role="status"
-        className="mx-1 text-sm font-medium whitespace-nowrap tabular-nums"
-      >
-        已选 {selectedIds.size} 项
-      </p>
+    <TimelineActionBar label="批量操作" status={`已选 ${selectedIds.size} 项`}>
       {actions.map((action) => (
         <button
           key={action.id}
@@ -80,7 +69,7 @@ export default function BatchActions({
           onSaved={onSaved}
         />
       )}
-    </div>
+    </TimelineActionBar>
   );
 }
 
@@ -139,7 +128,7 @@ function BatchActionDialog({
   }
 
   return (
-    <CollectionDialog
+    <Dialog
       title={action.label}
       onClose={onClose}
       busy={saving}
@@ -261,6 +250,6 @@ function BatchActionDialog({
           </p>
         )}
       </form>
-    </CollectionDialog>
+    </Dialog>
   );
 }

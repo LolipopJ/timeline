@@ -126,10 +126,10 @@ async function validateCollectionIds(
   collectionIds: string[],
 ) {
   const ids = [...new Set(collectionIds.map((id) => id.toLowerCase()))];
-  if (!ids.length) return ids;
 
-  // Serialize against concurrent collection deletes so FK checks never race or deadlock.
+  // Collection merges need a stable set of memberships, even when an edit clears them.
   await manager.query("LOCK TABLE timeline_collection IN SHARE MODE");
+  if (!ids.length) return ids;
   if (
     (await manager
       .getRepository(TimelineCollection)
@@ -234,6 +234,25 @@ export const getTimelineCollectionLabels = async (itemIds: string[]) => {
   return labelsByItem;
 };
 
+async function isCollectionInBranch(
+  manager: EntityManager,
+  id: string,
+  rootId: string,
+) {
+  const matches = await manager.query<{ id: string }[]>(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, parent_id FROM timeline_collection WHERE id = $1
+       UNION ALL
+       SELECT parent.id, parent.parent_id
+       FROM timeline_collection parent
+       JOIN ancestors ON ancestors.parent_id = parent.id
+     )
+     SELECT id FROM ancestors WHERE id = $2`,
+    [id, rootId],
+  );
+  return matches.length > 0;
+}
+
 export const moveTimelineCollection = (id: string, parentId: string | null) =>
   dataSource.transaction("READ COMMITTED", async (manager) => {
     // Concurrent moves must validate against the tree left by the preceding move.
@@ -246,20 +265,57 @@ export const moveTimelineCollection = (id: string, parentId: string | null) =>
     if (parentId !== null) {
       if (!(await collections.existsBy({ id: parentId })))
         return "missing-parent";
-      const cycle = await manager.query<{ id: string }[]>(
-        `WITH RECURSIVE ancestors AS (
-           SELECT id, parent_id FROM timeline_collection WHERE id = $1
-           UNION ALL
-           SELECT parent.id, parent.parent_id
-           FROM timeline_collection parent
-           JOIN ancestors ON ancestors.parent_id = parent.id
-         )
-         SELECT id FROM ancestors WHERE id = $2`,
-        [parentId, id],
-      );
-      if (cycle.length) return "cycle";
+      if (await isCollectionInBranch(manager, parentId, id)) return "cycle";
     }
 
     await collections.update(id, { parent_id: parentId });
     return "moved";
+  });
+
+export const mergeTimelineCollection = (id: string, targetId: string | null) =>
+  dataSource.transaction("READ COMMITTED", async (manager) => {
+    await manager.query(
+      "LOCK TABLE timeline_collection IN SHARE ROW EXCLUSIVE MODE",
+    );
+    const collections = manager.getRepository(TimelineCollection);
+    if (!(await collections.existsBy({ id }))) return "missing-collection";
+
+    if (targetId !== null) {
+      if (!(await collections.existsBy({ id: targetId })))
+        return "missing-target";
+      if (await isCollectionInBranch(manager, targetId, id))
+        return "invalid-target";
+      // Updating just the collection key lets merge and item sync run concurrently.
+      await manager.query(
+        `WITH RECURSIVE collection_scope AS (
+           SELECT $1::uuid AS id
+           UNION ALL
+           SELECT child.id
+           FROM timeline_collection child
+           JOIN collection_scope parent ON child.parent_id = parent.id
+         ),
+         memberships_to_move AS (
+           SELECT DISTINCT ON (membership.timeline_item_id)
+                  membership.timeline_item_id, membership.collection_id
+           FROM timeline_item_collection membership
+           JOIN collection_scope ON collection_scope.id = membership.collection_id
+           WHERE NOT EXISTS (
+             SELECT 1 FROM timeline_item_collection target
+             WHERE target.timeline_item_id = membership.timeline_item_id
+               AND target.collection_id = $2
+           )
+           ORDER BY membership.timeline_item_id, membership.collection_id
+         )
+         UPDATE timeline_item_collection membership
+         SET collection_id = $2
+         FROM memberships_to_move
+         WHERE membership.timeline_item_id = memberships_to_move.timeline_item_id
+           AND membership.collection_id = memberships_to_move.collection_id`,
+        [id, targetId],
+      );
+    }
+
+    // The existing cascade removes the source subtree and its memberships.
+    await collections.delete({ id });
+    return "merged";
   });

@@ -162,6 +162,7 @@ mock.module("./database/controller/timeline-collection", () => ({
   createTimelineCollection: mock(() => {}),
   renameTimelineCollection,
   moveTimelineCollection: mock(() => {}),
+  mergeTimelineCollection: mock(() => {}),
   deleteTimelineCollection,
   getItemCollectionIds: mock(() => {}),
   saveItemCollectionIds: mock(() => {}),
@@ -211,6 +212,7 @@ test("collection administration checks the session on every protected route", as
     ["/timeline-collections/", "POST"],
     ["/timeline-collections/" + secretItemId + "/name", "PATCH"],
     ["/timeline-collections/" + secretItemId + "/parent", "PATCH"],
+    ["/timeline-collections/" + secretItemId + "/merge", "POST"],
     ["/timeline-collections/" + secretItemId, "DELETE"],
     ["/timeline-items/" + secretItemId + "/collections", "GET"],
     ["/timeline-items/" + secretItemId + "/collections", "PATCH"],
@@ -611,23 +613,31 @@ if (adminEnabled) {
   });
 
   test("POST returns 202 while work is pending, and refusals create no extra work", async () => {
-    expect((await request("/admin/sync", "POST")).status).toBe(503);
+    const startSync = (serviceIds?: string[]) =>
+      request("/admin/sync", "POST", true, serviceIds && { serviceIds });
+    expect((await startSync(["feed"])).status).toBe(503);
     coordinator.ready();
     config.services[0].enabled = false;
-    const empty = await request("/admin/sync", "POST");
+    const empty = await startSync(["feed"]);
     expect(empty.status).toBe(409);
     expect(await empty.json()).toEqual({ reason: "no_services" });
     expect(coordinator.snapshot().history).toEqual([]);
     config.services[0].enabled = true;
+    for (const serviceIds of [undefined, [], ["feed", "unknown"]]) {
+      expect((await startSync(serviceIds)).status).toBe(400);
+    }
+    expect(executions).toHaveLength(0);
     work = new Promise<void>((resolve) => {
       finish = resolve;
     });
-    const accepted = await request("/admin/sync", "POST");
+    config.services[1].enabled = true;
+    const accepted = await startSync(["feed"]);
+    config.services[1].enabled = false;
     expect(accepted.status).toBe(202);
     const runId = coordinator.snapshot().current?.id;
     expect(runId).toBeString();
     expect(await accepted.json()).toEqual({ runId });
-    const busy = await request("/admin/sync", "POST");
+    const busy = await startSync(["feed"]);
     expect(busy.status).toBe(409);
     expect(await busy.json()).toEqual({ reason: "busy", runId });
     expect(await (await request("/admin/sync")).json()).toHaveProperty(
@@ -639,9 +649,11 @@ if (adminEnabled) {
       current: null,
       activeRunId: runId,
       history: [],
-      services: expect.arrayContaining([{ id: "psn", label: "成就奖杯" }]),
+      services: expect.arrayContaining([
+        { id: "psn", label: "成就奖杯", enabled: false },
+      ]),
     });
-    expect(executions).toHaveLength(1);
+    expect(executions.map(({ id }) => id)).toEqual(["feed"]);
     finish();
     await coordinator.wait();
     const status = await (await request("/admin/sync")).json();

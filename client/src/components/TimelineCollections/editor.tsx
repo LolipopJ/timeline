@@ -2,10 +2,10 @@ import type { ItemCollectionsDto } from "@timeline/contracts";
 import { useId, useState } from "react";
 import useSWR from "swr";
 
+import Dialog, { dialogActionClass } from "@/components/Dialog";
 import useTimelineCollections from "@/hooks/useTimelineCollections";
 import { fetcherGET, fetcherPATCH } from "@/services/axios";
 
-import CollectionDialog, { dialogActionClass } from "./dialog";
 import CollectionTree, { collectionPath } from "./tree";
 
 export default function CollectionEditor({
@@ -74,7 +74,7 @@ export default function CollectionEditor({
   }
 
   return (
-    <CollectionDialog
+    <Dialog
       title="编辑合集"
       onClose={onClose}
       busy={saving}
@@ -162,6 +162,6 @@ export default function CollectionEditor({
           </fieldset>
         </form>
       )}
-    </CollectionDialog>
+    </Dialog>
   );
 }

@@ -2,34 +2,38 @@ import {
   mdiClose,
   mdiFolderMultipleOutline,
   mdiLogout,
+  mdiQrcode,
   mdiSync,
   mdiTextBoxOutline,
 } from "@mdi/js";
 import Icon from "@mdi/react";
 import type {
+  StartSyncParams,
   SyncAcceptedDto,
+  SyncRejectedDto,
   SyncRunDto,
   SyncStatusDto,
-  SyncUnavailableReason,
 } from "@timeline/contracts";
 import axios from "axios";
 import { useContext, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
+import Dialog from "@/components/Dialog";
 import GlobalContext from "@/contexts/GlobalContext";
 import useDialogBackdrop from "@/hooks/useDialogBackdrop";
 import usePageVisible from "@/hooks/usePageVisible";
-import { fetcherGET, fetcherPOST } from "@/services/axios";
+import { fetcherGET, fetcherPOST, instance } from "@/services/axios";
 import { getSearchParamsFromObject } from "@/utils/searchParams";
 
 import AdminCollections from "./collections";
 import AdminLogs from "./logs";
 
-const REASONS: Record<SyncUnavailableReason, string> = {
+const REASONS: Record<SyncRejectedDto["reason"], string> = {
   busy: "已有同步正在运行。",
   no_services: "没有启用的同步服务。",
   initializing: "服务端正在初始化。",
   stopping: "服务端正在停止。",
+  invalid_selection: "所选同步任务无效，请重新选择。",
 };
 const STATUS = {
   running: "运行中",
@@ -48,6 +52,7 @@ const TAB_CONTENT = {
 const buttonClass =
   "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-control px-3 py-2 text-sm font-medium whitespace-nowrap motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:opacity-50";
 const headerActionClass = `${buttonClass} hover:bg-background-lighter active:bg-background`;
+const primaryActionClass = `${buttonClass} bg-primary text-on-primary hover:bg-primary-light active:bg-primary disabled:hover:bg-primary`;
 
 function SyncRun({ run }: { run: SyncRunDto }) {
   return (
@@ -90,9 +95,22 @@ function SyncRun({ run }: { run: SyncRunDto }) {
               </p>
             )}
             {service.status === "failed" && (
-              <pre className="mt-1 text-sm wrap-break-word whitespace-pre-wrap text-danger">
-                {service.error}
-              </pre>
+              <>
+                <pre className="mt-1 text-sm wrap-break-word whitespace-pre-wrap text-danger">
+                  {service.error}
+                </pre>
+                {service.qzoneLoginPath && (
+                  <a
+                    className={`${headerActionClass} mt-2`}
+                    href={instance.getUri({ url: service.qzoneLoginPath })}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Icon path={mdiQrcode} size={0.75} aria-hidden="true" />
+                    显示登录二维码
+                  </a>
+                )}
+              </>
             )}
           </li>
         ))}
@@ -126,6 +144,9 @@ export default function AdminConsole({
   const [acceptedRunId, setAcceptedRunId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("sync");
   const [serviceId, setServiceId] = useState("");
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[] | null>(
+    null,
+  );
   const canRead = open && canManageItems && visible;
   const syncKey =
     canRead && tab === "sync"
@@ -144,7 +165,11 @@ export default function AdminConsole({
     shouldRetryOnError: false,
     keepPreviousData: true,
     dedupingInterval: 0,
-    onSuccess({ completedRunIds }) {
+    onSuccess({ completedRunIds, serviceId: filteredId, services }) {
+      if (filteredId && !services.some(({ id }) => id === filteredId)) {
+        setServiceId((current) => (current === filteredId ? "" : current));
+      }
+
       const previous = latestCompletedRun.current;
       const latest = completedRunIds[0] ?? null;
       latestCompletedRun.current = latest;
@@ -155,6 +180,11 @@ export default function AdminConsole({
   });
   const data =
     snapshot?.serviceId === (serviceId || null) ? snapshot : undefined;
+  const enabledServices = data?.services.filter(({ enabled }) => enabled) ?? [];
+  const selectedEnabledIds = enabledServices
+    .filter(({ id }) => selectedServiceIds?.includes(id))
+    .map(({ id }) => id);
+  const canStartSync = !submitting && !!data?.available && !error;
 
   useEffect(() => {
     active.current = Boolean(syncKey);
@@ -172,6 +202,7 @@ export default function AdminConsole({
   }, [open]);
 
   const closeDialog = () => {
+    setSelectedServiceIds(null);
     dialogRef.current?.close();
     onClose();
   };
@@ -184,23 +215,26 @@ export default function AdminConsole({
   };
 
   const startSync = async () => {
-    if (submitting || !data?.available) return;
+    if (!canStartSync || selectedEnabledIds.length === 0) return;
+    const params: StartSyncParams = { serviceIds: selectedEnabledIds };
+    setSelectedServiceIds(null);
     setSubmitting(true);
     setNotice("");
     setAcceptedRunId(null);
     try {
-      const accepted: SyncAcceptedDto = await fetcherPOST("/admin/sync");
+      const accepted: SyncAcceptedDto = await fetcherPOST(
+        "/admin/sync",
+        params,
+      );
       setAcceptedRunId(accepted.runId);
       setNotice(`同步已受理（${accepted.runId}）。`);
     } catch (error) {
       if (!active.current) return;
-      const reason: SyncUnavailableReason | undefined = axios.isAxiosError(
-        error,
-      )
+      const reason = axios.isAxiosError<SyncRejectedDto>(error)
         ? error.response?.data?.reason
         : undefined;
       setNotice(
-        reason && reason in REASONS
+        reason && Object.hasOwn(REASONS, reason)
           ? REASONS[reason]
           : "受理结果未知，请查看同步状态；不会自动重复提交。",
       );
@@ -321,15 +355,21 @@ export default function AdminConsole({
         >
           <h2 className="text-base font-semibold">来源同步</h2>
           <p className="mt-1 text-sm leading-relaxed text-foreground-dark">
-            手动同步所有已启用来源。全部任务和每个来源各保留最近 10
-            次已结束的运行记录。
+            全部任务和每个来源各保留最近 10 次已结束的运行记录。
           </p>
           <div className="my-4 flex flex-wrap gap-3">
             <button
               type="button"
-              className={`${buttonClass} bg-primary text-on-primary hover:bg-primary-light active:bg-primary disabled:hover:bg-primary`}
-              disabled={submitting || !data?.available || Boolean(error)}
-              onClick={() => void startSync()}
+              className={primaryActionClass}
+              aria-haspopup="dialog"
+              disabled={!canStartSync}
+              onClick={() =>
+                setSelectedServiceIds(
+                  enabledServices
+                    .filter(({ id }) => !serviceId || id === serviceId)
+                    .map(({ id }) => id),
+                )
+              }
             >
               开始同步
             </button>
@@ -356,6 +396,59 @@ export default function AdminConsole({
               ))}
             </select>
           </label>
+          {selectedServiceIds && (
+            <Dialog
+              title="选择同步任务"
+              onClose={() => setSelectedServiceIds(null)}
+              footer={
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className={headerActionClass}
+                    onClick={() => setSelectedServiceIds(null)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className={primaryActionClass}
+                    disabled={!canStartSync || selectedEnabledIds.length === 0}
+                    onClick={() => void startSync()}
+                  >
+                    立即同步
+                  </button>
+                </div>
+              }
+            >
+              {enabledServices.map(({ id, label }) => (
+                <label
+                  key={id}
+                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-sm hover:bg-background-lighter"
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    checked={selectedServiceIds.includes(id)}
+                    onChange={(event) =>
+                      setSelectedServiceIds(
+                        event.currentTarget.checked
+                          ? [...selectedServiceIds, id]
+                          : selectedServiceIds.filter((value) => value !== id),
+                      )
+                    }
+                  />
+                  <span className="wrap-anywhere">
+                    {label ? `${label}(${id})` : id}
+                  </span>
+                </label>
+              ))}
+              {data?.reason && (
+                <p role="status" className="mt-2 text-sm">
+                  {REASONS[data.reason]}
+                </p>
+              )}
+            </Dialog>
+          )}
           {notice && (
             <p role="status" className="mb-4 text-primary-light">
               {acceptedRunId && data?.completedRunIds.includes(acceptedRunId)
@@ -421,7 +514,10 @@ export default function AdminConsole({
           hidden={tab !== "collections"}
         >
           {canRead && tab === "collections" && (
-            <AdminCollections onChanged={onTimelineChanged} />
+            <AdminCollections
+              onChanged={onTimelineChanged}
+              scrollRef={contentRef}
+            />
           )}
         </section>
       </div>

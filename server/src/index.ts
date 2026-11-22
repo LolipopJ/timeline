@@ -11,8 +11,11 @@ import type {
   ItemCollectionsDto,
   LoginParams,
   LoginStatus,
+  MergeCollectionParams,
   MoveCollectionParams,
   RenameCollectionParams,
+  StartSyncParams,
+  SyncRejectedDto,
   UpdateTimelineItemParams,
 } from "@timeline/contracts";
 import { SyncServiceType, TIMELINE_VIEW_HEADER } from "@timeline/contracts";
@@ -46,6 +49,7 @@ import {
   getItemCollectionIds,
   getTimelineCollectionLabels,
   getTimelineCollectionTree,
+  mergeTimelineCollection,
   moveTimelineCollection,
   renameTimelineCollection,
   saveItemCollectionIds,
@@ -113,6 +117,9 @@ const renameCollectionSchema = z.object({
 const moveCollectionSchema = z.object({
   parentId: z.guid().nullable(),
 }) satisfies z.ZodType<MoveCollectionParams>;
+const mergeCollectionSchema = z.object({
+  targetId: z.guid().nullable(),
+}) satisfies z.ZodType<MergeCollectionParams>;
 const itemCollectionsSchema = z.object({
   collectionIds: z.array(z.guid()),
 }) satisfies z.ZodType<ItemCollectionsDto>;
@@ -127,12 +134,16 @@ const batchTimelineItemsSchema = z.discriminatedUnion("action", [
     collectionIds: z.array(z.guid()).min(1),
   }),
 ]) satisfies z.ZodType<BatchTimelineItemsParams>;
+const startSyncSchema = z.strictObject({
+  serviceIds: z.array(z.string().min(1)).min(1),
+}) satisfies z.ZodType<StartSyncParams>;
 
 const SENSITIVE_ROUTES: SensitiveRoute[] = [
   { method: "POST", pattern: BATCH_ITEMS_ROUTE },
   { method: "POST", pattern: /^\/timeline-collections$/ },
   { method: "PATCH", pattern: /^\/timeline-collections\/[^/]+\/name$/ },
   { method: "PATCH", pattern: /^\/timeline-collections\/[^/]+\/parent$/ },
+  { method: "POST", pattern: /^\/timeline-collections\/[^/]+\/merge$/ },
   { method: "DELETE", pattern: /^\/timeline-collections\/[^/]+$/ },
   { method: "GET", pattern: ITEM_COLLECTIONS_ROUTE },
   { method: "PATCH", pattern: ITEM_COLLECTIONS_ROUTE },
@@ -382,8 +393,13 @@ export const app = new Elysia()
     set.status = result.status;
     return result.body;
   })
-  .post("/admin/sync", ({ set }) => {
-    const result = requestAdminSync();
+  .post("/admin/sync", ({ body, set }) => {
+    const selection = startSyncSchema.safeParse(body);
+    if (!selection.success) {
+      set.status = 400;
+      return { reason: "invalid_selection" } satisfies SyncRejectedDto;
+    }
+    const result = requestAdminSync(selection.data);
     set.status = result.status;
     return result.body;
   })
@@ -468,6 +484,30 @@ export const app = new Elysia()
       if (!renamed) {
         set.status = 404;
         return "合集不存在";
+      }
+
+      set.status = 204;
+    },
+  )
+  .post(
+    "/timeline-collections/:id/merge",
+    async ({ params: { id }, body, set }) => {
+      const input = mergeCollectionSchema.safeParse(body);
+      if (!isUuid(id) || !input.success) {
+        set.status = 400;
+        return "合集 ID 或目标合集无效";
+      }
+
+      const result = await mergeTimelineCollection(id, input.data.targetId);
+      if (result === "missing-collection") {
+        set.status = 404;
+        return "合集不存在";
+      }
+      if (result === "missing-target" || result === "invalid-target") {
+        set.status = 400;
+        return result === "invalid-target"
+          ? "不能合并到自身或子合集"
+          : "目标合集不存在";
       }
 
       set.status = 204;

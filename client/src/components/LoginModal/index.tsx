@@ -5,18 +5,21 @@ import {
   mdiKeyOutline,
 } from "@mdi/js";
 import Icon from "@mdi/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import useDialogBackdrop from "@/hooks/useDialogBackdrop";
 import axios from "@/services/axios";
 
-export interface LoginModalProps {
-  open: boolean;
-  onClose: () => void;
-  onLogged: () => void;
+function loginReturnUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("login");
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function LoginModal({ open, onClose, onLogged }: LoginModalProps) {
+export function LoginModal({ onLogged }: { onLogged: () => void }) {
+  const router = useRouter();
+  const open = useSearchParams().has("login");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [loading, setLoading] = useState(false);
@@ -48,7 +51,10 @@ export function LoginModal({ open, onClose, onLogged }: LoginModalProps) {
 
       if (response.status === 200) {
         setFeedback({ text: response.data, success: true });
-        setTimeout(onLogged, 1000);
+        setTimeout(() => {
+          onLogged();
+          window.location.replace(loginReturnUrl());
+        }, 1000);
         return;
       }
 
@@ -69,7 +75,7 @@ export function LoginModal({ open, onClose, onLogged }: LoginModalProps) {
       onClose={() => {
         formRef.current?.reset();
         setFeedback(undefined);
-        onClose();
+        if (open) router.replace(loginReturnUrl(), { scroll: false });
       }}
       className="archive-dialog fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-96 flex-col items-center overflow-y-auto overscroll-contain rounded-lg border border-control bg-background-light px-6 py-10 text-foreground shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-xs open:flex sm:px-10 sm:py-12"
     >

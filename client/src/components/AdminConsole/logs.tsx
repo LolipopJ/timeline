@@ -13,6 +13,12 @@ const LEVEL_LABELS: Record<RuntimeLogLevel, string> = {
   warn: "警告",
   error: "错误",
 };
+const LEVEL_COLORS: Record<RuntimeLogLevel, string> = {
+  info: "text-foreground",
+  success: "text-primary",
+  warn: "text-warning",
+  error: "text-danger",
+};
 const inputClass =
   "mt-1 min-h-11 w-full rounded-lg border border-control bg-background px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary";
 
@@ -120,22 +126,28 @@ export default function AdminLogs({ active }: { active: boolean }) {
           无匹配日志。
         </p>
       )}
-      <ol aria-label="运行日志" className="space-y-1">
-        {data?.records.map((record) => (
-          <li
-            key={record.id}
-            className="rounded-xl border border-binding bg-background p-3 sm:p-4"
-          >
-            <p className="text-xs wrap-break-word text-foreground-dark">
-              #{record.id} · {new Date(record.timestamp).toLocaleString()} ·{" "}
-              {LEVEL_LABELS[record.level]} · {record.module}
-            </p>
-            <pre className="mt-2 text-sm wrap-break-word whitespace-pre-wrap">
-              {record.message}
-            </pre>
-          </li>
-        ))}
-      </ol>
+      {data && data.records.length > 0 && (
+        <pre className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 rounded-xl border border-binding bg-background p-3 text-sm sm:p-4">
+          {data.records.map(({ id, timestamp, level, module, message }) => (
+            <span
+              key={id}
+              role="group"
+              aria-label={LEVEL_LABELS[level]}
+              data-line-number={id}
+              className="col-span-2 grid grid-cols-subgrid before:text-right before:text-foreground-dark before:content-[attr(data-line-number)] before:select-none"
+            >
+              <span className="break-all whitespace-pre-wrap">
+                <time dateTime={timestamp} className="text-foreground-dark">
+                  {new Date(timestamp).toLocaleString()}
+                </time>{" "}
+                <span className={LEVEL_COLORS[level]}>
+                  [{module}] {message}
+                </span>
+              </span>
+            </span>
+          ))}
+        </pre>
+      )}
     </>
   );
 }
