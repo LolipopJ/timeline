@@ -417,6 +417,12 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           />
         </label>
       )}
+      {is_secret && <span className={`${tagClass} text-warning`}>私密</span>}
+      {(isNewlyCreated || isNewlyUpdated) && (
+        <span className={`${tagClass} text-primary`}>
+          {isNewlyCreated ? "新增" : "已更新"}
+        </span>
+      )}
       {collectionLabels.length > 0 && (
         <ul aria-label="归属合集" className="flex min-w-0 flex-wrap gap-1">
           {collectionLabels.map(({ id, name }) => (
@@ -432,16 +438,6 @@ export default function TimelineItemLabel(props: TimelineItemLabelProps) {
           onClose={() => setEditingCollections(false)}
           onSaved={onTimelineChanged}
         />
-      )}
-      {is_secret && (
-        <span className="rounded-sm bg-background-lighter px-1.5 text-xs text-warning">
-          私密
-        </span>
-      )}
-      {(isNewlyCreated || isNewlyUpdated) && (
-        <span className={`${tagClass} text-primary`}>
-          {isNewlyCreated ? "新增" : "已更新"}
-        </span>
       )}
     </div>
   );
