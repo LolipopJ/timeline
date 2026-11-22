@@ -1,5 +1,8 @@
 import type { ReactNode, Ref } from "react";
 
+const archiveLayoutClass =
+  "mx-auto max-w-6xl lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10 lg:px-8";
+
 export default function TimelineArchive({
   ref,
   toolbar,
@@ -19,7 +22,7 @@ export default function TimelineArchive({
     <div
       ref={ref}
       tabIndex={ref ? -1 : undefined}
-      className="mx-auto max-w-6xl outline-none lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10 lg:px-8"
+      className={`${archiveLayoutClass} outline-none`}
     >
       <aside
         aria-label="时间线工具"
@@ -39,7 +42,15 @@ export default function TimelineArchive({
               <div className="size-11 shrink-0 rounded-md bg-background-lighter lg:w-full" />
             </div>
           )}
-          {actions}
+          {actions && (
+            <div
+              className={`${archiveLayoutClass} w-full lg:pointer-events-none lg:fixed lg:inset-x-0 lg:top-4`}
+            >
+              <div className="min-w-0 lg:pointer-events-auto lg:col-start-2 lg:justify-self-end">
+                {actions}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
       <div className="min-w-0 px-4 pt-6 pb-12 sm:px-6 lg:px-0 lg:pt-8">
