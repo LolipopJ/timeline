@@ -4222,3 +4222,126 @@ test("inline confirmation updates the cache only for confirmed admin actions", a
   expect(requestCount("DELETE")).toBe(1);
   expect(nativeDialogs).toEqual([]);
 });
+
+test("feed cover banners display, link, and hide broken images cleanly across themes", async ({
+  page,
+}, testInfo) => {
+  if (testInfo.project.name === "mobile")
+    await page.setViewportSize({ width: 360, height: 800 });
+  const state = await backend(page);
+  state.archiveItems = [
+    {
+      id: "20000000-0000-4000-8000-000000000001",
+      content_id: "feed-with-cover",
+      sync_service_id: "feed",
+      sync_service_type: SyncServiceType.FEED,
+      collectionLabels: [],
+      title: "带封面文章",
+      content: "这是一篇带封面的文章摘要。",
+      url: "https://example.com/posts/with-cover",
+      attachments: [{ filename: "cover.png", url: COVER_URL }],
+      created_at: "2026-11-23T00:00:00Z",
+      updated_at: "2026-11-23T00:00:00Z",
+      is_secret: false,
+    },
+    {
+      id: "20000000-0000-4000-8000-000000000002",
+      content_id: "feed-without-cover",
+      sync_service_id: "feed",
+      sync_service_type: SyncServiceType.FEED,
+      collectionLabels: [],
+      title: "无封面文章",
+      content: "这是一篇没有封面的文章摘要。",
+      url: "https://example.com/posts/without-cover",
+      attachments: null,
+      created_at: "2026-11-22T00:00:00Z",
+      updated_at: "2026-11-22T00:00:00Z",
+      is_secret: false,
+    },
+    {
+      id: "20000000-0000-4000-8000-000000000003",
+      content_id: "feed-broken-cover",
+      sync_service_id: "feed",
+      sync_service_type: SyncServiceType.FEED,
+      collectionLabels: [],
+      title: "封面失效文章",
+      content: "封面加载失败时应隐藏封面并保留正文。",
+      url: "https://example.com/posts/broken-cover",
+      attachments: [
+        {
+          filename: "cover.png",
+          url: "https://example.com/missing-feed-cover.png",
+        },
+      ],
+      created_at: "2026-11-21T00:00:00Z",
+      updated_at: "2026-11-21T00:00:00Z",
+      is_secret: false,
+    },
+  ];
+  await page.route("**/missing-feed-cover.png", (route) =>
+    route.fulfill({ status: 404 }),
+  );
+  await page.goto("/");
+
+  await expect(page.getByRole("article")).toHaveCount(3);
+
+  const withCoverCard = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: /带封面文章/ }),
+  });
+  const coverLink = withCoverCard.getByRole("link", {
+    name: "带封面文章 封面",
+    exact: true,
+  });
+  const coverImg = withCoverCard.getByRole("img", {
+    name: "带封面文章 封面",
+    exact: true,
+  });
+  const titleLink = withCoverCard.getByRole("heading").getByRole("link");
+
+  await expect(coverLink).toHaveAttribute(
+    "href",
+    "https://example.com/posts/with-cover",
+  );
+  await expect(coverImg).toBeVisible();
+  await expect
+    .poll(() => coverImg.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(640);
+  const coverBox = await coverImg.boundingBox();
+  const titleBox = await titleLink.boundingBox();
+  if (!coverBox || !titleBox)
+    throw new Error("Missing feed cover or title box");
+  expect(coverBox.width / coverBox.height).toBeCloseTo(16 / 9, 1);
+  expect(coverBox.y + coverBox.height).toBeLessThanOrEqual(titleBox.y);
+
+  const withoutCoverCard = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: /无封面文章/ }),
+  });
+  await expect(withoutCoverCard.locator("img")).toHaveCount(0);
+
+  const brokenCoverCard = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: /封面失效文章/ }),
+  });
+  await brokenCoverCard.scrollIntoViewIfNeeded();
+  await expect(brokenCoverCard.locator("img")).toHaveCount(0);
+  await expect(
+    brokenCoverCard.getByText("封面加载失败时应隐藏封面并保留正文。"),
+  ).toBeVisible();
+
+  for (const theme of ["dark", "paper"]) {
+    await showToolbarControls(page);
+    if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+      await page.getByRole("button", { name: "纸张浅色主题" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const menu = page.getByRole("button", { name: "时间线菜单" });
+    if (
+      (await menu.isVisible()) &&
+      (await menu.getAttribute("aria-expanded")) === "true"
+    )
+      await menu.click();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
